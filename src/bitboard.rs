@@ -1,14 +1,20 @@
+//! # Implements Bitboards along with all relevant bitwise operations
+
 use core::fmt;
 use std::ops::{Shl, Shr, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not};
-
-use crate::square::Square;
 // std::ops traits are shamelessly stolen from https://github.com/jordanbray/chess
 
+use crate::square::*;
 
+/// Bitboard implemented as a simple tuple struct.
+/// Contents are public for convenience (direct initialization in various arrays/tests) but it
+/// would make no difference to using the implemented traits.
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct BitBoard(pub u64);
+pub type BB64 = [BitBoard; SQUARE_COUNT];
 
-pub const EMPTY_BOARD: BitBoard = BitBoard(0);
+pub const EMPTY_BB: BitBoard = BitBoard(0);
+pub const EMPTY_BB64: BB64 = [EMPTY_BB; SQUARE_COUNT];
 
 // Impl Shl
 impl Shl for BitBoard {
@@ -322,13 +328,13 @@ impl fmt::Display for BitBoard {
 impl Iterator for BitBoard {
     type Item = Square;
 
-    /// Iterate over set squares in bitboard
+    // Iterate over set squares in bitboard
     fn next(&mut self) -> Option<Square> {
-        if *self == EMPTY_BOARD {
+        if *self == EMPTY_BB {
             None
         } else {        
-            let index = self.pop_first();
-            *self ^= index.to_board();
+            let index = self.ls1b_index(); // get ls1b index
+            *self ^= index.to_board();             // pops bit at ls1b
             Some(index)
         }
     }
@@ -339,14 +345,19 @@ impl BitBoard {
         BitBoard{ 0: bb }
     }
 
+    /// Check whether given square is set on the board
     #[inline]
     pub fn get_bit(&self, square: Square) -> bool {
         self.0 & (1u64 << square.index()) != 0
     }
+
+    /// Sets given square on the board
     #[inline]
     pub fn set_bit(&mut self, square: Square) {
         self.0 |= 1u64 << square.index();
     }
+
+    /// Pops given square off the board
     #[inline]
     pub fn pop_bit(&mut self, square: Square) {
         if self.get_bit(square) {
@@ -363,7 +374,7 @@ impl BitBoard {
 
     /// Pops first set square from board (least significant 1 bit)
     #[inline]
-    pub fn pop_first(self) -> Square {
+    pub fn ls1b_index(self) -> Square {
         Square::from_index(self.0.trailing_zeros() as usize)
     }
 }
