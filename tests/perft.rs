@@ -24,18 +24,19 @@ fn perft_driver(board: &Board, tables: &Tables, depth: u32) -> u64 {
 }
 
 #[test]
-fn default_perft6() {
+fn default_perft7() {
     let board: Board = Board::from_fen(START_FEN).unwrap();
     let tables: Tables = Tables::new(true);
 
-    println!("\n --- PERFT 1-6 ---");
+    println!("\n --- PERFT 1-7 ---");
 
-    for depth in 1..7 {
+    for depth in 1..8 {
         let start = Instant::now();
         let nodes = perft_driver(&board, &tables, depth);
         let duration = start.elapsed();
 
-        println!("DEPTH: {} -- {} nodes in {:?}", depth, nodes, duration);
+        let perf = nodes as u128 / duration.as_micros();
+        println!("DEPTH: {} -- {} nodes in {:?} - {}Mnodes/s", depth, nodes, duration, perf);
 
         assert_eq!(nodes, NODE_COUNTS[(depth - 1) as usize]);
     }
