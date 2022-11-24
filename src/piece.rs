@@ -4,6 +4,7 @@ use std::ops::Not;
 use std::mem::transmute;
 
 /// Player color enum
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, Hash)]
 pub enum Color { White, Black }
 use Color::*;
@@ -14,10 +15,7 @@ impl Not for Color {
     // get opposite color
     #[inline]
     fn not(self) -> Color {
-        match self {
-            Black => White,
-            White => Black,
-        }
+        unsafe { transmute(1 ^ self as u8) }
     }
 }
 
@@ -25,11 +23,15 @@ impl Color {
     /// Get usize index of color
     #[inline]
     pub fn index(&self) -> usize {
-        match self {
-            White => 0,
-            Black => 1,
-        }
+        *self as usize
     }
+
+    /// Get color from usize index
+    #[inline]
+    pub fn from_index(index: usize) -> Color {
+        unsafe { transmute((index as u8) & 1) }
+    }
+
     /// Pretty print color to string
     pub fn to_string(&self) -> String {
         String::from(match self {
@@ -37,19 +39,30 @@ impl Color {
             Black => "Black",
         })
     }
-
 }
 
 /// Chess Piece enum (includes color)
+/// 
+/// Pieces alternate between Black and White so that the least significant bit is the color
+#[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
-pub enum Piece { WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK }
+pub enum Piece { WP, BP, WN, BN, WB, BB, WR, BR, WQ, BQ, WK, BK }
 use Piece::*;
 
 pub const PIECE_COUNT: usize = 12;
 pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
-    WP, WN, WB, WR, WQ, WK,
-    BP, BN, BB, BR, BQ, BK
+    WP, BP, WN, BN, WB, BB,
+    WR, BR, WQ, BQ, WK, BK,
 ];
+
+// extract information from piece index
+pub const PIECE_BITS: usize = 0x0E;
+pub const PAWN: usize = 0x00;
+pub const KNIGHT: usize = 0x02;
+pub const BISHOP: usize = 0x04;
+pub const ROOK: usize = 0x06;
+pub const QUEEN: usize = 0x08;
+pub const KING: usize = 0x0A;
 
 // used in move generation
 pub const WHITE_PIECES: [Piece; 6] = [ WP, WN, WB, WR, WQ, WK ];
@@ -59,12 +72,12 @@ pub const BLACK_PROMOTIONS: [Piece; 4] = [ BQ, BN, BR, BB ];
 
 // used for printing/reading pieces
 const PIECE_CHAR: [char; PIECE_COUNT] = [
-    'P', 'N', 'B', 'R', 'Q', 'K',
-    'p', 'n', 'b', 'r', 'q', 'k',
+    'P', 'p', 'N', 'n', 'B', 'b',
+    'R', 'r', 'Q', 'q', 'K', 'k',
 ];
 const PIECE_UNICODE: [char; PIECE_COUNT] = [
-    '♟', '♞', '♝', '♜', '♛', '♚',
-    '♙', '♘', '♗', '♖', '♕', '♔',
+    '♟', '♙', '♞', '♘', '♝', '♗',
+    '♜', '♖', '♛', '♕', '♚', '♔',
 ];
 
 
@@ -105,9 +118,12 @@ impl Piece {
     /// Get piece color
     #[inline]
     pub fn color(&self) -> Color {
-        match self.index() {
-            0..=5 => White,
-            _     => Black,
-        }
+        Color::from_index(1 & *self as usize)
+    }
+
+    /// Switch piece color
+    #[inline]
+    pub fn opposite_color(&self) -> Piece {
+        Piece::from_index(self.index() ^ 1)
     }
 }

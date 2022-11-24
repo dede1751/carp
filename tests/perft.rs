@@ -3,7 +3,7 @@
 //! Run tests with cargo test --release perft -- --show-output
 
 use std::time::Instant;
-use carp::{ Board, Tables, MoveList , START_FEN};
+use carp::{ Board, Tables, MoveList , START_FEN };
 
 const NODE_COUNTS: [u64; 7] = [
     20, 400, 8902, 197281, 4865609, 119060324,  3195901860
@@ -26,7 +26,7 @@ fn perft_driver(board: &Board, tables: &Tables, depth: u32) -> u64 {
 #[test]
 fn default_perft7() {
     let board: Board = Board::from_fen(START_FEN).unwrap();
-    let tables: Tables = Tables::new(true);
+    let tables: Tables = Tables::default();
 
     println!("\n --- PERFT 1-7 ---");
 
@@ -45,10 +45,11 @@ fn default_perft7() {
 #[test]
 fn cumulative_perft6() {
     let board: Board = Board::from_fen(START_FEN).unwrap();
-    let tables: Tables = Tables::new(true);
+    let tables: Tables = Tables::default();
     let move_list: MoveList = board.generate_moves(&tables);
 
     println!("\n --- CUMULATIVE PERFT 6 ---");
+    let start = Instant::now();
     for m in move_list {
         let start = Instant::now();
         let root = board.make_move(m, &tables).unwrap();
@@ -57,4 +58,7 @@ fn cumulative_perft6() {
 
         println!("{}{} -- {} nodes in {:?}", m.get_src(), m.get_tgt(), nodes, duration);
     }
+    let duration = start.elapsed();
+
+    println!("\nTotal time: {:?}", duration);
 }

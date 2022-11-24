@@ -7,9 +7,9 @@
 use std::mem::transmute;
 use std::fmt;
 
-use crate::bitboard::BitBoard;
+use crate::BitBoard;
 
-
+#[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum Square {
     A8, B8, C8, D8, E8, F8, G8, H8, 
@@ -83,6 +83,12 @@ impl Square {
         Some(Square::from_index(index))
     }
     
+    /// Flips square vertically
+    #[inline]
+    pub fn flipv(&self) -> Square{
+        Square::from_index(self.index() ^ 56)
+    }
+
     /// Converts square to bitboard
     #[inline]
     pub fn to_board(&self) -> BitBoard {
@@ -134,6 +140,7 @@ impl Square {
 }
 
 
+#[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum File {
     A, B, C, D, E, F, G, H,
@@ -173,6 +180,7 @@ impl File {
 
 
 /// Since boards are numbered A8 -> H1, ranks are backwards
+#[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum Rank {
     Eight, Seventh, Sixth, Fifth, Fourth, Third, Second, First,

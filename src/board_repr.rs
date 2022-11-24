@@ -1,17 +1,18 @@
 //! # Implements board representation and move generation
-use std::fmt;
+use std::{ fmt, default };
 
 use crate::bitboard::{ BitBoard, EMPTY_BB };
 use crate::square::*;
 use crate::piece::*;
 use crate::castling_rights::*;
-use crate::moves::{ Move, MoveList };
+use crate::moves::Move;
+use crate::move_order::MoveList;
 use crate::tables::Tables;
 
 // various debugging fens
 pub const EMPTY_FEN: &str =  "8/8/8/8/8/8/8/8 b - - ";
 pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-pub const TRICKY_FEN: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBPiece::BPPP/R3K2R w KQkq - 0 1";
+pub const TRICKY_FEN: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 pub const KILLER_FEN: &str = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1";
 pub const CMK_FEN: &str = "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 b - - 0 9";
 pub const REPETITIONS_FEN: &str = "2r3k1/R7/8/1R6/8/8/P4KPP/8 w - - 0 40";
@@ -70,6 +71,12 @@ impl fmt::Display for Board {
  Side to move      : {side_str}
  Castling Rights   : {castle_str}
  En Passant Square : {en_passant_str}")
+    }
+}
+
+impl default::Default for Board {
+    fn default() -> Self {
+        Board::from_fen(START_FEN).unwrap()
     }
 }
 
@@ -160,48 +167,47 @@ impl Board {
     /// Does not handle pawn promotions/capture promotions!
     #[inline]
     pub fn is_square_attacked(&self, tables: &Tables, square: Square, side: Color) -> bool {
-        let offset = match side {
-            Color::White => 0,
-            Color::Black => 6,
-        };
+        let col = side.index();
 
-        self.pieces[0 + offset] & tables.get_pawn_attack(square, !side) != EMPTY_BB || // pawns
-        self.pieces[1 + offset] & tables.get_knight_attack(square)      != EMPTY_BB || // knights
-        (self.pieces[2 + offset] | self.pieces[4 + offset]) &
+        self.pieces[PAWN + col] & tables.get_pawn_attack(square, !side) != EMPTY_BB || // pawns
+        self.pieces[KNIGHT + col] & tables.get_knight_attack(square)    != EMPTY_BB || // knights
+        (self.pieces[BISHOP + col] | self.pieces[QUEEN + col]) &
             tables.get_bishop_attack(square, self.occupancy)     != EMPTY_BB || // bishops + queens
-        (self.pieces[3 + offset] | self.pieces[4 + offset]) & 
+        (self.pieces[ROOK + col] | self.pieces[QUEEN + col])   & 
             tables.get_rook_attack(square, self.occupancy)       != EMPTY_BB || // rooks + queens
-        self.pieces[5 + offset] & tables.get_king_attack(square) != EMPTY_BB    // kings
+        self.pieces[KING + col] & tables.get_king_attack(square) != EMPTY_BB    // kings
     }
 
     /// Checks whether the current side's king is in check
     #[inline]
     pub fn king_in_check(&self, tables: &Tables) -> bool {
-        let king_square = match self.side {
-            Color::White => self.pieces[Piece::WK.index()].ls1b_index(),
-            Color::Black => self.pieces[Piece::BK.index()].ls1b_index(),
-        };
+        let king_square = self.pieces[KING + self.side.index()].ls1b_index();
 
         self.is_square_attacked(tables, king_square, !self.side)
     }
 
-    /// Returns entire attack map
+    /// Looks for which piece was captured on tgt square
     /// 
-    /// Do not use this in performance sensitive cases. A much more efficient approach would simply
-    /// bitwise or all the attack maps of all enemy pieces!
-    pub fn attacked_squares(&self, tables: &Tables, side: Color) -> BitBoard {
-        let mut attacks: BitBoard = EMPTY_BB;
-        for square in ALL_SQUARES {
-            if self.is_square_attacked(tables, square, side) { attacks.set_bit(square); }
+    /// ## Panics
+    /// If no piece is set on the tgt square. Only call if it's sure to be a capture.
+    #[inline]
+    fn get_captured_piece(&self, tgt: Square) -> Piece {
+        match self.side {
+            Color::White => *BLACK_PIECES
+                                    .iter()
+                                    .find(|p| { self.pieces[p.index()].get_bit(tgt) })
+                                    .unwrap(), // possible panic
+            Color::Black => *WHITE_PIECES
+                                    .iter()
+                                    .find(|p| { self.pieces[p.index()].get_bit(tgt) })
+                                    .unwrap(), // possible panic
         }
-
-        attacks
     }
+    
 
     /// Generate all pawns moves
     fn generate_pawn_moves(&self, tables: &Tables, move_list: &mut MoveList) {
-        let (
-            piece,
+        let (piece,
             promotions,
             promote_rank,
             start_rank
@@ -246,17 +252,27 @@ impl Board {
             if source.rank() == promote_rank { // capture promotion
                 for target in captures {
                     for promotion in promotions {
-                        move_list.add_capture(source, target, piece, promotion, 0);
+                        let captured_piece = self.get_captured_piece(target);
+    
+                        move_list.add_capture(
+                            source, target, piece, captured_piece, promotion, 0
+                        );
                     }
                 }
             } else {    // normal/enpassant capture
                 for target in captures {
-                    move_list.add_capture(source, target, piece, Piece::WP, 0);
+                    let captured_piece = self.get_captured_piece(target);
+    
+                    move_list.add_capture(
+                        source, target, piece, captured_piece, Piece::WP, 0
+                    );
                 }
 
                 if let Some(ep_square) = self.en_passant {
                     if (attacks & ep_square.to_board()) != EMPTY_BB {
-                        move_list.add_capture(source, ep_square, piece, Piece::WP, 1);
+                        move_list.add_capture(
+                            source, ep_square, piece, piece.opposite_color(), Piece::WP, 1
+                        );
                     }
                 }
             }
@@ -266,22 +282,21 @@ impl Board {
     /// Generate pseudolegal castling moves (king can be left in check)
     fn generate_castling_moves(&self, tables: &Tables, move_list: &mut MoveList) {
         let side: usize = self.side.index();
-        let (source, piece): (Square, Piece) = match self.side {
-            Color::White => (Square::E1, Piece::WK),
-            Color::Black => (Square::E8, Piece::BK),
-        };
+        let source = CASTLE_SQUARES[side];
+        let piece = Piece::from_index(KING + side);
+
         if self.is_square_attacked(tables, source, !self.side) { return }; // no castle in check
 
-        if  self.castling_rights.has_kingside(self.side)                                &&
+        if  self.castling_rights.has_kingside(self.side)                             &&
             self.occupancy & KINGSIDE_OCCUPANCIES[side] == EMPTY_BB                  &&
-            !self.is_square_attacked(tables, KINGSIDE_SQUARES[side], !(self.side))
+            !self.is_square_attacked(tables, KINGSIDE_SQUARES[side], !self.side)
         {
             move_list.add_quiet(source, KINGSIDE_TARGETS[side], piece, Piece::WP, 0, 1);
         }
 
-        if  self.castling_rights.has_queenside(self.side)                               &&
+        if  self.castling_rights.has_queenside(self.side)                            &&
             self.occupancy & QUEENSIDE_OCCUPANCIES[side] == EMPTY_BB                 &&
-            !self.is_square_attacked(tables, QUEENSIDE_SQUARES[side], !(self.side))
+            !self.is_square_attacked(tables, QUEENSIDE_SQUARES[side], !self.side)
         {
             move_list.add_quiet(source, QUEENSIDE_TARGETS[side], piece, Piece::WP, 0, 1);
         }
@@ -293,18 +308,22 @@ impl Board {
         let blockers: BitBoard = self.occupancy;
 
         for source in piece_bb {
-            let attacks = match piece {
-                Piece::WN | Piece::BN => tables.get_knight_attack(source),
-                Piece::WB | Piece::BB => tables.get_bishop_attack(source, blockers),
-                Piece::WR | Piece::BR => tables.get_rook_attack(source, blockers),
-                Piece::WQ | Piece::BQ => tables.get_queen_attack(source, blockers),
-                Piece::WK | Piece::BK => tables.get_king_attack(source),
+            let attacks = match piece.index() & PIECE_BITS {
+                KNIGHT => tables.get_knight_attack(source),
+                BISHOP => tables.get_bishop_attack(source, blockers),
+                ROOK => tables.get_rook_attack(source, blockers),
+                QUEEN => tables.get_queen_attack(source, blockers),
+                KING => tables.get_king_attack(source),
                 _ => EMPTY_BB,
             };
 
             for target in attacks {
                 if self.side_occupancy[(!self.side).index()].get_bit(target) {
-                    move_list.add_capture(source, target, piece, Piece::WP, 0);
+                    let captured_piece = self.get_captured_piece(target);
+    
+                    move_list.add_capture(
+                        source, target, piece, captured_piece, Piece::WP, 0
+                    );
                 } else if !self.side_occupancy[self.side.index()].get_bit(target) {
                     move_list.add_quiet(source, target, piece, Piece::WP, 0, 0);
                 }
@@ -364,19 +383,8 @@ impl Board {
             }
             
         } else if m.is_capture() { // normal capture
-            let &tgt_piece = match self.side {
-                Color::White => BLACK_PIECES
-                            .iter()
-                            .find(|p| { new.pieces[p.index()].get_bit(tgt) })
-                            .unwrap(), // possible panic
-                Color::Black => WHITE_PIECES
-                            .iter()
-                            .find(|p| { new.pieces[p.index()].get_bit(tgt) })
-                            .unwrap(), // possible panic
-            };
-            
-            new.remove_piece(tgt_piece, tgt);
-            
+            new.remove_piece(m.get_capture(), tgt);
+
         } else if m.is_castle() { // castling
             
             match tgt {
@@ -396,7 +404,7 @@ impl Board {
                     new.remove_piece(Piece::BR, Square::A8);
                     new.set_piece(Piece::BR, Square::D8);
                 },
-                _ => panic!(), // technically unreachable
+                _ => unreachable!(), // technically unreachable
             };
         } 
 
@@ -452,40 +460,47 @@ mod tests {
 
     #[test]
     fn test_square_attacks() {
-        let tables: Tables = Tables::new(true);
+        let tables: Tables = Tables::default();
         let b1: Board = Board::from_fen(KILLER_FEN).unwrap();
 
         println!("{}", b1.is_square_attacked(&tables, Square::E5, Color::White));
 
-        assert!(b1.is_square_attacked(&tables, Square::E5, Color::White)); // attacked by Color::White pawn
-        assert!(!(b1.is_square_attacked(&tables, Square::E4, Color::Black)));// only attacked by Color::White
-        assert!(b1.is_square_attacked(&tables, Square::G7, Color::Black)); // black bishop attacking Color::White pawn
+        assert!(b1.is_square_attacked(&tables, Square::E5, Color::White)); // attacked by white pawn
+        assert!(!(b1.is_square_attacked(&tables, Square::E4, Color::Black)));// only attacked by white
+        assert!(b1.is_square_attacked(&tables, Square::G7, Color::Black)); // black bishop attacking white pawn
         assert!(b1.is_square_attacked(&tables, Square::A7, Color::Black)); // black rook attacking black pawn
-        assert!(b1.is_square_attacked(&tables, Square::E3, Color::White)); // Color::White queen attacking Color::White pawn
+        assert!(b1.is_square_attacked(&tables, Square::E3, Color::White)); // white queen attacking white pawn
     }
 
     #[test]
     fn test_pseudolegal_generation() {
-        let tables: Tables = Tables::new(true);
+        let tables: Tables = Tables::default();
         let b1: Board = Board::from_fen(TRICKY_FEN).unwrap();
         let b2: Board = Board::from_fen(START_FEN).unwrap();
         let m1: MoveList = b1.generate_moves(&tables);
         let m2: MoveList = b2.generate_moves(&tables);
 
-        assert_eq!(48, m1.len());
+        let m1_len = m1.len();
+
+        println!("{}", b1);
+        for m in m1 {
+            println!("{}", m);
+        };
+
+        assert_eq!(48, m1_len);
         assert_eq!(20, m2.len());
     }
 
     #[test]
     fn test_make_move() {
-        let tables: Tables = Tables::new(true);
+        let tables: Tables = Tables::default();
 
         // move ignoring check is not made
         let king_check: Board = Board::from_fen(
-            "r3k2r/p1pPqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBPiece::BPPP/R3K2R b KQkq - 0 1"
+            "r3k2r/p1pPqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1"
         ).unwrap();
         let ignore_check: Move = Move::encode(
-            Square::C7, Square::C5, Piece::BP, Piece::WP, 0, 1, 0, 0);
+            Square::C7, Square::C5, Piece::BP, Piece::WP, Piece::WP, 0, 1, 0, 0);
 
         println!("\n{}\n{}", ignore_check, king_check);
 
@@ -493,10 +508,10 @@ mod tests {
 
         // castling rights changed accordingly when Color::White rook captures black rook
         let rook_takes_rook: Board = Board::from_fen(
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q2/PPPBPiece::BPP1/R3K2R w KQkq - 0 1"
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q2/PPPBBPP1/R3K2R w KQkq - 0 1"
         ).unwrap();
         let take_rook: Move = Move::encode(
-            Square::H1, Square::H8, Piece::WR, Piece::WP, 1, 0, 0, 0);
+            Square::H1, Square::H8, Piece::WR, Piece::BR, Piece::WP, 1, 0, 0, 0);
 
         println!("\n{}\n{}", take_rook, rook_takes_rook);
 

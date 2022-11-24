@@ -8,10 +8,12 @@
 //! generator.
 
 mod attacks;
-use attacks::*;
-
 mod find_magics;
+
+use attacks::*;
 use find_magics::*;
+
+use std::default;
 
 use crate::bitboard::*;
 use crate::square::{ Square, Rank, ALL_SQUARES, SQUARE_COUNT };
@@ -54,16 +56,17 @@ pub struct Tables {
     rook_attacks  : Vec<Vec<BitBoard>>,
 }
 
+impl default::Default for Tables {
+    fn default() -> Self {
+        Tables::new((DEFAULT_BISHOP_MAGICS, DEFAULT_ROOK_MAGICS))
+    }
+}
+
 impl Tables {
     /// Initializes tables
     /// 
     /// If default = false, new magics are generated, else the default ones are used
-    pub fn new(default: bool) -> Tables {
-        let magics: (BB64, BB64) = match default {
-            true => (DEFAULT_BISHOP_MAGICS, DEFAULT_ROOK_MAGICS),
-            false => generate_magics(),
-        };
-
+    pub fn new(magics: (BB64, BB64)) -> Tables {
         let mut tables = Tables{
             pawn_attacks  : [EMPTY_BB64; 2],
             knight_attacks: EMPTY_BB64,
@@ -199,7 +202,7 @@ mod tests {
 
     #[test]
     fn bishop_attacks(){
-        let t = Tables::new(true);
+        let t = Tables::default();
 
         let bb1: BitBoard = t.get_bishop_attack(Square::E4, BitBoard(1161084283129857));
         let bb2: BitBoard = t.get_bishop_attack(Square::B7, BitBoard(35253091631104));
@@ -212,7 +215,7 @@ mod tests {
 
     #[test]
     fn rook_attacks(){
-        let t = Tables::new(true);
+        let t = Tables::default();
 
         let bb1: BitBoard = t.get_rook_attack(Square::A8, BitBoard(1099511627778));
         let bb2: BitBoard = t.get_rook_attack(Square::E4, BitBoard(76561335399223296));

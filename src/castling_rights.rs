@@ -41,6 +41,9 @@ const CASTLE_MASKS: [u8; SQUARE_COUNT] = [
     NO_WQ, ALL, ALL, ALL, NO_W, ALL, ALL, NO_WK,
 ];
 
+// castle source squares
+pub const CASTLE_SQUARES: [Square; 2] = [ Square::E1, Square::E8 ];
+
 // bitboards for kingside castling relevant occupancies, 0 -> White, 1 -> Black
 pub const KINGSIDE_OCCUPANCIES: [BitBoard; 2] = [
     BitBoard(6917529027641081856),
