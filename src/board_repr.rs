@@ -1,18 +1,21 @@
 //! # Implements board representation and move generation
-use std::{ fmt, default };
+use std::fmt;
 
-use crate::bitboard::{ BitBoard, EMPTY_BB };
-use crate::square::*;
-use crate::piece::*;
-use crate::castling_rights::*;
-use crate::moves::Move;
-use crate::move_order::MoveList;
-use crate::tables::Tables;
+use crate::{
+    bitboard::*,
+    square::*,
+    piece::*, 
+    castling_rights::*, 
+    moves::Move,
+    move_order::MoveList,
+    tables::Tables,
+    zobrist::ZHash,
+};
 
 // various debugging fens
 pub const EMPTY_FEN: &str =  "8/8/8/8/8/8/8/8 b - - ";
 pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-pub const TRICKY_FEN: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+pub const KIWIPETE_FEN: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 pub const KILLER_FEN: &str = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1";
 pub const CMK_FEN: &str = "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 b - - 0 9";
 pub const REPETITIONS_FEN: &str = "2r3k1/R7/8/1R6/8/8/P4KPP/8 w - - 0 40";
@@ -20,7 +23,7 @@ pub const REPETITIONS_FEN: &str = "2r3k1/R7/8/1R6/8/8/P4KPP/8 w - - 0 40";
 const FEN_LENGTH: usize = 6; // number of fen tokens
 
 /// Piece-centric board representation
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Board {
     pub pieces: [BitBoard; PIECE_COUNT],
     pub side_occupancy: [BitBoard; 2],
@@ -28,8 +31,10 @@ pub struct Board {
     pub side: Color,
     pub castling_rights: CastlingRights,
     pub en_passant: Option<Square>,
+    pub hash: ZHash,
 }
 
+/// Pretty print board state
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut board_str: String = String::from("\n Board:\n\n\t┏━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┓");
@@ -56,9 +61,6 @@ impl fmt::Display for Board {
             if rank != Rank::First { board_str.push_str("\n\t┣━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━┫"); }
         }
         board_str.push_str("\n\t┗━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┛\n\t  A   B   C   D   E   F   G   H\n");
-
-        let side_str = self.side.to_string();
-        let castle_str = self.castling_rights.to_string();
     
         let en_passant_str = match self.en_passant {
             Some(square) => format!("{}", square),
@@ -68,15 +70,91 @@ impl fmt::Display for Board {
         write!(
             f,
 "{board_str}
- Side to move      : {side_str}
- Castling Rights   : {castle_str}
- En Passant Square : {en_passant_str}")
+ Side to move      : {}
+ Castling Rights   : {}
+ En Passant Square : {en_passant_str}",
+            self.side,
+            self.castling_rights,
+        )
     }
 }
 
-impl default::Default for Board {
+/// Init board state from FEN string with complete error handling (no legality check)
+impl TryFrom<&str> for Board {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let fen: Vec<&str> = value.split_whitespace().take(FEN_LENGTH).collect();
+        if fen.len() != FEN_LENGTH {
+            return Err("Invalid fen!");
+        }
+        
+        let mut board: Board = Board::new();
+        let board_str: &str = fen[0];
+        let mut token_count = 0;    // used for checking that number of tokens is correct
+        
+        let (mut file, mut rank) = (File::A, Rank::Eight);
+        for token in board_str.chars() {
+            match token {
+                '/' => {
+                    if token_count != 8 {
+                        return Err("Invalid fen!");
+                    };
+
+                    rank = rank.down();
+                    token_count = 0;
+                },
+                '1'..='8' => {
+                    for _ in '1'..=token { 
+                        file = file.right();
+                        token_count += 1;
+                    }
+                },
+                _ => {
+                    let piece = Piece::try_from(token)?;
+                    board.set_piece(piece, Square::from_coords(file, rank));
+
+                    file = file.right();
+                    token_count += 1;
+                }
+            }
+        }
+
+        if token_count != 8 { 
+            return Err("Invalid fen!");
+        }
+
+        match fen[1] {
+            "w" => {
+                board.side = Color::White;
+                board.hash.toggle_side();
+            }
+            "b" => board.side = Color::Black,
+             _  => return Err("Invalid fen!"),
+        }
+
+        let rights = CastlingRights::try_from(fen[2])?;
+        board.castling_rights = rights;
+        board.hash.toggle_castle(rights);
+
+        match fen[3] {
+            "-" => board.en_passant = None,
+             _  => {
+                let ep_square = Square::try_from(fen[3])?;
+
+                board.en_passant = Some(ep_square);
+                board.hash.toggle_ep(ep_square);
+             }
+        }
+
+        Ok(board)
+    }
+}
+
+/// Default to starting position
+impl Default for Board {
     fn default() -> Self {
-        Board::from_fen(START_FEN).unwrap()
+        Board::try_from(START_FEN).unwrap()
     }
 }
 
@@ -89,6 +167,7 @@ impl Board {
             side: Color::White,
             castling_rights: NO_RIGHTS,
             en_passant: None,
+            hash: ZHash(0),
         }
     }
 
@@ -99,65 +178,17 @@ impl Board {
         self.pieces[piece.index()].pop_bit(square);
         self.occupancy.pop_bit(square);
         self.side_occupancy[piece.color().index()].pop_bit(square);
+        self.hash.toggle_piece(piece, square);
     }
     #[inline]
     fn set_piece(&mut self, piece: Piece, square: Square) {
         self.pieces[piece.index()].set_bit(square);
         self.occupancy.set_bit(square);
         self.side_occupancy[piece.color().index()].set_bit(square);
+        self.hash.toggle_piece(piece, square);
     }
 
-    /// Init board state from FEN string with complete error handling (no legality check)
-    pub fn from_fen(fen: &str) -> Option<Board> {
-        let fen: Vec<&str> = fen.split_whitespace().take(FEN_LENGTH).collect();
-        if fen.len() != FEN_LENGTH { return None; } // error handle
-        
-        let mut board: Board = Board::new();
-        let board_str: &str = fen[0];
-        let mut token_count = 0;    // used for checking that number of tokens is correct
-        
-        let (mut file, mut rank) = (File::A, Rank::Eight);
-        for token in board_str.chars() {
-            match token {
-                '/' => {
-                    if token_count != 8 { return None; };
-                    rank = rank.down();
-                    token_count = 0;
-                },
-                '1'..='8' => {
-                    for _ in '1'..=token { 
-                        file = file.right();
-                        token_count += 1;
-                    }
-                },
-                _ => {
-                    let piece = Piece::from_char(token)?;
-                    board.set_piece(piece, Square::from_coords(file, rank));
-
-                    file = file.right();
-                    token_count += 1;
-                }
-            }
-        }
-        if token_count != 8 { return None };
-
-        match fen[1] {
-            "w" => board.side = Color::White,
-            "b" => board.side = Color::Black,
-             _  => return None,
-        }
-
-        board.castling_rights = CastlingRights::from_fen(fen[2])?;
-
-        match fen[3] {
-            "-" => board.en_passant = None,
-             _  => board.en_passant = Some(Square::from_str(fen[3])?),
-        }
-
-        Some(board)
-    }
-
-    /// Checks whether a certain square is attacked by the given side.
+    /// # Checks whether a certain square is attacked by the given side.
     /// 
     /// Works on the basic idea that, if a certain square is attacked, if we put the attacking piece
     /// on the attacked square it will attack its old square. Hence we generate attacks on the
@@ -204,8 +235,7 @@ impl Board {
         }
     }
     
-
-    /// Generate all pawns moves
+    /// # Generate all pawns moves
     fn generate_pawn_moves(&self, tables: &Tables, move_list: &mut MoveList) {
         let (piece,
             promotions,
@@ -279,7 +309,7 @@ impl Board {
         }        
     }
 
-    /// Generate pseudolegal castling moves (king can be left in check)
+    /// # Generate pseudolegal castling moves (king can be left in check)
     fn generate_castling_moves(&self, tables: &Tables, move_list: &mut MoveList) {
         let side: usize = self.side.index();
         let source = CASTLE_SQUARES[side];
@@ -302,7 +332,7 @@ impl Board {
         }
     }
 
-    /// Generate "conventional" moves for all pieces except pawns through attack tables
+    /// # Generate "conventional" moves for all pieces except pawns through attack tables
     fn generate_piece_moves(&self, piece: Piece, tables: &Tables, move_list: &mut MoveList) {
         let piece_bb: BitBoard = self.pieces[piece.index()];
         let blockers: BitBoard = self.occupancy;
@@ -358,10 +388,10 @@ impl Board {
         move_list
     }
 
-    ///     Clone current board state and perform a pseudolegal move. None if move is illegal.
-    ///     Requires that supplied moves be pseudolegal moves.
+    /// # Clone current board state and perform a pseudolegal move. None if move is illegal.
+    /// Requires that supplied moves be pseudolegal moves.
     /// 
-    /// # PANICS
+    /// ## PANICS
     /// Move is flagged as capture but no piece to capture is found.
     /// Move is castle but target is neither G1, C1, G8 or C8
     /// 
@@ -418,19 +448,32 @@ impl Board {
         // legality check after changing occupancies
         if new.king_in_check(tables) { return None }
         
-        // if it's a double push, set enpassant square, else remove it
-        if m.is_double_push() {
-            match self.side {
-                Color::White => new.en_passant = Some(src.up()),
-                Color::Black => new.en_passant = Some(src.down())
-            }
-        } else {
+        // remove old en passant square
+        if let Some(square) = new.en_passant {
             new.en_passant = None;
+            new.hash.toggle_ep(square);
         }
 
-        // handle changing castling rights and playing side
-        new.castling_rights = self.castling_rights.update(src, tgt);
+        // if it's a double push, set enpassant square
+        if m.is_double_push() {
+            let ep_tgt = match self.side {
+                Color::White => src.up(),
+                Color::Black => src.down(),
+            };
+
+            new.en_passant = Some(ep_tgt);
+            new.hash.toggle_ep(ep_tgt);
+        }
+
+        // handle changing castling rights
+        let new_rights = self.castling_rights.update(src, tgt);
+        
+        new.castling_rights = new_rights;
+        new.hash.swap_castle(self.castling_rights, new_rights);
+
+        // handle swapping side
         new.side = !self.side;
+        new.hash.toggle_side();
     
         Some(new)
     }
@@ -438,8 +481,14 @@ impl Board {
     #[inline]
     pub fn make_null_move(&self) -> Board {
         let mut b = self.clone();
+
         b.side = !self.side;
-        b.en_passant = None;
+        b.hash.toggle_side();
+
+        if let Some(square) = self.en_passant {
+            b.en_passant = None;
+            b.hash.toggle_ep(square);
+        }
 
         b
     }
@@ -452,25 +501,25 @@ mod tests {
 
     #[test]
     fn test_invalid_fen() {
-        let invalid_pieces = Board::from_fen(
+        let invalid_pieces = Board::try_from(
             "rnbqkbnr/pp2ppppp/7/2p5/4P3/5N2/PPPP1P/RNBQKB1R b - - 1 2");
-        let invalid_side = Board::from_fen(
+        let invalid_side = Board::try_from(
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1");
-        let invalid_castle = Board::from_fen(
+        let invalid_castle = Board::try_from(
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kqKQ - 0 1");
-        let invalid_ep_square = Board::from_fen(
+        let invalid_ep_square = Board::try_from(
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ a9 0 1");
 
-        assert!(invalid_pieces.is_none());
-        assert!(invalid_side.is_none());
-        assert!(invalid_castle.is_none());
-        assert!(invalid_ep_square.is_none());
+        assert!(invalid_pieces.is_err());
+        assert!(invalid_side.is_err());
+        assert!(invalid_castle.is_err());
+        assert!(invalid_ep_square.is_err());
     }
 
     #[test]
     fn test_square_attacks() {
         let tables: Tables = Tables::default();
-        let b1: Board = Board::from_fen(KILLER_FEN).unwrap();
+        let b1: Board = Board::try_from(KILLER_FEN).unwrap();
 
         println!("{}", b1.is_square_attacked(&tables, Square::E5, Color::White));
 
@@ -484,8 +533,8 @@ mod tests {
     #[test]
     fn test_pseudolegal_generation() {
         let tables: Tables = Tables::default();
-        let b1: Board = Board::from_fen(TRICKY_FEN).unwrap();
-        let b2: Board = Board::from_fen(START_FEN).unwrap();
+        let b1: Board = Board::try_from(KIWIPETE_FEN).unwrap();
+        let b2: Board = Board::try_from(START_FEN).unwrap();
         let m1: MoveList = b1.generate_moves(&tables);
         let m2: MoveList = b2.generate_moves(&tables);
 
@@ -505,7 +554,7 @@ mod tests {
         let tables: Tables = Tables::default();
 
         // move ignoring check is not made
-        let king_check: Board = Board::from_fen(
+        let king_check: Board = Board::try_from(
             "r3k2r/p1pPqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1"
         ).unwrap();
         let ignore_check: Move = Move::encode(
@@ -516,7 +565,7 @@ mod tests {
         assert!(king_check.make_move(ignore_check, &tables).is_none());
 
         // castling rights changed accordingly when Color::White rook captures black rook
-        let rook_takes_rook: Board = Board::from_fen(
+        let rook_takes_rook: Board = Board::try_from(
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q2/PPPBBPP1/R3K2R w KQkq - 0 1"
         ).unwrap();
         let take_rook: Move = Move::encode(
@@ -525,6 +574,71 @@ mod tests {
         println!("\n{}\n{}", take_rook, rook_takes_rook);
 
         let new: Board = rook_takes_rook.make_move(take_rook, &tables).unwrap();
-        assert_eq!(new.castling_rights, CastlingRights::from_fen("Qq").unwrap());
+        assert_eq!(new.castling_rights, CastlingRights::try_from("Qq").unwrap());
+    }
+}
+
+
+#[cfg(test)]
+mod performance_tests {
+    use super::*;
+    use std::time::Instant;
+
+    const NODE_COUNTS: [u64; 7] = [
+        20, 400, 8902, 197281, 4865609, 119060324,  3195901860
+    ];
+    
+    fn perft_driver(board: &Board, tables: &Tables, depth: u32) -> u64 {
+        if depth == 0 { return 1};
+    
+        let move_list: MoveList = board.generate_moves(&tables);
+        let mut nodes: u64 = 0;
+        for m in move_list {
+            let new_board = board.make_move(m, tables);
+            
+            if let Some(b) = new_board { nodes += perft_driver(&b, tables, depth - 1) };
+        }
+    
+        nodes
+    }
+    
+    #[test]
+    fn default_perft7() {
+        let board: Board = Board::default();
+        let tables: Tables = Tables::default();
+    
+        println!("\n --- PERFT 1-7 ---");
+    
+        for depth in 1..8 {
+            let start = Instant::now();
+            let nodes = perft_driver(&board, &tables, depth);
+            let duration = start.elapsed();
+    
+            let perf = nodes as u128 / duration.as_micros();
+            println!("DEPTH: {} -- {} nodes in {:?} - {}Mnodes/s", depth, nodes, duration, perf);
+    
+            assert_eq!(nodes, NODE_COUNTS[(depth - 1) as usize]);
+        }
+    }
+    
+    #[test]
+    fn cumulative_perft6() {
+        let board: Board = Board::default();
+        let tables: Tables = Tables::default();
+        let move_list: MoveList = board.generate_moves(&tables);
+    
+        println!("\n --- CUMULATIVE PERFT 6 ---");
+        let start = Instant::now();
+        for m in move_list {
+            let start = Instant::now();
+            let root = board.make_move(m, &tables).unwrap();
+            let nodes = perft_driver(&root, &tables, 5);
+            let duration = start.elapsed();
+    
+            println!("{}{} -- {} nodes in {:?}", m.get_src(), m.get_tgt(), nodes, duration);
+        }
+        let duration = start.elapsed();
+    
+        println!("\nTotal time: {:?}", duration);
     }
 }

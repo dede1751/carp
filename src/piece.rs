@@ -4,9 +4,9 @@ use std::ops::Not;
 use std::mem::transmute;
 use std::fmt;
 
-/// Player color enum
+/// # Piece/Player color enum
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum Color { White, Black }
 use Color::*;
 
@@ -17,6 +17,16 @@ impl Not for Color {
     #[inline]
     fn not(self) -> Color {
         unsafe { transmute(1 ^ self as u8) }
+    }
+}
+
+/// Pretty print color to string
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            White => "White",
+            Black => "Black",
+        })
     }
 }
 
@@ -31,14 +41,6 @@ impl Color {
     #[inline]
     pub fn from_index(index: usize) -> Color {
         unsafe { transmute((index as u8) & 1) }
-    }
-
-    /// Pretty print color to string
-    pub fn to_string(&self) -> String {
-        String::from(match self {
-            White => "White",
-            Black => "Black",
-        })
     }
 }
 
@@ -88,6 +90,20 @@ impl fmt::Display for Piece {
     }
 }
 
+/// Reads piece from uci string
+impl TryFrom<char> for Piece {
+    type Error = &'static str;
+
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        Ok(Self::from_index(
+            PIECE_CHAR
+                .iter()
+                .position(|&x| x == value )
+                .ok_or("Invalid piece!")?
+        ))
+    }
+}
+
 impl Piece {
     /// Get index of piece as usize
     #[inline]
@@ -96,21 +112,11 @@ impl Piece {
     }
 
     /// Create piece from usize index
-    /// # UB 
+    /// ## UB 
     /// If 12 <= index mod 16 <=15 this will try to transmute to a non-existent piece
     /// Simply use indices that make sense
     pub fn from_index(index: usize) -> Piece {
         unsafe { transmute((index as u8) & 15) }
-    }
-
-    /// Create piece from fen formatted char.
-    ///     None if char was not valid piece
-    pub fn from_char(c: char) -> Option<Piece> {
-        Some(Self::from_index(
-            PIECE_CHAR
-                .iter()
-                .position(|&x| x == c )?
-        ))
     }
 
     /// Returns fen formatted piece

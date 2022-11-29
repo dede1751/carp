@@ -7,7 +7,7 @@
 use std::mem::transmute;
 use std::fmt;
 
-use crate::BitBoard;
+use crate::bitboard::BitBoard;
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
@@ -45,10 +45,29 @@ const SQUARE_STR: [&str; SQUARE_COUNT] = [
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", 
 ];
 
+/// Print fen formatted square.
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s: String = String::from(SQUARE_STR[self.index()]);  
         write!(f,"{}", s)
+    }
+}
+
+/// Parses fen formatted square (normal formatting).
+impl TryFrom<&str> for Square {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.len() != 2 {
+            return Err("Invalid square!");
+        };
+        
+        let index = SQUARE_STR
+            .iter()
+            .position(|&tgt| { tgt == value })
+            .ok_or("Invalid square!")?;
+    
+        Ok(Square::from_index(index))
     }
 }
 
@@ -71,16 +90,6 @@ impl Square {
     pub fn from_coords(file: File, rank: Rank) -> Square {
         let index: usize = rank.index() << 3 ^ file.index(); // rank*8 + file
         Square::from_index(index)
-    }
-
-    /// Parses fen formatted square (normal formatting).
-    ///     None if string was invalid
-    #[inline]
-    pub fn from_str(s: &str) -> Option<Square> {
-        if s.len() != 2 { return None; };
-        
-        let index = SQUARE_STR.iter().position(|&tgt| { tgt == s })?;
-        Some(Square::from_index(index))
     }
     
     /// Flips square vertically

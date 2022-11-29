@@ -1,6 +1,10 @@
-use crate::bitboard::{ BitBoard, EMPTY_BB };
-use crate::square::{ Square, Rank, File, ALL_SQUARES };
-use crate::piece::Color;
+//! # Slow attack generation to initialize attack tables
+
+use crate::{
+    bitboard::{ BitBoard, EMPTY_BB },
+    square::*,
+    piece::Color,
+};
 
 /// Generate bitboard for pawn attacks from square
 pub fn mask_pawn_attacks(square: Square, color: Color) -> BitBoard {

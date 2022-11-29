@@ -2,8 +2,10 @@
 
 use std::fmt;
 
-use crate::square::*;
-use crate::piece::*;
+use crate::{
+    square::*,
+    piece::*,
+};
 
 /// # Move -- Encodes move in a single 4B word
 /// Smaller encoding can be achieved using only 2B (6b src, 6b tgt, 3b promotion, 1b extra) but it

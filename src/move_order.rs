@@ -1,9 +1,11 @@
+//! # Move order -- Implements ordering through a MoveList and a Sorter for it
+//! 
+
 use crate::{
-    Square, Piece, Move,
-    PIECE_COUNT, ALL_PIECES, 
-    SQUARE_COUNT, ALL_SQUARES,
-    MAX_DEPTH,
-    NULL_MOVE
+    square::*,
+    piece::*,
+    moves::*,
+    search::MAX_DEPTH,
 };
 
 /// # MoveList -- Separates captures and quiets and allows for move ordering
@@ -16,7 +18,7 @@ impl IntoIterator for MoveList {
     type Item = Move;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
-    // chains the two move lists
+    // iterate over all the moves
     fn into_iter(self) -> Self::IntoIter {
         self.all_moves.into_iter()
     }
@@ -117,8 +119,6 @@ const HISTORY_OFFSET: MoveScore = 30000;
 pub struct MoveSorter {
     killer_moves: [[Move; MAX_KILLERS]; MAX_DEPTH],
     history_moves: [[MoveScore; SQUARE_COUNT]; PIECE_COUNT],
-    pv: [[Move; MAX_DEPTH]; MAX_DEPTH],
-    pv_lenghts: [usize; MAX_DEPTH],
 }
 
 impl MoveSorter {
@@ -126,8 +126,6 @@ impl MoveSorter {
         MoveSorter {
             killer_moves : [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH],
             history_moves: [[0; SQUARE_COUNT]; PIECE_COUNT],
-            pv: [[NULL_MOVE; MAX_DEPTH]; MAX_DEPTH],
-            pv_lenghts: [0; MAX_DEPTH],
         }
     }
 
@@ -154,33 +152,6 @@ impl MoveSorter {
                 }
             }
         }
-    }
-
-    #[inline]
-    pub fn update_pv_lenghts(&mut self, ply: usize) {
-        self.pv_lenghts[ply] = ply;
-    }
-
-    pub fn update_pv(&mut self, m: Move, ply: usize) {
-        self.pv[ply][ply] = m;
-        self.pv_lenghts[ply] = self.pv_lenghts[ply + 1];
-
-        for i in (ply + 1)..self.pv_lenghts[ply + 1] {
-            self.pv[ply][i] = self.pv[ply + 1][i];
-        }
-    }
-
-    #[inline]
-    pub fn get_pv_move(&self, ply: usize) -> Option<Move> {
-        if ply >= self.pv_lenghts[ply] {
-            None
-        } else {
-            Some(self.pv[0][ply])
-        }
-    }
-
-    pub fn get_pv(&self) -> Vec<Move> {
-        self.pv[0][0..self.pv_lenghts[0]].to_vec()
     }
 
     #[inline]
@@ -239,7 +210,10 @@ impl MoveSorter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ Board, Tables, KILLER_FEN };
+    use crate::{
+        board_repr::*,
+        tables::Tables,
+    };
 
     #[test]
     fn test_movelist() {
@@ -255,7 +229,7 @@ mod tests {
     #[test]
     fn test_sorter() {
         let ms: MoveSorter = MoveSorter::new();
-        let b: Board = Board::from_fen(KILLER_FEN).unwrap();
+        let b: Board = Board::try_from(KILLER_FEN).unwrap();
         let t: Tables = Tables::default();
         let move_list = b.generate_moves(&t);
         let len = move_list.len();
@@ -266,6 +240,5 @@ mod tests {
             println!("{}", m);
         }
         assert_eq!(sorted.len(), len);
-        panic!();
     }
 }

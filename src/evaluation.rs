@@ -1,7 +1,11 @@
 //! # PeSTO's tapered evaluation tables with RofChade piece table values
 //! 
 //! Interpolates piece value tables over 24 different game phases.
-use crate::{ Board, Color, SQUARE_COUNT, PIECE_COUNT, ALL_PIECES, ALL_SQUARES, };
+use crate::{
+  board_repr::Board,
+  square::*,
+  piece::*,
+};
 
 const MG_TABLES: [[Eval; SQUARE_COUNT]; PIECE_COUNT] = [
     [94, 94, 94, 94, 94, 94, 94, 94, 272, 267, 252, 228, 241, 226, 259, 281, 188, 194, 179, 161, 150, 147, 176, 178, 126, 118, 107, 99, 92, 98, 111, 111, 107, 103, 91, 87, 87, 86, 97, 93, 98, 101, 88, 95, 94, 89, 93, 86, 107, 102, 102, 104, 107, 94, 96, 87, 94, 94, 94, 94, 94, 94, 94, 94],
@@ -38,7 +42,7 @@ const GAME_PHASE_INCREMENT: [Eval; 12] = [ 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
 pub type Eval = i32;
 pub const MAX: Eval = 50000;
 pub const MIN: Eval = -50000;
-pub const MATE: Eval = -49000;
+pub const MATE: Eval = 49000;
 
 pub fn evaluate(board: &Board) -> Eval {
     let mut mg: [Eval; 2] = [0; 2];

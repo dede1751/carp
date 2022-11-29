@@ -1,8 +1,12 @@
 //! # Implements castling related operations
+//! 
+use std::fmt;
 
-use crate::bitboard::BitBoard;
-use crate::square::{ Square, SQUARE_COUNT };
-use crate::piece::Color;
+use crate::{
+    bitboard::BitBoard,
+    square::*,
+    piece::Color,
+};
 
 ///     Castling rights struct
 /// Implemented through a flag bit vector. This allows for fast castle update without needing
@@ -12,6 +16,7 @@ use crate::piece::Color;
 ///  08   04   02   01 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct CastlingRights (u8);
+pub const CASTLE_COUNT: usize = 16;
 pub const NO_RIGHTS: CastlingRights = CastlingRights(0);
 
 // bit masks each right
@@ -62,37 +67,9 @@ pub const QUEENSIDE_OCCUPANCIES: [BitBoard; 2] = [
 pub const QUEENSIDE_SQUARES: [Square; 2] = [ Square::D1, Square::D8 ];
 pub const QUEENSIDE_TARGETS: [Square; 2] = [ Square::C1, Square::C8 ];
 
-impl CastlingRights {
-    /// Parses fen castling string to return rights
-    ///     None if castle string was invalid
-    pub fn from_fen(fen: &str) -> Option<CastlingRights> {
-        let mut rights = NO_RIGHTS;
-        
-        if fen == "-" {
-            return Some(rights);
-        }
-
-        for token in fen.chars(){
-            match token {
-                'K' => { 
-                    if rights.0 & (BK | BQ) != 0 { return None; };
-                    rights.0 |= WK;
-                },
-                'Q' => {
-                    if rights.0 & (BK | BQ) != 0 { return None; };
-                    rights.0 |= WQ;
-                },
-                'k' => rights.0 |= BK,
-                'q' => rights.0 |= BQ,
-                _  => { return None; }
-            }
-        }
-
-        Some(rights)
-    }
-
-    /// Prints rights to fen format
-    pub fn to_string(&self) -> String {
+/// Prints rights to fen format
+impl fmt::Display for CastlingRights {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s: String = String::from("");
 
         if self.0 & WK != 0 { s.push('K') };
@@ -101,7 +78,50 @@ impl CastlingRights {
         if self.0 & BQ != 0 { s.push('q') };
         if s.is_empty() {s.push('-')};
 
-        s
+        write!(f, "{}", s)
+    }
+}
+
+/// Parses fen castling string to return rights
+impl TryFrom<&str> for CastlingRights {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut rights = NO_RIGHTS;
+        
+        if value == "-" {
+            return Ok(NO_RIGHTS);
+        }
+
+        for token in value.chars(){
+            match token {
+                'K' => { 
+                    if rights.0 & (BK | BQ) != 0 {
+                        return Err("Invalid Castling Rights!");
+                    }
+                    rights.0 |= WK;
+                },
+                'Q' => {
+                    if rights.0 & (BK | BQ) != 0 {
+                        return Err("Invalid Castling Rights!");
+                    }
+                    rights.0 |= WQ;
+                },
+                'k' => rights.0 |= BK,
+                'q' => rights.0 |= BQ,
+                 _  => return Err("Invalid Castling Rights!"), 
+            }
+        }
+
+        Ok(rights)
+    }
+}
+
+
+impl CastlingRights {
+    /// Get index of rights as usize
+    pub fn index(&self) -> usize {
+        self.0 as usize
     }
 
     /// Checks whether given color has kingside rights

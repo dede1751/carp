@@ -4,7 +4,11 @@ use std::{
     thread, sync, sync::atomic
 };
 
-use crate::{ Board, Tables, Search };
+use crate::{
+    board_repr::Board,
+    tables::Tables,
+    search::Search
+};
 
 const ENGINE_ID: &str = "id name Carp 0.1\nid author Andrea S.";
 // add options here
@@ -94,9 +98,9 @@ impl TryFrom<&str> for UCICommand {
                 match tokens.next() {
                     Some("depth") => {
                         match tokens
-                                    .next()
-                                    .ok_or("Unspecified depth!")?
-                                    .parse()
+                            .next()
+                            .ok_or("Unspecified depth!")?
+                            .parse()
                         {
                             Ok(depth) => Ok(Self::Go(depth)),
                             Err(_) =>Err("Could not parse depth"),
@@ -109,14 +113,16 @@ impl TryFrom<&str> for UCICommand {
                 let board = match tokens.next() {
                     Some("startpos") => Board::default(),
                     Some("fen") => {
-                        let fen = tokens
+                        let fen = &tokens
                             .clone()
                             .take(6)
                             .collect::<Vec<&str>>()
-                            .join(" ");
+                            .join(" ")
+                            [..];
                 
                         for _ in 0..6 { tokens.next(); } // advance iterator
-                        Board::from_fen(&fen).ok_or("Invalid FEN!")?
+
+                        Board::try_from(fen)?
                     },
                     _ => return Err("Invalid position command"),
                 };

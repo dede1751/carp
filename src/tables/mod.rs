@@ -1,22 +1,21 @@
-//! # Module for precalculating move tables
+//! # Module for initializing attack tables and zobrist keys
 //! 
 //! Carp uses plain magic bitboards found through random guessing for slider piece attack tables.
-//! RNG for the guessing is built-in and consistent (no need for security), some default magic
-//! values are already in the find_magics module but more can be found by getting a random seed
-//! for the rng.
+//! RNG for the guessing is built-in and consistent (no need for security), magic values are
+//! hardcoded into the engine because there really is no need to change them. The code to generate
+//! them remains in the rng module.
 //! Move tables are used for attacks only: quiet moves are calculated on the fly by the move
 //! generator.
 
 mod attacks;
-mod find_magics;
+mod magics;
+mod rng;
 
 use attacks::*;
-use find_magics::*;
-
-use std::default;
+use magics::*;
 
 use crate::bitboard::*;
-use crate::square::{ Square, Rank, ALL_SQUARES, SQUARE_COUNT };
+use crate::square::*;
 use crate::piece::Color;
 
 const BISHOP_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
@@ -53,30 +52,21 @@ pub struct Tables {
 
     rook_magics: BB64,
     rook_occupancies: BB64,
-    rook_attacks  : Vec<Vec<BitBoard>>,
+    rook_attacks: Vec<Vec<BitBoard>>,
 }
 
-impl default::Default for Tables {
+impl Default for Tables {
     fn default() -> Self {
-        Tables::new((DEFAULT_BISHOP_MAGICS, DEFAULT_ROOK_MAGICS))
-    }
-}
-
-impl Tables {
-    /// Initializes tables
-    /// 
-    /// If default = false, new magics are generated, else the default ones are used
-    pub fn new(magics: (BB64, BB64)) -> Tables {
         let mut tables = Tables{
             pawn_attacks  : [EMPTY_BB64; 2],
             knight_attacks: EMPTY_BB64,
             king_attacks  : EMPTY_BB64,
 
-            bishop_magics: magics.0,
+            bishop_magics: DEFAULT_BISHOP_MAGICS,
             bishop_occupancies: EMPTY_BB64,
             bishop_attacks    : Vec::new(),
 
-            rook_magics: magics.1,
+            rook_magics: DEFAULT_ROOK_MAGICS,
             rook_occupancies: EMPTY_BB64,
             rook_attacks    : Vec::new(),
         };
@@ -86,7 +76,10 @@ impl Tables {
 
         tables
     }
+}
 
+/// Table initialization
+impl Tables {
     // initializes leaper tables
     fn init_leaper_attacks(&mut self) {
         for square in ALL_SQUARES {
@@ -140,8 +133,11 @@ impl Tables {
             self.rook_occupancies[square.index()] = mask;
             self.rook_attacks.push(occ_map);
         }
-    }
+    } 
+}
 
+/// Table lookup
+impl Tables {
     /// Gets pawn attacks from tables
     #[inline]
     pub fn get_pawn_attack(&self, square: Square, side: Color) -> BitBoard {

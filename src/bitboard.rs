@@ -1,7 +1,9 @@
 //! # Implements Bitboards along with all relevant bitwise operations
 
-use core::fmt;
-use std::ops::{Shl, Shr, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not};
+use std::fmt;
+use std::ops::{
+    Shl, Shr, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not
+};
 // std::ops traits are shamelessly stolen from https://github.com/jordanbray/chess
 
 use crate::square::*;
