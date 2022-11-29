@@ -4,7 +4,7 @@ use std::{
     thread, sync, sync::atomic
 };
 
-use crate::{ Board, Tables, search };
+use crate::{ Board, Tables, Search };
 
 const ENGINE_ID: &str = "id name Carp 0.1\nid author Andrea S.";
 // add options here
@@ -170,7 +170,7 @@ impl UCIEngine {
                         let new = self.board
                             .generate_moves(&self.tables)
                             .into_iter()
-                            .find(|m| { move_string == m.to_uci_str()});
+                            .find(|m| { move_string == m.to_string()});
 
                         match new {
                             Some(new_move) => {
@@ -184,9 +184,10 @@ impl UCIEngine {
                     }
                 }
                 UCICommand::Go(d) => {
-                    let best_move = search::search_tree(&self.board, &self.tables, d);
+                    let mut search = Search::new(&self.tables);
+                    let best_move = search.iterative_search(&self.board, d);
 
-                    println!("bestmove {}", best_move.to_uci_str());
+                    println!("\nbestmove {}", best_move);
                 }
                 UCICommand::Option => continue, // temporary
 

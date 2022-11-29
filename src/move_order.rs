@@ -1,36 +1,39 @@
-use std::iter::Chain;
-use std::vec::IntoIter;
-
-use crate::{ Square, Piece, Move, PIECE_COUNT, NULL_MOVE, SQUARE_COUNT, ALL_PIECES, ALL_SQUARES };
+use crate::{
+    Square, Piece, Move,
+    PIECE_COUNT, ALL_PIECES, 
+    SQUARE_COUNT, ALL_SQUARES,
+    MAX_DEPTH,
+    NULL_MOVE
+};
 
 /// # MoveList -- Separates captures and quiets and allows for move ordering
 pub struct MoveList {
-    pub captures: Vec<Move>,
-    pub quiets  : Vec<Move>,
+    pub captures : Vec<Move>,
+    pub all_moves: Vec<Move>,
 }
 
 impl IntoIterator for MoveList {
     type Item = Move;
-    type IntoIter = Chain<IntoIter<Self::Item>, IntoIter<Self::Item>>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
     // chains the two move lists
     fn into_iter(self) -> Self::IntoIter {
-        self.captures.into_iter().chain(self.quiets.into_iter())
+        self.all_moves.into_iter()
     }
 }
 
 impl MoveList {
     pub fn new() -> MoveList {
         MoveList {
-            captures: Vec::with_capacity(16),
-            quiets: Vec::with_capacity(16),
+            captures : Vec::with_capacity(16),
+            all_moves: Vec::with_capacity(40),
         }
     }
 
     /// Returns total length of the move list
     #[inline]
     pub fn len(&self) -> usize {
-        self.captures.len() + self.quiets.len()
+        self.all_moves.len()
     }
 
     /// Initialize and add a capture move to the capture vector
@@ -44,9 +47,10 @@ impl MoveList {
         promote: Piece,
         en_passant: u32
     ) {
-        self.captures.push(
-            Move::encode(src, tgt, piece, capture, promote, 1, 0, en_passant, 0)
-        )
+        let m = Move::encode(src, tgt, piece, capture, promote, 1, 0, en_passant, 0);
+
+        self.captures.push(m);
+        self.all_moves.push(m);
     }
 
     /// Initialize and add a quiet move to the quiet vector
@@ -60,7 +64,7 @@ impl MoveList {
         double_push: u32,
         castle: u32
     ) {
-        self.quiets.push(
+        self.all_moves.push(
             Move::encode(src, tgt, piece, Piece::WP, promote, 0, double_push, 0, castle)
         )
     }
@@ -68,6 +72,7 @@ impl MoveList {
 
 /// # Move Scoring - lower is better
 /// 
+/// * PV moves get the best score when PV scoring is enabled
 /// * Promotions receive an extra score to always put them at the top of the list. Knight promotions
 ///   are ordered after queen because they are the most likely underpromotion.
 ///   will get 
@@ -82,7 +87,7 @@ impl MoveList {
 
 type MoveScore = i32;
 const MVV_LVA: [[MoveScore; PIECE_COUNT]; PIECE_COUNT] = [
-//    WP  BP  WN  BN  WB  BB  WR  BR  WQ  BQ  WK  BK 
+//      WP    BP    WN    BN    WB    BB    WR    BR    WQ    BQ    WK    BK 
     [ -105, -105, -205, -205, -305, -305, -405, -405, -505, -505, -605, -605 ], // WP
     [ -105, -105, -205, -205, -305, -305, -405, -405, -505, -505, -605, -605 ], // BP
     [ -104, -104, -204, -204, -304, -304, -404, -404, -504, -504, -604, -604 ], // WN
@@ -101,7 +106,6 @@ const PROMOTION_OFFSETS: [MoveScore; PIECE_COUNT] = [
 ];
 const CASTLE_SCORE: MoveScore = -1;
 
-const MAX_DEPTH: usize = 125;
 const MAX_KILLERS: usize = 2;
 const FIRST_KILLER_OFFSET: MoveScore = -5;
 const SECOND_KILLER_OFFSET: MoveScore = -4;
@@ -113,6 +117,8 @@ const HISTORY_OFFSET: MoveScore = 30000;
 pub struct MoveSorter {
     killer_moves: [[Move; MAX_KILLERS]; MAX_DEPTH],
     history_moves: [[MoveScore; SQUARE_COUNT]; PIECE_COUNT],
+    pv: [[Move; MAX_DEPTH]; MAX_DEPTH],
+    pv_lenghts: [usize; MAX_DEPTH],
 }
 
 impl MoveSorter {
@@ -120,6 +126,8 @@ impl MoveSorter {
         MoveSorter {
             killer_moves : [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH],
             history_moves: [[0; SQUARE_COUNT]; PIECE_COUNT],
+            pv: [[NULL_MOVE; MAX_DEPTH]; MAX_DEPTH],
+            pv_lenghts: [0; MAX_DEPTH],
         }
     }
 
@@ -133,7 +141,6 @@ impl MoveSorter {
         }
     }
 
-    #[inline]
     pub fn add_history(&mut self, m: Move, depth: usize) {
         let p = m.get_piece().index();
         let sq = m.get_tgt().index();
@@ -147,6 +154,33 @@ impl MoveSorter {
                 }
             }
         }
+    }
+
+    #[inline]
+    pub fn update_pv_lenghts(&mut self, ply: usize) {
+        self.pv_lenghts[ply] = ply;
+    }
+
+    pub fn update_pv(&mut self, m: Move, ply: usize) {
+        self.pv[ply][ply] = m;
+        self.pv_lenghts[ply] = self.pv_lenghts[ply + 1];
+
+        for i in (ply + 1)..self.pv_lenghts[ply + 1] {
+            self.pv[ply][i] = self.pv[ply + 1][i];
+        }
+    }
+
+    #[inline]
+    pub fn get_pv_move(&self, ply: usize) -> Option<Move> {
+        if ply >= self.pv_lenghts[ply] {
+            None
+        } else {
+            Some(self.pv[0][ply])
+        }
+    }
+
+    pub fn get_pv(&self) -> Vec<Move> {
+        self.pv[0][0..self.pv_lenghts[0]].to_vec()
     }
 
     #[inline]
@@ -169,38 +203,35 @@ impl MoveSorter {
 
     #[inline]
     fn score_move(&self, m: &Move, ply: usize) -> MoveScore {
-        let mut score: MoveScore = 0;
-
         if m.is_capture() {
-            score += Self::score_capture(m);
+            Self::score_capture(m) + PROMOTION_OFFSETS[m.get_promotion().index()]
         } else { // quiets
+            let mut score: MoveScore = 0;
+
+            score += PROMOTION_OFFSETS[m.get_promotion().index()];
             score += self.score_killer(m, ply);
-            if m.is_castle() {
-                score += CASTLE_SCORE;
-            }
+            if m.is_castle() { score += CASTLE_SCORE; }
 
             if score == 0 { // neither castle nor killer
                 let p = m.get_piece().index();
                 let sq = m.get_tgt().index();
                 score += self.history_moves[p][sq] + HISTORY_OFFSET;
-            }
-        };
-        
-        score + PROMOTION_OFFSETS[m.get_promotion().index()]
+            };
+
+            score
+        }
     }
 
+    #[inline]
     pub fn sort_captures(&self, mut move_list: MoveList) -> Vec<Move> {
         move_list.captures.sort_by_key(|m|{ Self::score_capture(m) });
         move_list.captures
     }
 
+    #[inline]
     pub fn sort_moves(&self, mut move_list: MoveList, ply: usize) -> Vec<Move> {
-        let mut all_moves = move_list.captures;
-
-        all_moves.append(&mut move_list.quiets);
-        all_moves.sort_by_key(|m| { self.score_move(m, ply as usize) });
-
-        all_moves
+        move_list.all_moves.sort_by_key(|m| { self.score_move(m, ply) });
+        move_list.all_moves
     }
 }
 
@@ -208,6 +239,7 @@ impl MoveSorter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{ Board, Tables, KILLER_FEN };
 
     #[test]
     fn test_movelist() {
@@ -220,4 +252,20 @@ mod tests {
         assert_eq!(full_list.len(), 2);
     }
 
+    #[test]
+    fn test_sorter() {
+        let ms: MoveSorter = MoveSorter::new();
+        let b: Board = Board::from_fen(KILLER_FEN).unwrap();
+        let t: Tables = Tables::default();
+        let move_list = b.generate_moves(&t);
+        let len = move_list.len();
+
+        let sorted = ms.sort_moves(move_list, 0);
+
+        for m in &sorted {
+            println!("{}", m);
+        }
+        assert_eq!(sorted.len(), len);
+        panic!();
+    }
 }

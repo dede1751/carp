@@ -2,6 +2,7 @@
 
 use std::ops::Not;
 use std::mem::transmute;
+use std::fmt;
 
 /// Player color enum
 #[repr(u8)]
@@ -41,7 +42,7 @@ impl Color {
     }
 }
 
-/// Chess Piece enum (includes color)
+/// # Chess Piece enum (includes color)
 /// 
 /// Pieces alternate between Black and White so that the least significant bit is the color
 #[repr(u8)]
@@ -57,17 +58,17 @@ pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
 
 // extract information from piece index
 pub const PIECE_BITS: usize = 0x0E;
-pub const PAWN: usize = 0x00;
-pub const KNIGHT: usize = 0x02;
-pub const BISHOP: usize = 0x04;
-pub const ROOK: usize = 0x06;
-pub const QUEEN: usize = 0x08;
-pub const KING: usize = 0x0A;
+pub const PAWN      : usize = 0x00;
+pub const KNIGHT    : usize = 0x02;
+pub const BISHOP    : usize = 0x04;
+pub const ROOK      : usize = 0x06;
+pub const QUEEN     : usize = 0x08;
+pub const KING      : usize = 0x0A;
 
 // used in move generation
-pub const WHITE_PIECES: [Piece; 6] = [ WP, WN, WB, WR, WQ, WK ];
+pub const WHITE_PIECES    : [Piece; 6] = [ WP, WN, WB, WR, WQ, WK ];
 pub const WHITE_PROMOTIONS: [Piece; 4] = [ WQ, WN, WR, WB ]; // order promotions by relative importance
-pub const BLACK_PIECES: [Piece; 6] = [ BP, BN, BB, BR, BQ, BK ];
+pub const BLACK_PIECES    : [Piece; 6] = [ BP, BN, BB, BR, BQ, BK ];
 pub const BLACK_PROMOTIONS: [Piece; 4] = [ BQ, BN, BR, BB ];
 
 // used for printing/reading pieces
@@ -80,6 +81,12 @@ const PIECE_UNICODE: [char; PIECE_COUNT] = [
     '♜', '♖', '♛', '♕', '♚', '♔',
 ];
 
+/// Prints piece as unicode character
+impl fmt::Display for Piece {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", PIECE_UNICODE[self.index()])
+    }
+}
 
 impl Piece {
     /// Get index of piece as usize
@@ -109,10 +116,6 @@ impl Piece {
     /// Returns fen formatted piece
     pub fn to_char(&self) -> char {
         PIECE_CHAR[self.index()]
-    }
-    /// Returns pretty-printed piece using unicode characters
-    pub fn to_unicode(&self) -> char {
-        PIECE_UNICODE[self.index()]
     }
 
     /// Get piece color

@@ -1,9 +1,9 @@
-//!     Performance testing module.
+//! # Performance testing module.
 //! 
 //! Run tests with cargo test --release perft -- --show-output
 
 use std::time::Instant;
-use carp::{ Board, Tables, MoveList , START_FEN };
+use carp::{ Board, Tables, MoveList };
 
 const NODE_COUNTS: [u64; 7] = [
     20, 400, 8902, 197281, 4865609, 119060324,  3195901860
@@ -25,7 +25,7 @@ fn perft_driver(board: &Board, tables: &Tables, depth: u32) -> u64 {
 
 #[test]
 fn default_perft7() {
-    let board: Board = Board::from_fen(START_FEN).unwrap();
+    let board: Board = Board::default();
     let tables: Tables = Tables::default();
 
     println!("\n --- PERFT 1-7 ---");
@@ -44,7 +44,7 @@ fn default_perft7() {
 
 #[test]
 fn cumulative_perft6() {
-    let board: Board = Board::from_fen(START_FEN).unwrap();
+    let board: Board = Board::default();
     let tables: Tables = Tables::default();
     let move_list: MoveList = board.generate_moves(&tables);
 

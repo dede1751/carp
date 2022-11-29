@@ -7,11 +7,10 @@
 //! ## EXAMPLE
 //! 
 //! '''
-//! use carp::{ Board, START_FEN };
+//! use carp::Board;
 //! 
-//! println!("{}", Board::from_fen(START_FEN));
+//! println!("{}", Board::default();
 //! '''
-
 mod bitboard;
 mod square;
 mod piece;
@@ -34,7 +33,7 @@ pub use board_repr::*;
 
 pub use tables::*;
 
-pub use uci::*;
-pub use search::*;
 pub use evaluation::*;
 pub use move_order::*;
+pub use search::*;
+pub use uci::*;

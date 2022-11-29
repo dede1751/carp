@@ -44,7 +44,7 @@ impl fmt::Display for Board {
                 for piece in ALL_PIECES {
                     let board: BitBoard = self.pieces[piece.index()];
                     if board.get_bit(square) {
-                        board_str.push(piece.to_unicode());
+                        board_str.push_str(&piece.to_string());
                         board_str.push_str(" ┃");
                         empty = false;
                         break;
@@ -409,7 +409,7 @@ impl Board {
         } 
 
         // if promoting, set promotion piece, else set same piece (also change occupancies)
-        if promotion != Piece::WP {
+        if m.is_promotion() {
             new.set_piece(promotion, tgt);
         } else {
             new.set_piece(piece, tgt);
@@ -433,6 +433,15 @@ impl Board {
         new.side = !self.side;
     
         Some(new)
+    }
+
+    #[inline]
+    pub fn make_null_move(&self) -> Board {
+        let mut b = self.clone();
+        b.side = !self.side;
+        b.en_passant = None;
+
+        b
     }
 
 }

@@ -33,32 +33,16 @@ const DOUBLE_PUSH: u32 = 0x02000000;
 const ENPASSANT  : u32 = 0x04000000;
 const CASTLE     : u32 = 0x08000000;
 
+/// Prints move in uci format
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let promotion: char = match self.get_promotion() {
-            Piece::WP => '-',
-            p => p.to_unicode()
-        };
-        let capture: char = if self.is_capture() {
-            self.get_capture().to_unicode()
-        } else {
-            '-'
-        };
+        let s = format!("{}{}", self.get_src(), self.get_tgt());
 
-        write!(
-            f,
-"\n Src | Tgt | Piece | Promote | Capture | DoublePush | En Passant |  Castle
-----------------------------------------------------------------------------
-  {} | {}  |   {}   |    {}    |    {}    |   {}    |    {}   |  {}\n",
-            self.get_src(),
-            self.get_tgt(),
-            self.get_piece().to_unicode(),
-            promotion,
-            capture,
-            self.is_double_push() as bool,
-            self.is_enpassant() as bool,
-            self.is_castle() as bool
-        )
+        if self.get_promotion() != Piece::WP {
+            write!(f, "{}{}", s, self.get_promotion().to_char().to_ascii_lowercase())
+        } else {
+            write!(f,"{}", s)
+        }
     }
 }
 
@@ -92,22 +76,6 @@ impl Move {
         )
     }
 
-    /// Returns move in uci format
-    pub fn to_uci_str(&self) -> String {
-        let mut s = String::from(format!("{}{}", self.get_src(), self.get_tgt()));
-
-        if self.get_promotion() != Piece::WP {
-            s.push(
-                self
-                    .get_promotion()
-                    .to_char()
-                    .to_ascii_lowercase()
-            );
-        };
-
-        s
-    }
-
     /// Returns the move source square
     #[inline]
     pub fn get_src(&self) -> Square {
@@ -136,6 +104,12 @@ impl Move {
     #[inline]
     pub fn get_promotion(&self) -> Piece {
         Piece::from_index(((self.0 & PROMOTE) >> 20) as usize)
+    }
+
+    /// Returns true if the move is a promotion
+    #[inline]
+    pub fn is_promotion(&self) -> bool {
+        self.0 & PROMOTE != 0
     }
 
     /// Returns true if the move is a capture
