@@ -28,7 +28,7 @@ it is still positionally "dumb", although it is yet to lose against a human play
 * Plain magic bitboards for move precalculation
 * Tapered Evaluation
 * MVV-LVA + Killer/History move ordering
-* Fail-hard Negamax + Quiescence (will move to fail soft with tt)
+* Fail-soft Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
 * Principal Variation Search
 * Null Move Pruning
