@@ -43,11 +43,6 @@ impl <'a> Search<'a>{
             pv_lenghts: [0; MAX_DEPTH],
         }
     }
-    
-    fn reset_pv(&mut self) {
-        self.pv = [[NULL_MOVE; MAX_DEPTH]; MAX_DEPTH];
-        self.pv_lenghts = [0; MAX_DEPTH];
-    }
 
     #[inline]
     fn update_pv_lenghts(&mut self, ply: usize) {
@@ -62,10 +57,6 @@ impl <'a> Search<'a>{
         for i in (ply + 1)..self.pv_lenghts[ply + 1] {
             self.pv[ply][i] = self.pv[ply + 1][i];
         }
-    }
-
-    fn get_pv(&self) -> Vec<Move> {
-        self.pv[0][0..self.pv_lenghts[0]].to_vec()
     }
 
     pub fn iterative_search(&mut self, board: &Board, depth: usize) -> Move {
@@ -85,7 +76,6 @@ impl <'a> Search<'a>{
                 
                 if eval < alpha || eval > beta {
                     // reduced window search failed
-                    self.reset_pv();
                     alpha = MIN;
                     beta = MAX;
                     eval = self.negamax(board, alpha, beta, d, 0);
@@ -94,7 +84,7 @@ impl <'a> Search<'a>{
     
             print!("info score cp {} depth {} nodes {} pv ", eval, d, self.nodes);
 
-            //for m in self.get_pv() { print!("{} ", m); }
+            for m in &self.pv[0][0..self.pv_lenghts[0]] { print!("{} ", m); }
             println!();
         }
 
@@ -109,32 +99,35 @@ impl <'a> Search<'a>{
         mut depth: usize,
         ply: usize,
     ) -> Eval {
-        self.nodes += 1;
-        self.update_pv_lenghts(ply);
-
-        // Quiescence search to avoid horizon effect
-        if depth == 0 { return self.quiescence(board, alpha, beta, ply); }
-    
+        let mut best_eval: Eval = MIN;
         let mut eval: Eval;
-        let mut moves_checked: u32 = 0;
-        let check_flag = board.king_in_check(self.tables);
+        let in_check = board.king_in_check(self.tables);
+        self.nodes += 1;
 
+        // Extend pv length to this node
+        if ply != 0 { self.update_pv_lenghts(ply); }
+        
         // Mate distance pruning
         alpha = max(-MATE + ply as Eval, alpha);
         beta  = min( MATE - ply as Eval - 1, beta);
         if alpha >= beta { return alpha; }
         
         // Extend search depth when king is in check
-        if check_flag { 
+        if in_check { 
             depth += 1;
         } else if depth > NMP_REDUCTION {
             // Apply Null move pruning
             let nmp: Board = board.make_null_move();
-
+            
             eval = -self.negamax(&nmp, -beta, -beta + 1, depth - 1 - NMP_REDUCTION, ply + 1);
             if eval >= beta { return beta; }
         }
-        
+
+        // Quiescence search to avoid horizon effect
+        if depth == 0 { return self.quiescence(board, alpha, beta, ply); }
+    
+        // Main recursive search block
+        let mut moves_checked: u32 = 0;
         let moves: Vec<Move> = self.sorter.sort_moves(board.generate_moves(self.tables), ply);
         for m in moves {
             // only consider legal moves
@@ -147,7 +140,7 @@ impl <'a> Search<'a>{
                     let mut lmr_depth = depth;
                     if  moves_checked >= LMR_THRESHOLD  &&
                         depth >= LMR_LOWER_LIMIT        &&
-                        !check_flag                     &&
+                        !in_check                       &&
                         !m.is_capture()                 &&
                         !m.is_promotion()
                     {
@@ -166,19 +159,19 @@ impl <'a> Search<'a>{
                         };
                     };
                 };
+
+                best_eval = max(best_eval, eval);
                 
-                if eval >= beta { // beta cutoff
+                if eval >= beta {           // beta cutoff
                     if !(m.is_capture()) {
                         self.sorter.add_killer(m, ply);
                         self.sorter.add_history(m, depth);
                     };
-                    
                     return beta;
-                }
-
-                if eval > alpha { // pv node
+    
+                } else if eval > alpha {    // possible pv node
+                    alpha = eval;
                     self.update_pv(m, ply);
-                    alpha = eval; 
                 }
 
                 moves_checked += 1;
@@ -186,13 +179,13 @@ impl <'a> Search<'a>{
         };
     
         if moves_checked == 0 {     // no legal moves
-            if check_flag {
+            if in_check {
                 -MATE + ply as Eval  // checkmate
             } else {
                 0                   // stalemate
             }
         } else {
-            alpha
+            best_eval
         }
     }
     
@@ -204,18 +197,18 @@ impl <'a> Search<'a>{
         ply: usize,
     ) -> Eval {
         self.nodes += 1;
-        let eval: Eval = evaluate(board);
+        let eval: Eval = evaluate(board);       // try stand pat
     
         if eval >= beta { return beta; };       // beta cutoff
-        if eval > alpha { alpha = eval; }       // pv node
+        if eval > alpha { alpha = eval; }       // stand pat is pv
     
         let moves: Vec<Move> = self.sorter.sort_captures(board.generate_moves(self.tables));
         for m in moves {
             if let Some(new) = board.make_move(m, self.tables) {
                 let eval = - self.quiescence(&new, -beta, -alpha, ply + 1);
                 
-                if eval >= beta { return beta; };   // beta cutoff
-                if eval > alpha { alpha = eval; };  // pv node
+                if eval >= beta { return beta; }            // beta cutoff
+                else if eval > alpha { alpha = eval; };     // possible pv node
             }
         }
 
