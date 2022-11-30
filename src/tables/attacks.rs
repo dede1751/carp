@@ -29,8 +29,8 @@ pub fn mask_pawn_attacks(square: Square, color: Color) -> BitBoard {
 /// Generate bitboard for knight attacks from square
 pub fn mask_knight_attacks(square: Square) -> BitBoard {
     ALL_SQUARES.iter()
-               .filter(|tgt| { 
-        let dist: (i8, i8) = square.dist(tgt);
+               .filter(|&tgt| { 
+        let dist: (i8, i8) = square.dist(*tgt);
 
         (dist.0.abs() == 1 && dist.1.abs() == 2) | (dist.0.abs() == 2 && dist.1.abs() == 1)
     })
@@ -40,8 +40,8 @@ pub fn mask_knight_attacks(square: Square) -> BitBoard {
 /// Generate bitboard for king attacks from square
 pub fn mask_king_attacks(square: Square) -> BitBoard {
     ALL_SQUARES.iter()
-               .filter(|tgt| { 
-        let dist: (i8, i8) = square.dist(tgt);
+               .filter(|&tgt| { 
+        let dist: (i8, i8) = square.dist(*tgt);
 
         (dist.0.abs() == 1 && ((dist.1.abs() == 0) | (dist.1.abs() == 1))) |
         (dist.1.abs() == 1 && ((dist.0.abs() == 0) | (dist.0.abs() == 1)))

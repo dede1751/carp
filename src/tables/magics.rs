@@ -58,14 +58,14 @@ pub const DEFAULT_ROOK_MAGICS: BB64 = [
 /// Mask relevant bishop occupancy bits
 pub fn bishop_occupancy(square: Square) -> BitBoard {
     ALL_SQUARES.iter()
-               .filter(|tgt| { 
+               .filter(|&tgt| { 
         let (tgt_file, tgt_rank) = tgt.coords();
         let dist: (i8, i8) = square.dist(*tgt);
 
         tgt_file != File::A     && tgt_file != File::H      &&
         tgt_rank != Rank::First && tgt_rank != Rank::Eight  && // not edges
         dist.0.abs() == dist.1.abs()                        && // diagonal
-        **tgt != square
+        *tgt != square
     })
                .fold(EMPTY_BB, |mask, square| { mask ^ square.to_board() })
 }
@@ -73,13 +73,13 @@ pub fn bishop_occupancy(square: Square) -> BitBoard {
 /// Mask relevant rook occupancy bits
 pub fn rook_occupancy(square: Square) -> BitBoard {
     ALL_SQUARES.iter()
-               .filter(|tgt| { 
+               .filter(|&tgt| { 
         let (tgt_file, tgt_rank) = tgt.coords();
         let dist: (i8, i8) = square.dist(*tgt);
 
         ((dist.0 == 0 && tgt_rank != Rank::First && tgt_rank != Rank::Eight ) || // same file
         (dist.1 == 0 && tgt_file != File::A && tgt_file != File::H )) &&         // same rank
-        **tgt != square
+        *tgt != square
     })
                .fold(EMPTY_BB, |mask, square| { mask ^ square.to_board() })
 }

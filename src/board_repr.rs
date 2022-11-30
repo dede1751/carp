@@ -40,14 +40,14 @@ impl fmt::Display for Board {
         let mut board_str: String = String::from("\n Board:\n\n\t┏━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┓");
 
         for rank in ALL_RANKS {
-            board_str.push_str(format!("\n      {} ┃ ", 8 - rank.index()).as_str());
+            board_str.push_str(format!("\n      {} ┃ ", 8 - rank as usize).as_str());
             
             for file in ALL_FILES {
                 let square: Square = Square::from_coords(file, rank);
                 let mut empty: bool = true;
                 
                 for piece in ALL_PIECES {
-                    let board: BitBoard = self.pieces[piece.index()];
+                    let board: BitBoard = self.pieces[piece as usize];
                     if board.get_bit(square) {
                         board_str.push_str(&piece.to_string());
                         board_str.push_str(" ┃");
@@ -175,16 +175,16 @@ impl Board {
     /// Always remove first and set later!
     #[inline]
     fn remove_piece(&mut self, piece: Piece, square: Square) {
-        self.pieces[piece.index()].pop_bit(square);
+        self.pieces[piece as usize].pop_bit(square);
         self.occupancy.pop_bit(square);
-        self.side_occupancy[piece.color().index()].pop_bit(square);
+        self.side_occupancy[piece.color() as usize].pop_bit(square);
         self.hash.toggle_piece(piece, square);
     }
     #[inline]
     fn set_piece(&mut self, piece: Piece, square: Square) {
-        self.pieces[piece.index()].set_bit(square);
+        self.pieces[piece as usize].set_bit(square);
         self.occupancy.set_bit(square);
-        self.side_occupancy[piece.color().index()].set_bit(square);
+        self.side_occupancy[piece.color() as usize].set_bit(square);
         self.hash.toggle_piece(piece, square);
     }
 
@@ -198,7 +198,7 @@ impl Board {
     /// Does not handle pawn promotions/capture promotions!
     #[inline]
     pub fn is_square_attacked(&self, tables: &Tables, square: Square, side: Color) -> bool {
-        let col = side.index();
+        let col = side as usize;
 
         self.pieces[PAWN + col] & tables.get_pawn_attack(square, !side) != EMPTY_BB || // pawns
         self.pieces[KNIGHT + col] & tables.get_knight_attack(square)    != EMPTY_BB || // knights
@@ -212,7 +212,7 @@ impl Board {
     /// Checks whether the current side's king is in check
     #[inline]
     pub fn king_in_check(&self, tables: &Tables) -> bool {
-        let king_square = self.pieces[KING + self.side.index()].ls1b_index();
+        let king_square = self.pieces[KING + self.side as usize].ls1b_index();
 
         self.is_square_attacked(tables, king_square, !self.side)
     }
@@ -226,11 +226,11 @@ impl Board {
         match self.side {
             Color::White => *BLACK_PIECES
                                     .iter()
-                                    .find(|p| { self.pieces[p.index()].get_bit(tgt) })
+                                    .find(|&p| { self.pieces[*p as usize].get_bit(tgt) })
                                     .unwrap(), // possible panic
             Color::Black => *WHITE_PIECES
                                     .iter()
-                                    .find(|p| { self.pieces[p.index()].get_bit(tgt) })
+                                    .find(|&p| { self.pieces[*p as usize].get_bit(tgt) })
                                     .unwrap(), // possible panic
         }
     }
@@ -246,7 +246,7 @@ impl Board {
             Color::Black => (Piece::BP, BLACK_PROMOTIONS, Rank::Second, Rank::Seventh),
         };
 
-        for source in self.pieces[piece.index()] {
+        for source in self.pieces[piece as usize] {
             // quiets
             let target: Square = match self.side{
                 Color::White => source.up(),
@@ -277,7 +277,7 @@ impl Board {
             }
             // attacks
             let attacks: BitBoard = tables.get_pawn_attack(source, self.side);
-            let captures: BitBoard = attacks & self.side_occupancy[(!self.side).index()];
+            let captures: BitBoard = attacks & self.side_occupancy[(!self.side) as usize];
 
             if source.rank() == promote_rank { // capture promotion
                 for target in captures {
@@ -311,9 +311,9 @@ impl Board {
 
     /// # Generate pseudolegal castling moves (king can be left in check)
     fn generate_castling_moves(&self, tables: &Tables, move_list: &mut MoveList) {
-        let side: usize = self.side.index();
+        let side: usize = self.side as usize;
         let source = CASTLE_SQUARES[side];
-        let piece = Piece::from_index(KING + side);
+        let piece = Piece::from(KING + side);
 
         if self.is_square_attacked(tables, source, !self.side) { return }; // no castle in check
 
@@ -334,11 +334,11 @@ impl Board {
 
     /// # Generate "conventional" moves for all pieces except pawns through attack tables
     fn generate_piece_moves(&self, piece: Piece, tables: &Tables, move_list: &mut MoveList) {
-        let piece_bb: BitBoard = self.pieces[piece.index()];
+        let piece_bb: BitBoard = self.pieces[piece as usize];
         let blockers: BitBoard = self.occupancy;
 
         for source in piece_bb {
-            let attacks = match piece.index() & PIECE_BITS {
+            let attacks = match (piece as usize) & PIECE_BITS {
                 KNIGHT => tables.get_knight_attack(source),
                 BISHOP => tables.get_bishop_attack(source, blockers),
                 ROOK => tables.get_rook_attack(source, blockers),
@@ -348,13 +348,13 @@ impl Board {
             };
 
             for target in attacks {
-                if self.side_occupancy[(!self.side).index()].get_bit(target) {
+                if self.side_occupancy[(!self.side) as usize].get_bit(target) {
                     let captured_piece = self.get_captured_piece(target);
     
                     move_list.add_capture(
                         source, target, piece, captured_piece, Piece::WP, 0
                     );
-                } else if !self.side_occupancy[self.side.index()].get_bit(target) {
+                } else if !self.side_occupancy[self.side as usize].get_bit(target) {
                     move_list.add_quiet(source, target, piece, Piece::WP, 0, 0);
                 }
             }

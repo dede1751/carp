@@ -50,15 +50,15 @@ pub fn evaluate(board: &Board) -> Eval {
     let mut game_phase: Eval = 0;
 
     for piece in ALL_PIECES {
-        for square in board.pieces[piece.index()] {
-            mg[piece.color().index()] += MG_TABLES[piece.index()][square.index()];
-            eg[piece.color().index()] += EG_TABLES[piece.index()][square.index()];
-            game_phase += GAME_PHASE_INCREMENT[piece.index()];
+        for square in board.pieces[piece as usize] {
+            mg[piece.color() as usize] += MG_TABLES[piece as usize][square as usize];
+            eg[piece.color() as usize] += EG_TABLES[piece as usize][square as usize];
+            game_phase += GAME_PHASE_INCREMENT[piece as usize];
         }
     };
 
-    let mg_score: Eval = mg[board.side.index()] - mg[(!board.side).index()];
-    let eg_score: Eval = eg[board.side.index()] - eg[(!board.side).index()];
+    let mg_score: Eval = mg[board.side as usize] - mg[(!board.side) as usize];
+    let eg_score: Eval = eg[board.side as usize] - eg[(!board.side) as usize];
     if game_phase > 24 { game_phase = 24 }
 
     return (mg_score * game_phase + eg_score * (24 - game_phase)) / 24
@@ -212,12 +212,12 @@ pub fn init_tables() {
     let mut eg_table: [[Eval; SQUARE_COUNT]; PIECE_COUNT] = [[0; SQUARE_COUNT]; PIECE_COUNT];
 
     for piece in ALL_PIECES {
-        let i = piece.index() >> 1;
+        let i = piece as usize >> 1;
         for square in ALL_SQUARES {
-            let sq = square.index();
-            let flipped_sq = square.flipv().index();
+            let sq = square as usize;
+            let flipped_sq = square.flipv() as usize;
 
-            mg_table[piece.index()][sq] = match piece.color() {
+            mg_table[piece as usize][sq] = match piece.color() {
                 Color::White => {
                     MG_PIECE_VALUES[i] + MG_PESTO[i][sq]
                 },
@@ -225,7 +225,7 @@ pub fn init_tables() {
                     MG_PIECE_VALUES[i] + MG_PESTO[i][flipped_sq]
                 }
             };
-            eg_table[piece.index()][square.index()] = match piece.color() {
+            eg_table[piece as usize][square as usize] = match piece.color() {
                 Color::White => {
                     EG_PIECE_VALUES[i] + EG_PESTO[i][sq]
                 },

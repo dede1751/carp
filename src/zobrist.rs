@@ -43,7 +43,7 @@ impl ZHash {
         let mut hash: ZHash = ZHash(0);
 
         for piece in ALL_PIECES {
-            for square in board.pieces[piece.index()] {
+            for square in board.pieces[piece as usize] {
                 hash.toggle_piece(piece, square);
             }
         }
@@ -62,18 +62,18 @@ impl ZHash {
 
     #[inline]
     pub fn toggle_piece(&mut self, piece: Piece, square: Square) {
-        self.0 ^= PIECE_KEYS[piece.index()][square.index()];
+        self.0 ^= PIECE_KEYS[piece as usize][square as usize];
     }
 
     #[inline]
     pub fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
-        self.0 ^= PIECE_KEYS[piece.index()][from.index()];
-        self.0 ^= PIECE_KEYS[piece.index()][to.index()];
+        self.0 ^= PIECE_KEYS[piece as usize][from as usize];
+        self.0 ^= PIECE_KEYS[piece as usize][to as usize];
     }
 
     #[inline]
     pub fn toggle_ep(&mut self, square: Square) {
-        self.0 ^= EP_KEYS[square.index()];
+        self.0 ^= EP_KEYS[square as usize];
     }
     
     #[inline]

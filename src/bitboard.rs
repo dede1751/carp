@@ -315,7 +315,7 @@ impl fmt::Display for BitBoard {
                 s.push_str(format!("\n{}   ", (8 - square / 8)).as_str())
             }
 
-            if self.get_bit(Square::from_index(square)) {
+            if self.get_bit(Square::from(square)) {
                 s.push_str("X ");
             } else {
                 s.push_str("- ");
@@ -349,34 +349,34 @@ impl BitBoard {
 
     /// Check whether given square is set on the board
     #[inline]
-    pub fn get_bit(&self, square: Square) -> bool {
-        self.0 & (1u64 << square.index()) != 0
+    pub fn get_bit(self, square: Square) -> bool {
+        self.0 & (1u64 << square as usize) != 0
     }
 
     /// Sets given square on the board
     #[inline]
     pub fn set_bit(&mut self, square: Square) {
-        self.0 |= 1u64 << square.index();
+        self.0 |= 1u64 << square as usize;
     }
 
     /// Pops given square off the board
     #[inline]
     pub fn pop_bit(&mut self, square: Square) {
         if self.get_bit(square) {
-            self.0 ^= 1u64 << square.index();
+            self.0 ^= 1u64 << square as usize;
         }
     }
 
     /// Returns popcnt
     /// Using RUSTFLAGS='target-cpu=native' we enforce llvm to use the popcntl simd instruction
     #[inline]
-    pub fn count_bits(&self) -> u32 {
+    pub fn count_bits(self) -> u32 {
         self.0.count_ones()
     }
 
     /// Pops first set square from board (least significant 1 bit)
     #[inline]
     pub fn ls1b_index(self) -> Square {
-        Square::from_index(self.0.trailing_zeros() as usize)
+        Square::from(self.0.trailing_zeros() as usize)
     }
 }

@@ -14,6 +14,7 @@ use crate::{
 /// 
 ///  WK | WQ | BK | BQ  --> only using least significant 8 bits
 ///  08   04   02   01 
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct CastlingRights (u8);
 pub const CASTLE_COUNT: usize = 16;
@@ -150,8 +151,8 @@ impl CastlingRights {
     pub fn update(&self, src: Square, tgt: Square) -> CastlingRights {
         let mut new: CastlingRights = *self;
         
-        new.0 &= CASTLE_MASKS[src.index()];
-        new.0 &= CASTLE_MASKS[tgt.index()];
+        new.0 &= CASTLE_MASKS[src as usize];
+        new.0 &= CASTLE_MASKS[tgt as usize];
         new
     }
 }

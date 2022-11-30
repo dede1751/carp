@@ -87,8 +87,8 @@ fn _generate_magics() -> (BB64, BB64) {
     let generator = Rng::default();
 
     for square in ALL_SQUARES {
-        magics.0[square.index()] = find_magic(Piece::Bishop(square), &generator);
-        magics.1[square.index()] = find_magic(Piece::Rook(square), &generator);
+        magics.0[square as usize] = find_magic(Piece::Bishop(square), &generator);
+        magics.1[square as usize] = find_magic(Piece::Rook(square), &generator);
     };
 
     magics

@@ -23,7 +23,7 @@ const NMP_REDUCTION: usize = 2;   // null move pruning reduced depth
 const ASPIRATION_WINDOW: Eval = 50;    // aspiration window width
 
 // funky shit between aspiration windows and pvs. don't print pv when using windows!
-const ASPIRATION_THRESHOLD: usize = 50; // depth at which windows are reduced
+const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 
 pub struct Search<'a>{
     tables: &'a Tables,
@@ -94,7 +94,7 @@ impl <'a> Search<'a>{
     
             print!("info score cp {} depth {} nodes {} pv ", eval, d, self.nodes);
 
-            for m in self.get_pv() { print!("{} ", m); }
+            //for m in self.get_pv() { print!("{} ", m); }
             println!();
         }
 

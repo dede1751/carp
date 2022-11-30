@@ -48,7 +48,7 @@ const SQUARE_STR: [&str; SQUARE_COUNT] = [
 /// Print fen formatted square.
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s: String = String::from(SQUARE_STR[self.index()]);  
+        let s: String = String::from(SQUARE_STR[*self as usize]);  
         write!(f,"{}", s)
     }
 }
@@ -67,84 +67,79 @@ impl TryFrom<&str> for Square {
             .position(|&tgt| { tgt == value })
             .ok_or("Invalid square!")?;
     
-        Ok(Square::from_index(index))
+        Ok(Square::from(index))
+    }
+}
+
+/// Makes a Square from first 6 bits of index.
+/// Cannot incur in UB since squares are exactly 64
+impl From<usize> for Square {
+    fn from(index: usize) -> Self {
+        unsafe { transmute((index as u8) & 63) }
     }
 }
 
 impl Square {
-    /// Makes a Square from first 6 bits of index.
-    /// Cannot incur in UB since squares are exactly 64
-    #[inline]
-    pub fn from_index(index: usize) -> Square {
-        unsafe { transmute((index as u8) & 63) }
-    }
-    
-    /// Get index of square as usize
-    #[inline]
-    pub fn index(&self) -> usize {
-        *self as usize
-    }
-
     /// Get square from (rank, file) coordinates
     #[inline]
     pub fn from_coords(file: File, rank: Rank) -> Square {
-        let index: usize = rank.index() << 3 ^ file.index(); // rank*8 + file
-        Square::from_index(index)
+        let index: usize = (rank as usize) << 3 ^ (file as usize); // rank*8 + file
+        Square::from(index)
     }
     
     /// Flips square vertically
     #[inline]
-    pub fn flipv(&self) -> Square{
-        Square::from_index(self.index() ^ 56)
+    pub fn flipv(self) -> Square{
+        Square::from(self as usize ^ 56)
     }
 
     /// Converts square to bitboard
     #[inline]
-    pub fn to_board(&self) -> BitBoard {
-        BitBoard::new(1u64 << self.index())
+    pub fn to_board(self) -> BitBoard {
+        BitBoard::new(1u64 << self as usize)
     }
 
     /// Gets file coordinate
     #[inline]
-    pub fn file(&self) -> File {
-        File::from_index(self.index() as usize)
+    pub fn file(self) -> File {
+        File::from(self as usize)
     }
     /// Gets rank coordinate
     #[inline]
-    pub fn rank(&self) -> Rank {
-        Rank::from_index(self.index() >> 3 as usize)
+    pub fn rank(self) -> Rank {
+        Rank::from(self as usize >> 3)
     }
     /// Get (rank, file) coordinates of square
     #[inline]
-    pub fn coords(&self) -> (File, Rank) {
+    pub fn coords(self) -> (File, Rank) {
         (self.file(), self.rank())
     }
 
     /// Gets integer distances between current and given square
     #[inline]
-    pub fn dist(&self, tgt: &Square) -> (i8, i8) {
-        let (tf, tr) = (tgt.file().index() as i8, tgt.rank().index() as i8);
-        let (sf, sr) = (self.file().index() as i8, self.rank().index() as i8);
+    pub fn dist(self, tgt: Square) -> (i8, i8) {
+        let (tf, tr) = (tgt.file() as i8, tgt.rank() as i8);
+        let (sf, sr) = (self.file() as i8, self.rank() as i8);
 
         (tf - sf, sr - tr)
     }
 
     // Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
     #[inline]
-    pub fn right(&self) -> Square {
-        Square::from_index(self.index() + 1)
+    pub fn right(self) -> Square {
+        Square::from(self as usize + 1)
     }
     #[inline]
-    pub fn left(&self) -> Square {
-        Square::from_index(self.index().wrapping_sub(1))
+    pub fn left(self) -> Square {
+        Square::from((self as usize).wrapping_sub(1))
     }
     #[inline]
-    pub fn down(&self) -> Square {
-        Square::from_index(self.index() + 8)
+    pub fn down(self) -> Square {
+        Square::from(self as usize + 8)
     }
     #[inline]
-    pub fn up(&self) -> Square {
-        Square::from_index(self.index().wrapping_sub(8))
+    pub fn up(self) -> Square {
+        Square::from((self as usize).wrapping_sub(8))
     }
 }
 
@@ -161,29 +156,24 @@ pub const ALL_FILES: [File; FILE_COUNT] = [
     A, B, C, D, E, F, G, H,
 ];
 
-impl File {
-    /// Make file from usize, wrap at 7. 
-    #[inline]
-    pub fn from_index(index: usize) -> File {
+/// Make file from usize, wrap at 7. 
+impl From<usize> for File {
+    fn from(index: usize) -> Self {
         unsafe { transmute((index as u8) & 7) }
     }
+}
 
-    /// Get index of file as usize
-    #[inline]
-    pub fn index(&self) -> usize {
-        *self as usize
-    }
-
+impl File {
     /// Gets file to the right, wraps H->A
     #[inline]
-    pub fn right(&self) -> File {
-        File::from_index(self.index() + 1)
+    pub fn right(self) -> File {
+        File::from((self as usize) + 1)
     }
 
     /// Gets file to the left, wraps A->H
     #[inline]
-    pub fn left(&self) -> File {
-        File::from_index(self.index().wrapping_sub(1)) // avoids of
+    pub fn left(self) -> File {
+        File::from((self as usize).wrapping_sub(1)) // avoids of
     }
 }
 
@@ -201,28 +191,23 @@ pub const ALL_RANKS: [Rank; RANK_COUNT] = [
     Eight, Seventh, Sixth, Fifth, Fourth, Third, Second, First,
 ];
 
-impl Rank {
-    /// Make rank from usize, wrap at 7. 
-    #[inline]
-    pub fn from_index(index: usize) -> Rank {
+/// Make rank from usize, wrap at 7. 
+impl From<usize> for Rank {
+    fn from(index: usize) -> Self {
         unsafe { transmute((index as u8) & 7) }
     }
+}
 
-    /// Get index of rank as usize. (backwards!!)
-    #[inline]
-    pub fn index(&self) -> usize {
-        *self as usize
-    }
-
+impl Rank {
     // Gets rank below, wraps First->Eight
     #[inline]
-    pub fn down(&self) -> Rank {
-        Rank::from_index(self.index() + 1)
+    pub fn down(self) -> Rank {
+        Rank::from((self as usize) + 1)
     }
 
     // Gets rank above, wraps Eight->First
     #[inline]
-    pub fn up(&self) -> Rank {
-        Rank::from_index(self.index().wrapping_sub(1)) // avoid of
+    pub fn up(self) -> Rank {
+        Rank::from((self as usize).wrapping_sub(1)) // avoid of
     }
 }

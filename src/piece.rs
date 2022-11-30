@@ -30,16 +30,9 @@ impl fmt::Display for Color {
     }
 }
 
-impl Color {
-    /// Get usize index of color
-    #[inline]
-    pub fn index(&self) -> usize {
-        *self as usize
-    }
-
-    /// Get color from usize index
-    #[inline]
-    pub fn from_index(index: usize) -> Color {
+/// Get color from usize index
+impl From<usize> for Color {
+    fn from(index: usize) -> Self {
         unsafe { transmute((index as u8) & 1) }
     }
 }
@@ -86,7 +79,7 @@ const PIECE_UNICODE: [char; PIECE_COUNT] = [
 /// Prints piece as unicode character
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", PIECE_UNICODE[self.index()])
+        write!(f, "{}", PIECE_UNICODE[*self as usize])
     }
 }
 
@@ -95,7 +88,7 @@ impl TryFrom<char> for Piece {
     type Error = &'static str;
 
     fn try_from(value: char) -> Result<Self, Self::Error> {
-        Ok(Self::from_index(
+        Ok(Self::from(
             PIECE_CHAR
                 .iter()
                 .position(|&x| x == value )
@@ -104,35 +97,32 @@ impl TryFrom<char> for Piece {
     }
 }
 
-impl Piece {
-    /// Get index of piece as usize
-    #[inline]
-    pub fn index(&self) -> usize {
-        *self as usize
-    }
-
-    /// Create piece from usize index
-    /// ## UB 
-    /// If 12 <= index mod 16 <=15 this will try to transmute to a non-existent piece
-    /// Simply use indices that make sense
-    pub fn from_index(index: usize) -> Piece {
+/// Create piece from usize index
+/// ## UB 
+/// If 12 <= index mod 16 <=15 this will try to transmute to a non-existent piece
+/// Simply use indices that make sense
+impl From<usize> for Piece {
+    fn from(index: usize) -> Self {
         unsafe { transmute((index as u8) & 15) }
-    }
 
+    }
+}
+
+impl Piece {
     /// Returns fen formatted piece
-    pub fn to_char(&self) -> char {
-        PIECE_CHAR[self.index()]
+    pub fn to_char(self) -> char {
+        PIECE_CHAR[self as usize]
     }
 
     /// Get piece color
     #[inline]
-    pub fn color(&self) -> Color {
-        Color::from_index(1 & *self as usize)
+    pub fn color(self) -> Color {
+        Color::from(self as usize & 1)
     }
 
     /// Switch piece color
     #[inline]
-    pub fn opposite_color(&self) -> Piece {
-        Piece::from_index(self.index() ^ 1)
+    pub fn opposite_color(self) -> Piece {
+        Piece::from(self as usize ^ 1)
     }
 }

@@ -66,14 +66,14 @@ impl Move {
         castle: u32    // flags
     ) -> Move {
         Move(
-            src.index() as u32              |
-            (tgt.index() << 6) as u32       |
-            (piece.index() << 12) as u32    |
-            (capture.index() << 16) as u32  |
-            (promote.index() << 20) as u32  |
-            is_capture << 24                |
-            double_push << 25               |
-            en_passant << 26                |
+            (src as u32)            |
+            (tgt as u32) << 6       |
+            (piece as u32) << 12    |
+            (capture as u32) << 16  |
+            (promote as u32) << 20  |
+            is_capture << 24        |
+            double_push << 25       |
+            en_passant << 26        |
             castle << 27
         )
     }
@@ -81,31 +81,31 @@ impl Move {
     /// Returns the move source square
     #[inline]
     pub fn get_src(&self) -> Square {
-        Square::from_index((self.0 & SRC) as usize)
+        Square::from((self.0 & SRC) as usize)
     }
 
     /// Returns the move target square
     #[inline]
     pub fn get_tgt(&self) -> Square {
-        Square::from_index(((self.0 & TGT) >> 6) as usize)
+        Square::from(((self.0 & TGT) >> 6) as usize)
     }
 
     /// Returns the moving piece
     #[inline]
     pub fn get_piece(&self) -> Piece {
-        Piece::from_index(((self.0 & PIECE) >> 12) as usize)
+        Piece::from(((self.0 & PIECE) >> 12) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
     #[inline]
     pub fn get_capture(&self) -> Piece {
-        Piece::from_index(((self.0 & CAPTURE) >> 16) as usize)
+        Piece::from(((self.0 & CAPTURE) >> 16) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
     #[inline]
     pub fn get_promotion(&self) -> Piece {
-        Piece::from_index(((self.0 & PROMOTE) >> 20) as usize)
+        Piece::from(((self.0 & PROMOTE) >> 20) as usize)
     }
 
     /// Returns true if the move is a promotion

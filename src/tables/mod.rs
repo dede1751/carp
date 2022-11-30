@@ -84,17 +84,18 @@ impl Tables {
     fn init_leaper_attacks(&mut self) {
         for square in ALL_SQUARES {
             let file = square.rank();
+            let sq = square as usize;
     
             // pawn attacks are also generated behind the starting rank, needed to be able to check
             // quickly for attacks when the opposite colors pawns are one rank from promotion
             if file != Rank::Eight {
-                self.pawn_attacks[0][square.index()] = mask_pawn_attacks(square, Color::White);
+                self.pawn_attacks[0][sq] = mask_pawn_attacks(square, Color::White);
             }
             if file != Rank::First {
-                self.pawn_attacks[1][square.index()] = mask_pawn_attacks(square, Color::Black);
+                self.pawn_attacks[1][sq] = mask_pawn_attacks(square, Color::Black);
             }
-            self.knight_attacks[square.index()] = mask_knight_attacks(square);
-            self.king_attacks[square.index()] = mask_king_attacks(square);
+            self.knight_attacks[sq] = mask_knight_attacks(square);
+            self.king_attacks[sq] = mask_king_attacks(square);
         }
     }
 
@@ -109,12 +110,12 @@ impl Tables {
             for index in 0..(1 << relevant_bits) {
                 let blockers = set_occupancy(mask, index);
                 let magic_index = magic_map(
-                    blockers, self.bishop_magics[square.index()], relevant_bits);
+                    blockers, self.bishop_magics[square as usize], relevant_bits);
                 
                 occ_map[magic_index] = mask_bishop_attacks(square, blockers);
             };
 
-            self.bishop_occupancies[square.index()] = mask;
+            self.bishop_occupancies[square as usize] = mask;
             self.bishop_attacks.push(occ_map);
 
             // gen rook tables and occupancies
@@ -125,12 +126,12 @@ impl Tables {
             for index in 0..(1 << relevant_bits) {
                 let blockers = set_occupancy(mask, index);
                 let magic_index = magic_map(
-                    blockers, self.rook_magics[square.index()], relevant_bits);
+                    blockers, self.rook_magics[square as usize], relevant_bits);
                 
                 occ_map[magic_index] = mask_rook_attacks(square, blockers);
             };
 
-            self.rook_occupancies[square.index()] = mask;
+            self.rook_occupancies[square as usize] = mask;
             self.rook_attacks.push(occ_map);
         }
     } 
@@ -142,47 +143,47 @@ impl Tables {
     #[inline]
     pub fn get_pawn_attack(&self, square: Square, side: Color) -> BitBoard {
         match side {
-            Color::White => self.pawn_attacks[0][square.index()],
-            Color::Black => self.pawn_attacks[1][square.index()],
+            Color::White => self.pawn_attacks[0][square as usize],
+            Color::Black => self.pawn_attacks[1][square as usize],
         }
     }
 
     /// Gets knight attacks from tables
     #[inline]
     pub fn get_knight_attack(&self, square: Square) -> BitBoard {
-        self.knight_attacks[square.index()]
+        self.knight_attacks[square as usize]
     }
 
     /// Gets king attacks from tables
     #[inline]
     pub fn get_king_attack(&self, square: Square) -> BitBoard {
-        self.king_attacks[square.index()]
+        self.king_attacks[square as usize]
     }
 
     /// Gets bishop attacks based on the blocker bitboard
     #[inline]
     pub fn get_bishop_attack(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        let index = square.index();
-        let bits = BISHOP_OCCUPANCY_BITS[index];
+        let sq = square as usize;
+        let bits = BISHOP_OCCUPANCY_BITS[sq];
         let magic_index = magic_map(
-            blockers & self.bishop_occupancies[index],
-            self.bishop_magics[index],
+            blockers & self.bishop_occupancies[sq],
+            self.bishop_magics[sq],
             bits);
 
-        self.bishop_attacks[index][magic_index]
+        self.bishop_attacks[sq][magic_index]
     }
 
     /// Gets rook attacks based on the blocker bitboard
     #[inline]
     pub fn get_rook_attack(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        let index = square.index();
-        let bits = ROOK_OCCUPANCY_BITS[index];
+        let sq = square as usize;
+        let bits = ROOK_OCCUPANCY_BITS[sq];
         let magic_index = magic_map(
-            blockers & self.rook_occupancies[index],
-            self.rook_magics[index],
+            blockers & self.rook_occupancies[sq],
+            self.rook_magics[sq],
             bits);
 
-        self.rook_attacks[index][magic_index]
+        self.rook_attacks[sq][magic_index]
     }
 
     /// Gets queen attacks based on the blocker bitboard

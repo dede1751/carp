@@ -140,15 +140,15 @@ impl MoveSorter {
     }
 
     pub fn add_history(&mut self, m: Move, depth: usize) {
-        let p = m.get_piece().index();
-        let sq = m.get_tgt().index();
+        let p = m.get_piece() as usize;
+        let sq = m.get_tgt() as usize;
         self.history_moves[p][sq] -= (depth * depth) as MoveScore;
 
         // reset history values when surpassing captures/promotions/killers
         if self.history_moves[p][sq] <= -HISTORY_OFFSET {
             for p in ALL_PIECES {
                 for sq in ALL_SQUARES {
-                    self.history_moves[p.index()][sq.index()] >>= 1;
+                    self.history_moves[p as usize][sq as usize] >>= 1;
                 }
             }
         }
@@ -156,7 +156,7 @@ impl MoveSorter {
 
     #[inline]
     fn score_capture(m: &Move) -> MoveScore {
-        MVV_LVA[m.get_piece().index()][m.get_capture().index()]
+        MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
     }
 
     #[inline]
@@ -175,17 +175,17 @@ impl MoveSorter {
     #[inline]
     fn score_move(&self, m: &Move, ply: usize) -> MoveScore {
         if m.is_capture() {
-            Self::score_capture(m) + PROMOTION_OFFSETS[m.get_promotion().index()]
+            Self::score_capture(m) + PROMOTION_OFFSETS[m.get_promotion() as usize]
         } else { // quiets
             let mut score: MoveScore = 0;
 
-            score += PROMOTION_OFFSETS[m.get_promotion().index()];
+            score += PROMOTION_OFFSETS[m.get_promotion() as usize];
             score += self.score_killer(m, ply);
             if m.is_castle() { score += CASTLE_SCORE; }
 
             if score == 0 { // neither castle nor killer
-                let p = m.get_piece().index();
-                let sq = m.get_tgt().index();
+                let p = m.get_piece() as usize;
+                let sq = m.get_tgt() as usize;
                 score += self.history_moves[p][sq] + HISTORY_OFFSET;
             };
 
