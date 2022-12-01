@@ -21,8 +21,6 @@ const LMR_LOWER_LIMIT: usize = 3; // stop applying lmr near leaves
 const NMP_REDUCTION: usize = 2;   // null move pruning reduced depth
 
 const ASPIRATION_WINDOW: Eval = 50;    // aspiration window width
-
-// funky shit between aspiration windows and pvs. don't print pv when using windows!
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 
 pub struct Search<'a>{
@@ -104,7 +102,7 @@ impl <'a> Search<'a>{
         let in_check = board.king_in_check(self.tables);
         self.nodes += 1;
 
-        // Extend pv length to this node
+        // Extend pv length to this node (except root)
         if ply != 0 { self.update_pv_lenghts(ply); }
         
         // Mate distance pruning
@@ -167,7 +165,7 @@ impl <'a> Search<'a>{
                         self.sorter.add_killer(m, ply);
                         self.sorter.add_history(m, depth);
                     };
-                    return beta;
+                    return best_eval;
     
                 } else if eval > alpha {    // possible pv node
                     alpha = eval;
@@ -197,22 +195,23 @@ impl <'a> Search<'a>{
         ply: usize,
     ) -> Eval {
         self.nodes += 1;
-        let eval: Eval = evaluate(board);       // try stand pat
+        let mut best_eval: Eval = evaluate(board);   // try stand pat
     
-        if eval >= beta { return beta; };       // beta cutoff
-        if eval > alpha { alpha = eval; }       // stand pat is pv
+        if best_eval >= beta { return best_eval; };       // beta cutoff
+        if best_eval > alpha { alpha = best_eval; }  // stand pat is pv
     
         let moves: Vec<Move> = self.sorter.sort_captures(board.generate_moves(self.tables));
         for m in moves {
             if let Some(new) = board.make_move(m, self.tables) {
                 let eval = - self.quiescence(&new, -beta, -alpha, ply + 1);
                 
-                if eval >= beta { return beta; }            // beta cutoff
+                best_eval = max(best_eval, eval);
+                if eval >= beta { return best_eval; }            // beta cutoff
                 else if eval > alpha { alpha = eval; };     // possible pv node
             }
         }
 
-        alpha // node fails low
+        best_eval // node fails low
     }
 }
 
