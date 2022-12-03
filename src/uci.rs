@@ -7,7 +7,8 @@ use std::{
 use crate::{
     board_repr::Board,
     tables::Tables,
-    search::Search
+    search::Search,
+    tt::TT,
 };
 
 const ENGINE_ID: &str = "id name Carp 0.1\nid author Andrea S.";
@@ -148,6 +149,7 @@ impl TryFrom<&str> for UCICommand {
 struct UCIEngine {
     board: Board,
     tables: Tables,
+    tt: TT,
     controller_rx: sync::mpsc::Receiver<UCICommand>,
     stop: sync::Arc<sync::atomic::AtomicBool>,
 }
@@ -160,6 +162,7 @@ impl UCIEngine {
         UCIEngine{
             board: Board::default(),
             tables: Tables::default(),
+            tt: TT::default(),
             controller_rx: rx,
             stop,
         }
@@ -190,7 +193,7 @@ impl UCIEngine {
                     }
                 }
                 UCICommand::Go(d) => {
-                    let mut search = Search::new(&self.tables);
+                    let mut search = Search::new(&mut self.tt, &self.tables);
                     let best_move = search.iterative_search(&self.board, d);
 
                     println!("\nbestmove {}", best_move);

@@ -36,6 +36,7 @@ const SIDE_KEY: u64 = 4747071328949516916;
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct ZHash (pub u64);
+pub const NULL_HASH: ZHash = ZHash(0);
 pub const START_HASH: ZHash = ZHash(11231077536533049824);
 
 impl ZHash {

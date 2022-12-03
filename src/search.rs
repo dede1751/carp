@@ -13,6 +13,7 @@ use crate::{
     moves::*,
     move_order::*,
     evaluation::*,
+    tt::*,
 };
 
 pub const MAX_DEPTH: usize = 128;
@@ -23,19 +24,25 @@ const NMP_REDUCTION: usize = 2;   // null move pruning reduced depth
 const ASPIRATION_WINDOW: Eval = 50;    // aspiration window width
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 
+const FUTILITY_MARGIN: Eval = 1100;    // highest queen value possible
+
 pub struct Search<'a>{
+    tt: &'a mut TT,
     tables: &'a Tables,
     sorter: MoveSorter,
+    step: u16,
     nodes: u32,
     pv: [[Move; MAX_DEPTH]; MAX_DEPTH],
     pv_lenghts: [usize; MAX_DEPTH],
 }
 
 impl <'a> Search<'a>{
-    pub fn new(tables: &'a Tables) -> Search {
+    pub fn new(tt: &'a mut TT, tables: &'a Tables) -> Search<'a> {
         Search {
+            tt,
             tables,
             sorter: MoveSorter::new(),
+            step: 0,
             nodes: 0,
             pv: [[NULL_MOVE; MAX_DEPTH]; MAX_DEPTH],
             pv_lenghts: [0; MAX_DEPTH],
@@ -79,11 +86,13 @@ impl <'a> Search<'a>{
                     eval = self.negamax(board, alpha, beta, d, 0);
                 }
             }
-    
+            
             print!("info score cp {} depth {} nodes {} pv ", eval, d, self.nodes);
-
+            
             for m in &self.pv[0][0..self.pv_lenghts[0]] { print!("{} ", m); }
             println!();
+            
+            self.step += 1;
         }
 
         self.pv[0][0]
@@ -98,8 +107,11 @@ impl <'a> Search<'a>{
         ply: usize,
     ) -> Eval {
         let mut best_eval: Eval = MIN;
+        let mut best_move: Move = NULL_MOVE;
         let mut eval: Eval;
+        let mut tt_bound: TTFlag = TTFlag::Upper;
         let in_check = board.king_in_check(self.tables);
+
         self.nodes += 1;
 
         // Extend pv length to this node (except root)
@@ -110,6 +122,29 @@ impl <'a> Search<'a>{
         beta  = min( MATE - ply as Eval - 1, beta);
         if alpha >= beta { return alpha; }
         
+        // Probe tt for eval and best move
+        let mut tt_move: Option<Move> = None;
+        
+        if ply != 0 { // do not probe at root
+
+            if let Some(entry) = self.tt.probe(board.hash) {
+                if entry.depth >= depth as u16 {
+                    let tt_eval = entry.value;
+        
+                    match entry.flag {
+                        TTFlag::Exact => return tt_eval,
+                        TTFlag::Upper => beta = min(beta, tt_eval),
+                        TTFlag::Lower => alpha = max(alpha, tt_eval),
+                    }
+
+                    // Upper/Lower flags can cause indirect cutoffs!
+                    if alpha >= beta { return tt_eval; }
+                }
+
+                tt_move = entry.get_best_move();
+            };
+        };
+
         // Extend search depth when king is in check
         if in_check { 
             depth += 1;
@@ -130,8 +165,9 @@ impl <'a> Search<'a>{
         for m in moves {
             // only consider legal moves
             if let Some(new) = board.make_move(m, self.tables) {
+                moves_checked += 1;
 
-                if moves_checked == 0 { // full depth search
+                if moves_checked == 1 { // full depth search on first move
                     eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
                 } else {
                     // apply lmr for non-pv nodes
@@ -160,31 +196,47 @@ impl <'a> Search<'a>{
 
                 best_eval = max(best_eval, eval);
                 
-                if eval >= beta {           // beta cutoff
-                    if !(m.is_capture()) {
-                        self.sorter.add_killer(m, ply);
-                        self.sorter.add_history(m, depth);
-                    };
-                    return best_eval;
+                if eval > alpha {               // possible pv node
+                    best_move = m;
     
-                } else if eval > alpha {    // possible pv node
+                    if eval >= beta {           // beta cutoff
+                        if !(m.is_capture()) {
+                            self.sorter.add_killer(m, ply);
+                            self.sorter.add_history(m, depth);
+                        };
+    
+                        tt_bound = TTFlag::Lower;
+                        break;
+                    }
+
                     alpha = eval;
+                    tt_bound = TTFlag::Exact;
+
                     self.update_pv(m, ply);
                 }
-
-                moves_checked += 1;
             }
         };
     
         if moves_checked == 0 {     // no legal moves
             if in_check {
-                -MATE + ply as Eval  // checkmate
+                best_eval = -MATE + ply as Eval  // checkmate
             } else {
-                0                   // stalemate
+                best_eval = 0                   // stalemate
             }
-        } else {
-            best_eval
-        }
+        };
+
+        let tt_entry = TTField{
+            key: board.hash,
+            best_move,
+            depth: depth as u16,
+            step: self.step,
+            value: best_eval,
+            flag: tt_bound
+        };
+
+        self.tt.insert(tt_entry);
+
+        best_eval
     }
     
     fn quiescence(
@@ -196,8 +248,9 @@ impl <'a> Search<'a>{
     ) -> Eval {
         self.nodes += 1;
         let mut best_eval: Eval = evaluate(board);   // try stand pat
-    
+        
         if best_eval >= beta { return best_eval; };       // beta cutoff
+        if best_eval < alpha - FUTILITY_MARGIN { return alpha; } // delta pruning
         if best_eval > alpha { alpha = best_eval; }  // stand pat is pv
     
         let moves: Vec<Move> = self.sorter.sort_captures(board.generate_moves(self.tables));
@@ -228,7 +281,8 @@ mod performance_tests {
     fn search_kiwipete10() {
         let board: Board = Board::try_from(KIWIPETE_FEN).unwrap();
         let tables: Tables = Tables::default();
-        let mut search: Search = Search::new(&tables);
+        let mut tt: TT = TT::default();
+        let mut search: Search = Search::new(&mut tt, &tables);
         let depth = 10;
 
         println!("\n --- KIWIPETE POSITION ---\n{}\n\n", board);
@@ -244,7 +298,8 @@ mod performance_tests {
     fn search_killer10() {
         let board: Board = Board::try_from(KILLER_FEN).unwrap();
         let tables: Tables = Tables::default();
-        let mut search: Search = Search::new(&tables);
+        let mut tt: TT = TT::default();
+        let mut search: Search = Search::new(&mut tt, &tables);
         let depth = 10;
 
         println!("\n --- KILLER POSITION ---\n{}\n\n", board);

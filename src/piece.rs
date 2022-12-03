@@ -4,6 +4,8 @@ use std::ops::Not;
 use std::mem::transmute;
 use std::fmt;
 
+use crate::from;
+
 /// # Piece/Player color enum
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
@@ -16,7 +18,7 @@ impl Not for Color {
     // get opposite color
     #[inline]
     fn not(self) -> Color {
-        unsafe { transmute(1 ^ self as u8) }
+        self.opposite()
     }
 }
 
@@ -30,10 +32,10 @@ impl fmt::Display for Color {
     }
 }
 
-/// Get color from usize index
-impl From<usize> for Color {
-    fn from(index: usize) -> Self {
-        unsafe { transmute((index as u8) & 1) }
+/// Simple trick to make not trait constexpr
+impl Color {
+    const fn opposite(self) -> Color {
+        from!(self as u8 ^ 1, 1)
     }
 }
 
@@ -104,7 +106,6 @@ impl TryFrom<char> for Piece {
 impl From<usize> for Piece {
     fn from(index: usize) -> Self {
         unsafe { transmute((index as u8) & 15) }
-
     }
 }
 
@@ -116,13 +117,13 @@ impl Piece {
 
     /// Get piece color
     #[inline]
-    pub fn color(self) -> Color {
-        Color::from(self as usize & 1)
+    pub const fn color(self) -> Color {
+        from!(self as u8, 1)
     }
 
     /// Switch piece color
     #[inline]
-    pub fn opposite_color(self) -> Piece {
-        Piece::from(self as usize ^ 1)
+    pub const fn opposite_color(self) -> Piece {
+        from!(self as u8 ^ 1, 15) // ^1 flips color bit
     }
 }

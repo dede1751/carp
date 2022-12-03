@@ -121,13 +121,13 @@ impl TryFrom<&str> for CastlingRights {
 
 impl CastlingRights {
     /// Get index of rights as usize
-    pub fn index(&self) -> usize {
+    pub const fn index(&self) -> usize {
         self.0 as usize
     }
 
     /// Checks whether given color has kingside rights
     #[inline]
-    pub fn has_kingside(&self, side: Color) -> bool {
+    pub const fn has_kingside(&self, side: Color) -> bool {
         match side {
             Color::White => self.0 & WK != 0,
             Color::Black => self.0 & BK != 0,
@@ -136,7 +136,7 @@ impl CastlingRights {
 
     /// Checks whether given color has queenside rights
     #[inline]
-    pub fn has_queenside(&self, side: Color) -> bool {
+    pub const fn has_queenside(&self, side: Color) -> bool {
         match side {
             Color::White => self.0 & WQ != 0,
             Color::Black => self.0 & BQ != 0,

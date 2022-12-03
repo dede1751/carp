@@ -172,7 +172,6 @@ impl MoveSorter {
         }
     }
 
-    #[inline]
     fn score_move(&self, m: &Move, ply: usize) -> MoveScore {
         if m.is_capture() {
             Self::score_capture(m) + PROMOTION_OFFSETS[m.get_promotion() as usize]

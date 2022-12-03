@@ -8,6 +8,7 @@ use std::mem::transmute;
 use std::fmt;
 
 use crate::bitboard::BitBoard;
+use crate::from;
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
@@ -81,42 +82,34 @@ impl From<usize> for Square {
 
 impl Square {
     /// Get square from (rank, file) coordinates
-    #[inline]
-    pub fn from_coords(file: File, rank: Rank) -> Square {
-        let index: usize = (rank as usize) << 3 ^ (file as usize); // rank*8 + file
-        Square::from(index)
+    pub const fn from_coords(file: File, rank: Rank) -> Square {
+        from!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file
     }
     
     /// Flips square vertically
-    #[inline]
-    pub fn flipv(self) -> Square{
-        Square::from(self as usize ^ 56)
+    pub const fn flipv(self) -> Square{
+        from!(self as u8 ^ 56, 63)
     }
 
     /// Converts square to bitboard
-    #[inline]
-    pub fn to_board(self) -> BitBoard {
-        BitBoard::new(1u64 << self as usize)
+    pub const fn to_board(self) -> BitBoard {
+        BitBoard(1u64 << self as usize)
     }
 
     /// Gets file coordinate
-    #[inline]
-    pub fn file(self) -> File {
-        File::from(self as usize)
+    pub const fn file(self) -> File {
+        from!(self as u8, 7)
     }
     /// Gets rank coordinate
-    #[inline]
-    pub fn rank(self) -> Rank {
-        Rank::from(self as usize >> 3)
+    pub const fn rank(self) -> Rank {
+        from!(self as u8 >> 3, 7)
     }
     /// Get (rank, file) coordinates of square
-    #[inline]
-    pub fn coords(self) -> (File, Rank) {
+    pub const fn coords(self) -> (File, Rank) {
         (self.file(), self.rank())
     }
 
     /// Gets integer distances between current and given square
-    #[inline]
     pub fn dist(self, tgt: Square) -> (i8, i8) {
         let (tf, tr) = (tgt.file() as i8, tgt.rank() as i8);
         let (sf, sr) = (self.file() as i8, self.rank() as i8);
@@ -124,26 +117,28 @@ impl Square {
         (tf - sf, sr - tr)
     }
 
-    // Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
-    #[inline]
-    pub fn right(self) -> Square {
-        Square::from(self as usize + 1)
+    /// Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
+    pub const fn right(self) -> Square {
+        from!(self as u8 + 1, 63)
     }
-    #[inline]
-    pub fn left(self) -> Square {
-        Square::from((self as usize).wrapping_sub(1))
+
+    /// Get new square from original. Wrap linear over the Square enum (A4.left() = H5)
+    pub const fn left(self) -> Square {
+        from!((self as u8).wrapping_sub(1), 63)
     }
-    #[inline]
-    pub fn down(self) -> Square {
-        Square::from(self as usize + 8)
+
+    /// Get new square from original. Wrap linear over the Square enum (H1.down() = H8)
+    pub const fn down(self) -> Square {
+        from!(self as u8 + 8, 63)
     }
-    #[inline]
-    pub fn up(self) -> Square {
-        Square::from((self as usize).wrapping_sub(8))
+
+    /// Get new square from original. Wrap linear over the Square enum (A8.up() = A1)
+    pub const fn up(self) -> Square {
+        from!((self as u8).wrapping_sub(8), 63)
     }
 }
 
-
+/// Board file enum
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum File {
@@ -156,28 +151,19 @@ pub const ALL_FILES: [File; FILE_COUNT] = [
     A, B, C, D, E, F, G, H,
 ];
 
-/// Make file from usize, wrap at 7. 
-impl From<usize> for File {
-    fn from(index: usize) -> Self {
-        unsafe { transmute((index as u8) & 7) }
-    }
-}
-
 impl File {
     /// Gets file to the right, wraps H->A
-    #[inline]
-    pub fn right(self) -> File {
-        File::from((self as usize) + 1)
+    pub const fn right(self) -> File {
+        from!((self as u8) + 1, 7)
     }
 
     /// Gets file to the left, wraps A->H
-    #[inline]
-    pub fn left(self) -> File {
-        File::from((self as usize).wrapping_sub(1)) // avoids of
+    pub const fn left(self) -> File {
+        from!((self as u8).wrapping_sub(1), 7) // avoids of
     }
 }
 
-
+/// Board rank enum
 /// Since boards are numbered A8 -> H1, ranks are backwards
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
@@ -191,23 +177,14 @@ pub const ALL_RANKS: [Rank; RANK_COUNT] = [
     Eight, Seventh, Sixth, Fifth, Fourth, Third, Second, First,
 ];
 
-/// Make rank from usize, wrap at 7. 
-impl From<usize> for Rank {
-    fn from(index: usize) -> Self {
-        unsafe { transmute((index as u8) & 7) }
-    }
-}
-
 impl Rank {
     // Gets rank below, wraps First->Eight
-    #[inline]
-    pub fn down(self) -> Rank {
-        Rank::from((self as usize) + 1)
+    pub const fn down(self) -> Rank {
+        from!(self as u8 + 1, 7)
     }
 
     // Gets rank above, wraps Eight->First
-    #[inline]
-    pub fn up(self) -> Rank {
-        Rank::from((self as usize).wrapping_sub(1)) // avoid of
+    pub const fn up(self) -> Rank {
+        from!((self as u8).wrapping_sub(1), 7) // avoids of
     }
 }

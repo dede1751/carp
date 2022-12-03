@@ -9,7 +9,7 @@ use crate::{
     moves::Move,
     move_order::MoveList,
     tables::Tables,
-    zobrist::ZHash,
+    zobrist::{ZHash, NULL_HASH},
 };
 
 // various debugging fens
@@ -167,7 +167,7 @@ impl Board {
             side: Color::White,
             castling_rights: NO_RIGHTS,
             en_passant: None,
-            hash: ZHash(0),
+            hash: NULL_HASH,
         }
     }
 
