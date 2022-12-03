@@ -171,7 +171,10 @@ impl UCIEngine {
     pub fn run(&mut self) {
         for command in &self.controller_rx {
             match command {
-                UCICommand::UciNewGame => self.board = Board::default(),
+                UCICommand::UciNewGame => {
+                    self.board = Board::default();
+                    self.tt = TT::default();
+                }
                 UCICommand::Position(board, moves) => {
                     self.board = board;
 

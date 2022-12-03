@@ -32,8 +32,6 @@ pub struct Search<'a>{
     sorter: MoveSorter,
     step: u8,
     nodes: u32,
-    pv: [[Move; MAX_DEPTH]; MAX_DEPTH],
-    pv_lenghts: [usize; MAX_DEPTH],
 }
 
 impl <'a> Search<'a>{
@@ -44,30 +42,46 @@ impl <'a> Search<'a>{
             sorter: MoveSorter::new(),
             step: 0,
             nodes: 0,
-            pv: [[NULL_MOVE; MAX_DEPTH]; MAX_DEPTH],
-            pv_lenghts: [0; MAX_DEPTH],
         }
     }
 
-    #[inline]
-    fn update_pv_lenghts(&mut self, ply: usize) {
-        self.pv_lenghts[ply] = ply;
-    }
+    pub fn recover_pv(&self, mut board: Board) -> Vec<Move> {
+        let mut pv: Vec<Move> = Vec::new();
 
-    #[inline]
-    fn update_pv(&mut self, m: Move, ply: usize) {
-        self.pv[ply][ply] = m;
-        self.pv_lenghts[ply] = self.pv_lenghts[ply + 1];
+        // traverse down the tree through the trasposition table
+        loop {
+            let entry = match self.tt.probe(board.hash) {
+                Some(e) => e,
+                None => break,
+            };
 
-        for i in (ply + 1)..self.pv_lenghts[ply + 1] {
-            self.pv[ply][i] = self.pv[ply + 1][i];
+            let tt_move = match entry.get_best_move() {
+                Some(m) => m,
+                None => break,
+            };
+
+            let moves = board.generate_moves(self.tables).all_moves;
+            if moves.contains(&tt_move) {
+                board = match board.make_move(tt_move, self.tables) {
+                    Some(b) => {
+                        pv.push(tt_move);
+                        b
+                    }
+                    None => break,
+                }
+            } else {
+                break;
+            }
         }
+        
+        pv
     }
 
     pub fn iterative_search(&mut self, board: &Board, depth: usize) -> Move {
         let mut alpha: Eval = MIN;
         let mut beta : Eval = MAX;
         let mut eval: Eval = 0;
+        let mut pv: Vec<Move> = vec![NULL_MOVE];
 
         for d in 1..=depth {
             if d < ASPIRATION_THRESHOLD {
@@ -88,14 +102,15 @@ impl <'a> Search<'a>{
             }
             
             print!("info score cp {} depth {} nodes {} pv ", eval, d, self.nodes);
+            pv = self.recover_pv(board.clone());
             
-            for m in &self.pv[0][0..self.pv_lenghts[0]] { print!("{} ", m); }
+            for m in &pv { print!("{} ", m); }
             println!();
             
             self.step += 1;
         }
 
-        self.pv[0][0]
+        pv[0]
     }
     
     fn negamax(
@@ -107,15 +122,10 @@ impl <'a> Search<'a>{
         ply: usize,
     ) -> Eval {
         let mut best_eval: Eval = MIN;
-        let mut best_move: Move = NULL_MOVE;
         let mut eval: Eval;
-        let mut tt_bound: TTFlag = TTFlag::Upper;
         let in_check = board.king_in_check(self.tables);
 
         self.nodes += 1;
-
-        // Extend pv length to this node (except root)
-        if ply != 0 { self.update_pv_lenghts(ply); }
         
         // Mate distance pruning
         alpha = max(-MATE + ply as Eval, alpha);
@@ -123,27 +133,24 @@ impl <'a> Search<'a>{
         if alpha >= beta { return alpha; }
         
         // Probe tt for eval and best move
-        if ply != 0 { // do not probe at root
-
-            match self.tt.probe(board.hash) {
-                Some(entry) => {
-                    if entry.depth >= depth as u8 {
-                        let tt_eval = entry.get_value(ply);
-            
-                        match entry.flag {
-                            TTFlag::Exact => return tt_eval,
-                            TTFlag::Upper => beta = min(beta, tt_eval),
-                            TTFlag::Lower => alpha = max(alpha, tt_eval),
-                        }
-
-                        // Upper/Lower flags can cause indirect cutoffs!
-                        if alpha >= beta { return tt_eval; }
+        match self.tt.probe(board.hash) {
+            Some(entry) => {
+                if entry.depth >= depth as u8 {
+                    let tt_eval = entry.get_value(ply);
+        
+                    match entry.flag {
+                        TTFlag::Exact => return tt_eval,
+                        TTFlag::Upper => beta = min(beta, tt_eval),
+                        TTFlag::Lower => alpha = max(alpha, tt_eval),
                     }
-                    self.sorter.tt_move = entry.get_best_move();
+
+                    // Upper/Lower flags can cause indirect cutoffs!
+                    if alpha >= beta { return tt_eval; }
                 }
-    
-                None => self.sorter.tt_move = None
-            };
+                self.sorter.tt_move = entry.get_best_move();
+            }
+
+            None => self.sorter.tt_move = None
         };
 
         // False when in a PVS node
@@ -164,8 +171,11 @@ impl <'a> Search<'a>{
         if depth == 0 { return self.quiescence(board, alpha, beta, ply); }
     
         // Main recursive search block
-        let mut moves_checked: u32 = 0;
         let moves: Vec<Move> = self.sorter.sort_moves(board.generate_moves(self.tables), ply);
+        let mut moves_checked: u32 = 0;
+        let mut best_move: Move = NULL_MOVE;
+        let mut tt_bound: TTFlag = TTFlag::Upper;
+
         for m in moves {
             // only consider legal moves
             if let Some(new) = board.make_move(m, self.tables) {
@@ -215,8 +225,6 @@ impl <'a> Search<'a>{
 
                     alpha = eval;
                     tt_bound = TTFlag::Exact;
-
-                    self.update_pv(m, ply);
                 }
             }
         };

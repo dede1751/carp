@@ -10,7 +10,7 @@ use crate::{
     zobrist::*,
 };
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum TTFlag { Exact, Upper, Lower }
 
 /// # TTField -- 20B size
@@ -33,7 +33,7 @@ impl Default for TTField {
             depth: 0,
             step: 0, // (iterative deepening "step" count)
             value: 0,
-            flag: TTFlag::Exact,
+            flag: TTFlag::Lower,
         }
     }
 }
@@ -143,16 +143,24 @@ impl TT {
     }
 
     /// Insert entry in appropriate tt field.
-    /// Uses highest depth replacement scheme, except for older entries which are always replaced
-    pub fn insert(&mut self, entry: TTField) {
-        let tt_index: usize = (entry.key.0 & self.bitmask) as usize;
-        let field: &mut TTField = unsafe { self.table.get_unchecked_mut(tt_index) };
+    /// 
+    /// Uses highest depth + aging for replacement, but takes special care of different flag types
+    /// to maintain the pv within the transposition table. Conditions are explained here:
+    /// https://stackoverflow.com/questions/37782131/chess-extracting-the-principal-variation-from-the-transposition-table
+    pub fn insert(&mut self, new: TTField) {
+        let tt_index: usize = (new.key.0 & self.bitmask) as usize;
+        let old: &mut TTField = unsafe { self.table.get_unchecked_mut(tt_index) };
         
-        if entry.key != field.key &&             // no table collision
-            (entry.step  >  field.step    ||  // entry is newer
-             entry.depth >= field.depth)      // entry is deeper
+        if (old.flag != TTFlag::Exact &&                        // old is not exact bound
+            (new.flag == TTFlag::Exact || (new.step > old.step || new.depth >= old.depth))) // new is exact or better
+
+            ||
+        
+            (old.flag == TTFlag::Exact &&                       // old is exact bound
+            new.flag == TTFlag::Exact &&                        // new is exact bound
+            (new.step > old.step || new.depth >= old.depth))    // new is a better entry
         {
-            *field = entry;
+            *old = new;
         }
     }
 }

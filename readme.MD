@@ -19,8 +19,8 @@ while being 8-9 times slower than the fastest generators around. Understandable 
 that it does not bulk count horizon moves, nor keep track of pinned/checking pieces in attack generation.
 I will improve generation once done with the actual engine.
 
-As it stands, on my local (rather weak) machine, Carp can iteratively search Kiwipete to depth 10 in less
-than 3 seconds. The engine is quite fun to play against when limiting the depth to reasonable values, since
+As it stands, on my local (rather weak) machine, Carp can iteratively search Kiwipete to depth 10 in roughly
+half a second. The engine is quite fun to play against when limiting the depth to reasonable values, since
 it is still positionally "dumb", although it is yet to lose against a human player.
 
 ## Implemented optimizations
@@ -30,13 +30,13 @@ it is still positionally "dumb", although it is yet to lose against a human play
 * MVV-LVA + Killer/History move ordering
 * Fail-soft Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
+* Transposition table with newest + highest depth replacement scheme
 * Principal Variation Search
 * Null Move Pruning
 * Late Move Reduction
 * Mate Distance Pruning
 
 Of course it is still lacking many optimizations, most notably:
-* A transposition table (zobrist hashing is however already implemented)
 * Opening book/Endgame tablebase
 * Proper time controls
 * Various other heuristics
