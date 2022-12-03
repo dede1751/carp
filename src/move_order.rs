@@ -74,7 +74,7 @@ impl MoveList {
 
 /// # Move Scoring - lower is better
 /// 
-/// * PV moves get the best score when PV scoring is enabled
+/// * TT moves when found are scored best.
 /// * Promotions receive an extra score to always put them at the top of the list. Knight promotions
 ///   are ordered after queen because they are the most likely underpromotion.
 ///   will get 
@@ -106,6 +106,7 @@ const MVV_LVA: [[MoveScore; PIECE_COUNT]; PIECE_COUNT] = [
 const PROMOTION_OFFSETS: [MoveScore; PIECE_COUNT] = [
     0, 0, -7000, -7000, -5000, -5000, -6000, -6000, -8000, -8000, 0, 0,
 ];
+const TT_SCORE: MoveScore = -10000;
 const CASTLE_SCORE: MoveScore = -1;
 
 const MAX_KILLERS: usize = 2;
@@ -119,6 +120,7 @@ const HISTORY_OFFSET: MoveScore = 30000;
 pub struct MoveSorter {
     killer_moves: [[Move; MAX_KILLERS]; MAX_DEPTH],
     history_moves: [[MoveScore; SQUARE_COUNT]; PIECE_COUNT],
+    pub tt_move: Option<Move>,
 }
 
 impl MoveSorter {
@@ -126,6 +128,7 @@ impl MoveSorter {
         MoveSorter {
             killer_moves : [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH],
             history_moves: [[0; SQUARE_COUNT]; PIECE_COUNT],
+            tt_move: None,
         }
     }
 
@@ -155,15 +158,15 @@ impl MoveSorter {
     }
 
     #[inline]
-    fn score_capture(m: &Move) -> MoveScore {
+    fn score_capture(m: Move) -> MoveScore {
         MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
     }
 
     #[inline]
-    fn score_killer(&self, m: &Move, ply: usize) -> MoveScore {
-        if *m == self.killer_moves[ply][0] {
+    fn score_killer(&self, m: Move, ply: usize) -> MoveScore {
+        if m == self.killer_moves[ply][0] {
             FIRST_KILLER_OFFSET
-        } else if *m == self.killer_moves[ply][1] {
+        } else if m == self.killer_moves[ply][1] {
             SECOND_KILLER_OFFSET
         } else if ply >= 2 {
             self.score_killer(m, ply - 2) + 2 // older killer valued -3, -2
@@ -172,7 +175,7 @@ impl MoveSorter {
         }
     }
 
-    fn score_move(&self, m: &Move, ply: usize) -> MoveScore {
+    fn score_move(&self, m: Move, ply: usize) -> MoveScore {
         if m.is_capture() {
             Self::score_capture(m) + PROMOTION_OFFSETS[m.get_promotion() as usize]
         } else { // quiets
@@ -194,13 +197,25 @@ impl MoveSorter {
 
     #[inline]
     pub fn sort_captures(&self, mut move_list: MoveList) -> Vec<Move> {
-        move_list.captures.sort_by_key(|m|{ Self::score_capture(m) });
+        move_list.captures.sort_by_key(|m|{ Self::score_capture(*m) });
         move_list.captures
     }
 
     #[inline]
     pub fn sort_moves(&self, mut move_list: MoveList, ply: usize) -> Vec<Move> {
-        move_list.all_moves.sort_by_key(|m| { self.score_move(m, ply) });
+        match self.tt_move {
+            Some(tt_move) => {
+                move_list.all_moves.sort_by_key(|m| {
+                    if *m == tt_move {
+                        TT_SCORE
+                    } else {
+                        self.score_move(*m, ply)
+                    }
+                });
+            }
+            None => move_list.all_moves.sort_by_key(|m| { self.score_move(*m, ply) })
+        };
+
         move_list.all_moves
     }
 }

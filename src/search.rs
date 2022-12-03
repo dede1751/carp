@@ -30,7 +30,7 @@ pub struct Search<'a>{
     tt: &'a mut TT,
     tables: &'a Tables,
     sorter: MoveSorter,
-    step: u16,
+    step: u8,
     nodes: u32,
     pv: [[Move; MAX_DEPTH]; MAX_DEPTH],
     pv_lenghts: [usize; MAX_DEPTH],
@@ -123,32 +123,36 @@ impl <'a> Search<'a>{
         if alpha >= beta { return alpha; }
         
         // Probe tt for eval and best move
-        let mut tt_move: Option<Move> = None;
-        
         if ply != 0 { // do not probe at root
 
-            if let Some(entry) = self.tt.probe(board.hash) {
-                if entry.depth >= depth as u16 {
-                    let tt_eval = entry.value;
-        
-                    match entry.flag {
-                        TTFlag::Exact => return tt_eval,
-                        TTFlag::Upper => beta = min(beta, tt_eval),
-                        TTFlag::Lower => alpha = max(alpha, tt_eval),
+            match self.tt.probe(board.hash) {
+                Some(entry) => {
+                    if entry.depth >= depth as u8 {
+                        let tt_eval = entry.get_value(ply);
+            
+                        match entry.flag {
+                            TTFlag::Exact => return tt_eval,
+                            TTFlag::Upper => beta = min(beta, tt_eval),
+                            TTFlag::Lower => alpha = max(alpha, tt_eval),
+                        }
+
+                        // Upper/Lower flags can cause indirect cutoffs!
+                        if alpha >= beta { return tt_eval; }
                     }
-
-                    // Upper/Lower flags can cause indirect cutoffs!
-                    if alpha >= beta { return tt_eval; }
+                    self.sorter.tt_move = entry.get_best_move();
                 }
-
-                tt_move = entry.get_best_move();
+    
+                None => self.sorter.tt_move = None
             };
         };
+
+        // False when in a PVS node
+        let pv_node: bool = alpha != beta - 1;
 
         // Extend search depth when king is in check
         if in_check { 
             depth += 1;
-        } else if depth > NMP_REDUCTION {
+        } else if depth > NMP_REDUCTION  && !pv_node {
             // Apply Null move pruning
             let nmp: Board = board.make_null_move();
             
@@ -225,14 +229,15 @@ impl <'a> Search<'a>{
             }
         };
 
-        let tt_entry = TTField{
-            key: board.hash,
+        let tt_entry = TTField::new(
+            board.hash,
             best_move,
-            depth: depth as u16,
-            step: self.step,
-            value: best_eval,
-            flag: tt_bound
-        };
+            depth,
+            self.step,
+            best_eval,
+            tt_bound,
+            ply
+        );
 
         self.tt.insert(tt_entry);
 

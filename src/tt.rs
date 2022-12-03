@@ -6,23 +6,22 @@ use std::mem::size_of;
 
 use crate::{
     moves::*,
-    evaluation::Eval,
+    evaluation::*,
     zobrist::*,
 };
 
-#[repr(u8)]
 #[derive(Copy, Clone)]
 pub enum TTFlag { Exact, Upper, Lower }
 
-/// # TTField -- 24B size
+/// # TTField -- 20B size
 #[derive(Copy, Clone)]
 pub struct TTField {
-    pub key: ZHash,      // 8B
-    pub best_move: Move, // 4B
-    pub depth: u16,      // 2B
-    pub step: u16,       // 2B
-    pub value: Eval,     // 4B
-    pub flag: TTFlag,    // 1B
+    pub key: ZHash,     // 8B
+    best_move: Move,    // 4B
+    pub depth: u8,      // 1B
+    pub step: u8,       // 1B
+    value: Eval,        // 4B
+    pub flag: TTFlag,   // 1B
 }
 
 /// Default empty field to fill table.
@@ -40,12 +39,57 @@ impl Default for TTField {
 }
 
 impl TTField {
+    pub fn new(
+        key: ZHash,
+        best_move: Move,
+        depth: usize,
+        step: u8,
+        mut value: Eval,
+        flag: TTFlag,
+        ply: usize,
+    ) -> TTField {
+        // normalize mate scores
+        if value > MATE {
+            value += ply as Eval;
+        } else if value < -MATE {
+            value -= ply as Eval;
+        };
+
+        TTField {
+            key,
+            best_move,
+            depth: depth as u8,
+            step,
+            value,
+            flag,
+        }
+    }
     /// Returns best move if found
     pub fn get_best_move(&self) -> Option<Move> {
         if self.best_move != NULL_MOVE {
             Some(self.best_move)
         } else {
             None
+        }
+    }
+
+    /// # Gets value while normalizing mate scores:
+    /// 
+    /// Tree --> Mate scores are relative to root-distance
+    ///          When mating the opponent, score is     MATE - mate_distance_from_root
+    ///          When being mated, score is            -MATE + mate_distance_from_root
+    /// TT   --> Mate scores are relative to node-distance
+    ///          When mating the opponent, score is     MATE - mate_distance_from_node
+    ///          When being mated, score is            -MATE + mate_distance_from_node
+    /// 
+    /// mate_distance_from_root = ply + mate_distance_from_node
+    pub fn get_value(&self, ply: usize) -> Eval {
+        if self.value > MATE {
+            self.value - ply as Eval
+        } else if self.value < -MATE {
+            self.value + ply as Eval
+        } else {
+            self.value
         }
     }
 }
@@ -65,10 +109,7 @@ impl TT {
     pub fn new(mb_size: usize) -> TT {
         let max_size: usize = mb_size * 1024 * 1024 / size_of::<TTField>() + 1;
         let actual_size: usize = max_size.next_power_of_two() / 2;
-        println!("{}", actual_size);
-
         let bitmask: u64 = actual_size as u64 - 1;
-        println!("{:b}", bitmask);
 
         let table: Vec<TTField> = vec![TTField::default(); actual_size];
 
@@ -143,15 +184,7 @@ mod tests {
 
         tt.insert(entry);
 
-        // let entry = tt.probe(ZHash(5));
-        // assert!(entry.is_some());
-
-        // let mut entry = entry.unwrap().clone();
-        // entry.step = 1;
-
-        // // reinsert entry in tt.
-        // tt.insert(entry);
-
-        panic!()
+        let entry = tt.probe(ZHash(tt.bitmask));
+        assert!(entry.is_some());
     }
 }

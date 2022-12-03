@@ -1,4 +1,7 @@
-//! # Module for initializing attack tables and zobrist keys
+//! # Module for initializing various global constants
+//! 
+//! The module exposes the precalculated attack tables, but also includes functionality to generate
+//! new zobrist keys and evaluation tables, to replace the hardcoded ones.
 //! 
 //! Carp uses plain magic bitboards found through random guessing for slider piece attack tables.
 //! RNG for the guessing is built-in and consistent (no need for security), magic values are
@@ -9,7 +12,7 @@
 
 mod attacks;
 mod magics;
-mod rng;
+mod customize;
 
 use attacks::*;
 use magics::*;
