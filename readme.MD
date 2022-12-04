@@ -35,6 +35,7 @@ it is still positionally "dumb", although it is yet to lose against a human play
 * Null Move Pruning
 * Late Move Reduction
 * Mate Distance Pruning
+* Delta Pruning
 
 Of course it is still lacking many optimizations, most notably:
 * Opening book/Endgame tablebase

@@ -42,23 +42,23 @@ impl TTField {
     pub fn new(
         key: ZHash,
         best_move: Move,
-        depth: usize,
+        depth: u8,
         step: u8,
         mut value: Eval,
         flag: TTFlag,
-        ply: usize,
+        ply: u8,
     ) -> TTField {
         // normalize mate scores
-        if value > MATE {
+        if value > MATE_SCORE {
             value += ply as Eval;
-        } else if value < -MATE {
+        } else if value < -MATE_SCORE {
             value -= ply as Eval;
         };
 
         TTField {
             key,
             best_move,
-            depth: depth as u8,
+            depth,
             step,
             value,
             flag,
@@ -83,10 +83,10 @@ impl TTField {
     ///          When being mated, score is            -MATE + mate_distance_from_node
     /// 
     /// mate_distance_from_root = ply + mate_distance_from_node
-    pub fn get_value(&self, ply: usize) -> Eval {
-        if self.value > MATE {
+    pub fn get_value(&self, ply: u8) -> Eval {
+        if self.value > MATE_SCORE {
             self.value - ply as Eval
-        } else if self.value < -MATE {
+        } else if self.value < -MATE_SCORE {
             self.value + ply as Eval
         } else {
             self.value

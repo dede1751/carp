@@ -16,13 +16,13 @@ use crate::{
     tt::*,
 };
 
-pub const MAX_DEPTH: usize = 128;
-const LMR_THRESHOLD: u32 = 4;     // moves to execute before any reduction
-const LMR_LOWER_LIMIT: usize = 3; // stop applying lmr near leaves
-const NMP_REDUCTION: usize = 2;   // null move pruning reduced depth
+pub const MAX_DEPTH: u8 = 128;
+const LMR_THRESHOLD: u32 = 4;  // moves to execute before any reduction
+const LMR_LOWER_LIMIT: u8 = 3; // stop applying lmr near leaves
+const NMP_REDUCTION: u8 = 2;   // null move pruning reduced depth
 
 const ASPIRATION_WINDOW: Eval = 50;    // aspiration window width
-const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
+const ASPIRATION_THRESHOLD: u8 = 4; // depth at which windows are reduced
 
 const FUTILITY_MARGIN: Eval = 1100;    // highest queen value possible
 
@@ -45,43 +45,73 @@ impl <'a> Search<'a>{
         }
     }
 
-    pub fn recover_pv(&self, mut board: Board) -> Vec<Move> {
+    /// Probe tt for best move in given board state (updates board)
+    fn get_best_move(&self, board: &mut Board) -> Option<Move> {
+        let entry = match self.tt.probe(board.hash) {
+            Some(e) => e,
+            None => return None,
+        };
+
+        let tt_move = match entry.get_best_move() {
+            Some(m) => m,
+            None => return None,
+        };
+
+        let moves: Vec<Move> = board.generate_moves(self.tables).all_moves;
+        if moves.contains(&tt_move) {
+            match board.make_move(tt_move, self.tables) {
+                Some(b) => {
+                    *board = b;
+
+                    Some(tt_move)
+                },
+
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Recover pv from transposition table
+    fn recover_pv(&self, mut board: Board) -> Vec<Move> {
         let mut pv: Vec<Move> = Vec::new();
 
         // traverse down the tree through the trasposition table
         loop {
-            let entry = match self.tt.probe(board.hash) {
-                Some(e) => e,
-                None => break,
-            };
+            let best_move = self.get_best_move(&mut board);
 
-            let tt_move = match entry.get_best_move() {
-                Some(m) => m,
+            match best_move {
+                Some(m) => pv.push(m),
                 None => break,
-            };
-
-            let moves = board.generate_moves(self.tables).all_moves;
-            if moves.contains(&tt_move) {
-                board = match board.make_move(tt_move, self.tables) {
-                    Some(b) => {
-                        pv.push(tt_move);
-                        b
-                    }
-                    None => break,
-                }
-            } else {
-                break;
             }
         }
         
         pv
     }
 
-    pub fn iterative_search(&mut self, board: &Board, depth: usize) -> Move {
+    fn print_info(&self, board: Board, eval: Eval, depth: u8) {
+        print!("info score ");
+
+        if eval > MATE_SCORE {          // mating
+            print!("mate {} ", (MATE_VALUE - eval) / 2 + 1);
+        } else if eval < -MATE_SCORE {  // mated
+            print!("mate {} ", -(eval + MATE_VALUE) / 2 - 1);
+        } else {
+            print!("cp {} ", eval);
+        }
+
+        print!("depth {} nodes {} ", depth, self.nodes);
+
+        let pv = self.recover_pv(board);
+        for m in &pv { print!("{} ", m); }
+        println!();
+    }
+
+    pub fn iterative_search(&mut self, board: &Board, depth: u8) -> Move {
         let mut alpha: Eval = MIN;
         let mut beta : Eval = MAX;
         let mut eval: Eval = 0;
-        let mut pv: Vec<Move> = vec![NULL_MOVE];
 
         for d in 1..=depth {
             if d < ASPIRATION_THRESHOLD {
@@ -100,17 +130,12 @@ impl <'a> Search<'a>{
                     eval = self.negamax(board, alpha, beta, d, 0);
                 }
             }
-            
-            print!("info score cp {} depth {} nodes {} pv ", eval, d, self.nodes);
-            pv = self.recover_pv(board.clone());
-            
-            for m in &pv { print!("{} ", m); }
-            println!();
-            
+
+            self.print_info(board.clone(), eval, d);
             self.step += 1;
         }
 
-        pv[0]
+        self.get_best_move(&mut board.clone()).unwrap()
     }
     
     fn negamax(
@@ -118,8 +143,8 @@ impl <'a> Search<'a>{
         board: &Board,
         mut alpha: Eval,
         mut beta: Eval,
-        mut depth: usize,
-        ply: usize,
+        mut depth: u8,
+        ply: u8,
     ) -> Eval {
         let mut best_eval: Eval = MIN;
         let mut eval: Eval;
@@ -128,14 +153,14 @@ impl <'a> Search<'a>{
         self.nodes += 1;
         
         // Mate distance pruning
-        alpha = max(-MATE + ply as Eval, alpha);
-        beta  = min( MATE - ply as Eval - 1, beta);
+        alpha = max(-MATE_VALUE + ply as Eval, alpha);
+        beta  = min( MATE_VALUE - ply as Eval - 1, beta);
         if alpha >= beta { return alpha; }
         
         // Probe tt for eval and best move
         match self.tt.probe(board.hash) {
             Some(entry) => {
-                if entry.depth >= depth as u8 {
+                if entry.depth >= depth {
                     let tt_eval = entry.get_value(ply);
         
                     match entry.flag {
@@ -231,12 +256,13 @@ impl <'a> Search<'a>{
     
         if moves_checked == 0 {     // no legal moves
             if in_check {
-                best_eval = -MATE + ply as Eval  // checkmate
+                best_eval = -MATE_VALUE + ply as Eval  // checkmate
             } else {
                 best_eval = 0                   // stalemate
             }
         };
 
+        // Insert value in tt
         let tt_entry = TTField::new(
             board.hash,
             best_move,
@@ -257,7 +283,7 @@ impl <'a> Search<'a>{
         board: &Board,
         mut alpha: Eval,
         beta: Eval,
-        ply: usize,
+        ply: u8,
     ) -> Eval {
         self.nodes += 1;
         let mut best_eval: Eval = evaluate(board);   // try stand pat

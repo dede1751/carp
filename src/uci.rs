@@ -76,7 +76,7 @@ enum UCICommand {
     Uci,
     IsReady,
     Position(Board, Vec<String>),
-    Go(usize),
+    Go(u8),
     Option,
     Quit,
     Stop,

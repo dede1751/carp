@@ -5,6 +5,7 @@ use crate::{
   board_repr::Board,
   square::*,
   piece::*,
+  search::MAX_DEPTH,
 };
 
 const MG_TABLES: [[Eval; SQUARE_COUNT]; PIECE_COUNT] = [
@@ -42,7 +43,8 @@ const GAME_PHASE_INCREMENT: [Eval; 12] = [ 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
 pub type Eval = i32;
 pub const MAX: Eval = 50000;
 pub const MIN: Eval = -50000;
-pub const MATE: Eval = 49000;
+pub const MATE_VALUE: Eval = 49000;                             // Value for Mate in 0 ply
+pub const MATE_SCORE: Eval = MATE_VALUE - MAX_DEPTH as Eval;    // Minimum mate score possible.
 
 pub fn evaluate(board: &Board) -> Eval {
     let mut mg: [Eval; 2] = [0; 2];

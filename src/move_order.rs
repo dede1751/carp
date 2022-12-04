@@ -118,7 +118,7 @@ const HISTORY_OFFSET: MoveScore = 30000;
 
 #[derive(Debug)]
 pub struct MoveSorter {
-    killer_moves: [[Move; MAX_KILLERS]; MAX_DEPTH],
+    killer_moves: [[Move; MAX_KILLERS]; MAX_DEPTH as usize],
     history_moves: [[MoveScore; SQUARE_COUNT]; PIECE_COUNT],
     pub tt_move: Option<Move>,
 }
@@ -126,14 +126,15 @@ pub struct MoveSorter {
 impl MoveSorter {
     pub fn new() -> MoveSorter {
         MoveSorter {
-            killer_moves : [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH],
+            killer_moves : [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH as usize],
             history_moves: [[0; SQUARE_COUNT]; PIECE_COUNT],
             tt_move: None,
         }
     }
 
     #[inline]
-    pub fn add_killer(&mut self, m: Move, ply: usize) {
+    pub fn add_killer(&mut self, m: Move, ply: u8) {
+        let ply = ply as usize;
         let first_killer = self.killer_moves[ply][0];
 
         if first_killer != m {
@@ -142,7 +143,7 @@ impl MoveSorter {
         }
     }
 
-    pub fn add_history(&mut self, m: Move, depth: usize) {
+    pub fn add_history(&mut self, m: Move, depth: u8) {
         let p = m.get_piece() as usize;
         let sq = m.get_tgt() as usize;
         self.history_moves[p][sq] -= (depth * depth) as MoveScore;
@@ -163,10 +164,10 @@ impl MoveSorter {
     }
 
     #[inline]
-    fn score_killer(&self, m: Move, ply: usize) -> MoveScore {
-        if m == self.killer_moves[ply][0] {
+    fn score_killer(&self, m: Move, ply: u8) -> MoveScore {
+        if m == self.killer_moves[ply as usize][0] {
             FIRST_KILLER_OFFSET
-        } else if m == self.killer_moves[ply][1] {
+        } else if m == self.killer_moves[ply as usize][1] {
             SECOND_KILLER_OFFSET
         } else if ply >= 2 {
             self.score_killer(m, ply - 2) + 2 // older killer valued -3, -2
@@ -175,7 +176,7 @@ impl MoveSorter {
         }
     }
 
-    fn score_move(&self, m: Move, ply: usize) -> MoveScore {
+    fn score_move(&self, m: Move, ply: u8) -> MoveScore {
         if m.is_capture() {
             Self::score_capture(m) + PROMOTION_OFFSETS[m.get_promotion() as usize]
         } else { // quiets
@@ -202,7 +203,7 @@ impl MoveSorter {
     }
 
     #[inline]
-    pub fn sort_moves(&self, mut move_list: MoveList, ply: usize) -> Vec<Move> {
+    pub fn sort_moves(&self, mut move_list: MoveList, ply: u8) -> Vec<Move> {
         match self.tt_move {
             Some(tt_move) => {
                 move_list.all_moves.sort_by_key(|m| {
