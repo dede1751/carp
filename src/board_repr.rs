@@ -31,6 +31,7 @@ pub struct Board {
     pub side: Color,
     pub castling_rights: CastlingRights,
     pub en_passant: Option<Square>,
+    pub halfmoves: usize,
     pub hash: ZHash,
 }
 
@@ -72,9 +73,12 @@ impl fmt::Display for Board {
 "{board_str}
  Side to move      : {}
  Castling Rights   : {}
- En Passant Square : {en_passant_str}",
+ En Passant Square : {en_passant_str}
+ Halfmoves         : {}
+ ",
             self.side,
             self.castling_rights,
+            self.halfmoves,
         )
     }
 }
@@ -147,6 +151,11 @@ impl TryFrom<&str> for Board {
              }
         }
 
+        match fen[4].parse::<usize>() {
+            Ok(hm) => board.halfmoves = hm,
+            Err(_) => return Err("Invalid halfmove count!"),
+        }
+
         Ok(board)
     }
 }
@@ -167,6 +176,7 @@ impl Board {
             side: Color::White,
             castling_rights: NO_RIGHTS,
             en_passant: None,
+            halfmoves: 0,
             hash: NULL_HASH,
         }
     }
@@ -402,8 +412,11 @@ impl Board {
         let piece: Piece = m.get_piece();
         let promotion: Piece = m.get_promotion();
         
+        new.halfmoves += 1; // increment halfmove clock
+
         // always remove piece from source square
         new.remove_piece(piece, src);
+        if piece == Piece::WP || piece == Piece::BP { new.halfmoves = 0 } // halfmove clock reset
 
         // handle captures, enpassant or castling moves
         if m.is_enpassant() { // enpassant
@@ -414,8 +427,9 @@ impl Board {
             
         } else if m.is_capture() { // normal capture
             new.remove_piece(m.get_capture(), tgt);
+            new.halfmoves = 0;     // halfmove clock reset
 
-        } else if m.is_castle() { // castling
+        } else if m.is_castle() {  // castling
             
             match tgt {
                 Square::G1 => {

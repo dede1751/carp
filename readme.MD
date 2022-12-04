@@ -10,7 +10,7 @@ and most importantly the [chess programming wiki](https://www.chessprogramming.o
 
 *Code layout/package structure/documentation is temporary for the early stage of development*
 
-*UCI functionality is currently limited to fixed depth search, and both 50MR and threefold repetition are yet to be implemented*
+*UCI functionality is currently limited to fixed depth search*
 
 ## Performance
 
@@ -38,6 +38,9 @@ it is still positionally "dumb", although it is yet to lose against a human play
 * Delta Pruning
 
 Of course it is still lacking many optimizations, most notably:
+
+* Multithreading with Lazy SMP
 * Opening book/Endgame tablebase
 * Proper time controls
-* Various other heuristics
+* Various other heuristics (razoring, see, search extensions...)
+* Improved evaluation (safety, mobility, open lines)

@@ -9,6 +9,7 @@ use crate::{
     tables::Tables,
     search::Search,
     tt::TT,
+    zobrist::ZHash,
 };
 
 const ENGINE_ID: &str = "id name Carp 0.1\nid author Andrea S.";
@@ -148,6 +149,7 @@ impl TryFrom<&str> for UCICommand {
 /// command.
 struct UCIEngine {
     board: Board,
+    history: Vec<ZHash>,
     tables: Tables,
     tt: TT,
     controller_rx: sync::mpsc::Receiver<UCICommand>,
@@ -161,6 +163,7 @@ impl UCIEngine {
     ) -> UCIEngine {
         UCIEngine{
             board: Board::default(),
+            history: Vec::new(),
             tables: Tables::default(),
             tt: TT::default(),
             controller_rx: rx,
@@ -176,6 +179,7 @@ impl UCIEngine {
                     self.tt = TT::default();
                 }
                 UCICommand::Position(board, moves) => {
+                    self.history = vec![board.hash];
                     self.board = board;
 
                     for move_string in moves {
@@ -187,7 +191,10 @@ impl UCIEngine {
                         match new {
                             Some(new_move) => {
                                 match self.board.make_move(new_move, &self.tables) {
-                                    Some(b) => self.board = b,
+                                    Some(b) => {
+                                        self.board = b;
+                                        self.history.push(b.hash);
+                                    }
                                     None => eprintln!("Move is not legal!"),
                                 }
                             },
@@ -196,7 +203,7 @@ impl UCIEngine {
                     }
                 }
                 UCICommand::Go(d) => {
-                    let mut search = Search::new(&mut self.tt, &self.tables);
+                    let mut search = Search::new(self.history.clone(), &mut self.tt, &self.tables);
                     let best_move = search.iterative_search(&self.board, d);
 
                     println!("\nbestmove {}", best_move);

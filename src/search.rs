@@ -14,6 +14,7 @@ use crate::{
     move_order::*,
     evaluation::*,
     tt::*,
+    zobrist::ZHash,
 };
 
 pub const MAX_DEPTH: u8 = 128;
@@ -21,12 +22,13 @@ const LMR_THRESHOLD: u32 = 4;  // moves to execute before any reduction
 const LMR_LOWER_LIMIT: u8 = 3; // stop applying lmr near leaves
 const NMP_REDUCTION: u8 = 2;   // null move pruning reduced depth
 
-const ASPIRATION_WINDOW: Eval = 50;    // aspiration window width
+const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
 const ASPIRATION_THRESHOLD: u8 = 4; // depth at which windows are reduced
 
-const FUTILITY_MARGIN: Eval = 1100;    // highest queen value possible
+const FUTILITY_MARGIN: Eval = 1100; // highest queen value possible
 
 pub struct Search<'a>{
+    history: Vec<ZHash>,
     tt: &'a mut TT,
     tables: &'a Tables,
     sorter: MoveSorter,
@@ -35,8 +37,9 @@ pub struct Search<'a>{
 }
 
 impl <'a> Search<'a>{
-    pub fn new(tt: &'a mut TT, tables: &'a Tables) -> Search<'a> {
+    pub fn new(history: Vec<ZHash>, tt: &'a mut TT, tables: &'a Tables) -> Search<'a> {
         Search {
+            history,
             tt,
             tables,
             sorter: MoveSorter::new(),
@@ -74,11 +77,11 @@ impl <'a> Search<'a>{
     }
 
     /// Recover pv from transposition table
-    fn recover_pv(&self, mut board: Board) -> Vec<Move> {
+    fn recover_pv(&self, mut board: Board, depth: u8) -> Vec<Move> {
         let mut pv: Vec<Move> = Vec::new();
 
         // traverse down the tree through the trasposition table
-        loop {
+        for _ in 0..depth {
             let best_move = self.get_best_move(&mut board);
 
             match best_move {
@@ -101,9 +104,9 @@ impl <'a> Search<'a>{
             print!("cp {} ", eval);
         }
 
-        print!("depth {} nodes {} ", depth, self.nodes);
+        print!("depth {} nodes {} pv ", depth, self.nodes);
 
-        let pv = self.recover_pv(board);
+        let pv = self.recover_pv(board, depth);
         for m in &pv { print!("{} ", m); }
         println!();
     }
@@ -149,8 +152,11 @@ impl <'a> Search<'a>{
         let mut best_eval: Eval = MIN;
         let mut eval: Eval;
         let in_check = board.king_in_check(self.tables);
+        let pv_node: bool = alpha != beta - 1; // False when in a PVS node
 
         self.nodes += 1;
+
+        if self.is_draw(board) { return 0; } // detect draws
         
         // Mate distance pruning
         alpha = max(-MATE_VALUE + ply as Eval, alpha);
@@ -178,9 +184,6 @@ impl <'a> Search<'a>{
             None => self.sorter.tt_move = None
         };
 
-        // False when in a PVS node
-        let pv_node: bool = alpha != beta - 1;
-
         // Extend search depth when king is in check
         if in_check { 
             depth += 1;
@@ -206,6 +209,7 @@ impl <'a> Search<'a>{
             if let Some(new) = board.make_move(m, self.tables) {
                 moves_checked += 1;
 
+                self.history.push(new.hash);
                 if moves_checked == 1 { // full depth search on first move
                     eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
                 } else {
@@ -232,33 +236,35 @@ impl <'a> Search<'a>{
                         };
                     };
                 };
+                self.history.pop();
 
-                best_eval = max(best_eval, eval);
-                
-                if eval > alpha {               // possible pv node
-                    best_move = m;
+                if eval > best_eval {
+                    best_eval = eval;
+                    best_move = m; // best move is set regardless. facilitates retrieving pv
+
+                    if eval > alpha {               // possible pv node
+                        if eval >= beta {           // beta cutoff
+                            if !(m.is_capture()) {
+                                self.sorter.add_killer(m, ply);
+                                self.sorter.add_history(m, depth);
+                            };
+        
+                            tt_bound = TTFlag::Lower;
+                            break;
+                        }
     
-                    if eval >= beta {           // beta cutoff
-                        if !(m.is_capture()) {
-                            self.sorter.add_killer(m, ply);
-                            self.sorter.add_history(m, depth);
-                        };
-    
-                        tt_bound = TTFlag::Lower;
-                        break;
+                        alpha = eval;
+                        tt_bound = TTFlag::Exact;
                     }
-
-                    alpha = eval;
-                    tt_bound = TTFlag::Exact;
                 }
             }
         };
     
-        if moves_checked == 0 {     // no legal moves
+        if moves_checked == 0 { // no legal moves
             if in_check {
                 best_eval = -MATE_VALUE + ply as Eval  // checkmate
             } else {
-                best_eval = 0                   // stalemate
+                best_eval = 0 // stalemate
             }
         };
 
@@ -288,9 +294,9 @@ impl <'a> Search<'a>{
         self.nodes += 1;
         let mut best_eval: Eval = evaluate(board);   // try stand pat
         
-        if best_eval >= beta { return best_eval; };       // beta cutoff
+        if best_eval >= beta { return best_eval; };              // beta cutoff
         if best_eval < alpha - FUTILITY_MARGIN { return alpha; } // delta pruning
-        if best_eval > alpha { alpha = best_eval; }  // stand pat is pv
+        if best_eval > alpha { alpha = best_eval; }              // stand pat is pv
     
         let moves: Vec<Move> = self.sorter.sort_captures(board.generate_moves(self.tables));
         for m in moves {
@@ -298,12 +304,28 @@ impl <'a> Search<'a>{
                 let eval = - self.quiescence(&new, -beta, -alpha, ply + 1);
                 
                 best_eval = max(best_eval, eval);
-                if eval >= beta { return best_eval; }            // beta cutoff
+                if eval >= beta { return best_eval; }       // beta cutoff
                 else if eval > alpha { alpha = eval; };     // possible pv node
             }
         }
 
         best_eval // node fails low
+    }
+
+    fn is_draw(&self, board: &Board) -> bool {
+        board.halfmoves >= 100 || self.is_repetition(board)
+    }
+
+    /// Check for repetitions in hash history.
+    /// We stop at the first occurrence of the position. We only check 
+    fn is_repetition(&self, board: &Board,) -> bool {
+        self.history
+            .iter()
+            .rev()                       // step through history in reverse
+            .take(board.halfmoves + 1)   // only check the last "halfmove" elements
+            .skip(2)                     // first element is board itself, second is opponent. skip
+            .step_by(2)                  // don't check opponent moves
+            .any(|&x| { x == board.hash }) // stop at first occurrence
     }
 }
 
@@ -321,7 +343,7 @@ mod performance_tests {
         let board: Board = Board::try_from(KIWIPETE_FEN).unwrap();
         let tables: Tables = Tables::default();
         let mut tt: TT = TT::default();
-        let mut search: Search = Search::new(&mut tt, &tables);
+        let mut search: Search = Search::new(Vec::new(), &mut tt, &tables);
         let depth = 10;
 
         println!("\n --- KIWIPETE POSITION ---\n{}\n\n", board);
@@ -338,7 +360,7 @@ mod performance_tests {
         let board: Board = Board::try_from(KILLER_FEN).unwrap();
         let tables: Tables = Tables::default();
         let mut tt: TT = TT::default();
-        let mut search: Search = Search::new(&mut tt, &tables);
+        let mut search: Search = Search::new(Vec::new(), &mut tt, &tables);
         let depth = 10;
 
         println!("\n --- KILLER POSITION ---\n{}\n\n", board);
