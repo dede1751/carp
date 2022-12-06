@@ -1,6 +1,8 @@
 //! # PeSTO's tapered evaluation tables with RofChade piece table values
 //! 
 //! Interpolates piece value tables over 24 different game phases.
+use std::cmp::{ max, min };
+
 use crate::{
   board_repr::Board,
   square::*,
@@ -8,7 +10,7 @@ use crate::{
   search::MAX_DEPTH,
 };
 
-const MG_TABLES: [[Eval; SQUARE_COUNT]; PIECE_COUNT] = [
+const MG_TABLES: [[i32; SQUARE_COUNT]; PIECE_COUNT] = [
     [94, 94, 94, 94, 94, 94, 94, 94, 272, 267, 252, 228, 241, 226, 259, 281, 188, 194, 179, 161, 150, 147, 176, 178, 126, 118, 107, 99, 92, 98, 111, 111, 107, 103, 91, 87, 87, 86, 97, 93, 98, 101, 88, 95, 94, 89, 93, 86, 107, 102, 102, 104, 107, 94, 96, 87, 94, 94, 94, 94, 94, 94, 94, 94],
     [94, 94, 94, 94, 94, 94, 94, 94, 107, 102, 102, 104, 107, 94, 96, 87, 98, 101, 88, 95, 94, 89, 93, 86, 107, 103, 91, 87, 87, 86, 97, 93, 126, 118, 107, 99, 92, 98, 111, 111, 188, 194, 179, 161, 150, 147, 176, 178, 272, 267, 252, 228, 241, 226, 259, 281, 94, 94, 94, 94, 94, 94, 94, 94],
     [223, 243, 268, 253, 250, 254, 218, 182, 256, 273, 256, 279, 272, 256, 257, 229, 257, 261, 291, 290, 280, 272, 262, 240, 264, 284, 303, 303, 303, 292, 289, 263, 263, 275, 297, 306, 297, 298, 285, 263, 258, 278, 280, 296, 291, 278, 261, 259, 239, 261, 271, 276, 279, 261, 258, 237, 252, 230, 258, 266, 259, 263, 231, 217],
@@ -23,7 +25,7 @@ const MG_TABLES: [[Eval; SQUARE_COUNT]; PIECE_COUNT] = [
     [11947, 11966, 11979, 11989, 11972, 11986, 11976, 11957, 11973, 11989, 12004, 12013, 12014, 12004, 11995, 11983, 11981, 11997, 12011, 12021, 12023, 12016, 12007, 11991, 11982, 11996, 12021, 12024, 12027, 12023, 12009, 11989, 11992, 12022, 12024, 12027, 12026, 12033, 12026, 12003, 12010, 12017, 12023, 12015, 12020, 12045, 12044, 12013, 11988, 12017, 12014, 12017, 12017, 12038, 12023, 12011, 11926, 11965, 11982, 11982, 11989, 12015, 12004, 11983]
 ];
 
-const EG_TABLES: [[Eval; SQUARE_COUNT]; PIECE_COUNT] = [
+const EG_TABLES: [[i32; SQUARE_COUNT]; PIECE_COUNT] = [
     [82, 82, 82, 82, 82, 82, 82, 82, 180, 216, 143, 177, 150, 208, 116, 71, 76, 89, 108, 113, 147, 138, 107, 62, 68, 95, 88, 103, 105, 94, 99, 59, 55, 80, 77, 94, 99, 88, 92, 57, 56, 78, 78, 72, 85, 85, 115, 70, 47, 81, 62, 59, 67, 106, 120, 60, 82, 82, 82, 82, 82, 82, 82, 82],
     [82, 82, 82, 82, 82, 82, 82, 82, 47, 81, 62, 59, 67, 106, 120, 60, 56, 78, 78, 72, 85, 85, 115, 70, 55, 80, 77, 94, 99, 88, 92, 57, 68, 95, 88, 103, 105, 94, 99, 59, 76, 89, 108, 113, 147, 138, 107, 62, 180, 216, 143, 177, 150, 208, 116, 71, 82, 82, 82, 82, 82, 82, 82, 82],
     [170, 248, 303, 288, 398, 240, 322, 230, 264, 296, 409, 373, 360, 399, 344, 320, 290, 397, 374, 402, 421, 466, 410, 381, 328, 354, 356, 390, 374, 406, 355, 359, 324, 341, 353, 350, 365, 356, 358, 329, 314, 328, 349, 347, 356, 354, 362, 321, 308, 284, 325, 334, 336, 355, 323, 318, 232, 316, 279, 304, 320, 309, 318, 314],
@@ -38,18 +40,23 @@ const EG_TABLES: [[Eval; SQUARE_COUNT]; PIECE_COUNT] = [
     [11985, 12036, 12012, 11946, 12008, 11972, 12024, 12014, 12001, 12007, 11992, 11936, 11957, 11984, 12009, 12008, 11986, 11986, 11978, 11954, 11956, 11970, 11985, 11973, 11951, 11999, 11973, 11961, 11954, 11956, 11967, 11949, 11983, 11980, 11988, 11973, 11970, 11975, 11986, 11964, 11991, 12024, 12002, 11984, 11980, 12006, 12022, 11978, 12029, 11999, 11980, 11993, 11992, 11996, 11962, 11971, 11935, 12023, 12016, 11985, 11944, 11966, 12002, 12013]
 ];
 
-const GAME_PHASE_INCREMENT: [Eval; 12] = [ 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
+const GAME_PHASE_INCREMENT: [i32; 12] = [ 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
 
-pub type Eval = i32;
-pub const MAX: Eval = 50000;
-pub const MIN: Eval = -50000;
-pub const MATE_VALUE: Eval = 49000;                             // Value for Mate in 0 ply
-pub const MATE_SCORE: Eval = MATE_VALUE - MAX_DEPTH as Eval;    // Minimum mate score possible.
+pub type Eval = i16;
+
+// Max absolute values: 32767, -32767
+pub const MAX: Eval = std::i16::MAX;
+pub const MIN: Eval = -MAX;
+
+// Mate values [31000, 30872]
+pub const MATE_VALUE: Eval = 31000;                             // Value for Mate in 0 ply
+pub const MATE_SCORE: Eval = MATE_VALUE - MAX_DEPTH as Eval;    // Mate lower bound
+
 
 pub fn evaluate(board: &Board) -> Eval {
-    let mut mg: [Eval; 2] = [0; 2];
-    let mut eg: [Eval; 2] = [0; 2];
-    let mut game_phase: Eval = 0;
+    let mut mg: [i32; 2] = [0; 2];
+    let mut eg: [i32; 2] = [0; 2];
+    let mut game_phase: i32 = 0;
 
     for piece in ALL_PIECES {
         for square in board.pieces[piece as usize] {
@@ -59,9 +66,37 @@ pub fn evaluate(board: &Board) -> Eval {
         }
     };
 
-    let mg_score: Eval = mg[board.side as usize] - mg[(!board.side) as usize];
-    let eg_score: Eval = eg[board.side as usize] - eg[(!board.side) as usize];
+    let mg_score: i32 = mg[board.side as usize] - mg[(!board.side) as usize];
+    let eg_score: i32 = eg[board.side as usize] - eg[(!board.side) as usize];
     if game_phase > 24 { game_phase = 24 }
 
-    return (mg_score * game_phase + eg_score * (24 - game_phase)) / 24
+    let mut eval = (mg_score * game_phase + eg_score * (24 - game_phase)) / 24;
+    eval = max(eval, -(MATE_SCORE - 1) as i32); // clamp to minimum value
+    eval = min(eval,  (MATE_SCORE - 1) as i32); // clamp to maximum value
+
+    eval as Eval
+}
+
+#[inline]
+pub fn is_mate(eval: Eval) -> bool {
+    eval >= MATE_SCORE && eval <= MATE_VALUE
+}
+
+#[inline]
+pub fn is_mated(eval: Eval) -> bool {
+    eval <= -MATE_SCORE && eval >= -MATE_VALUE
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clamp() {
+        let b: Board = Board::try_from("QQQQQQQQ/RNBKQBNR/QQQQQQQQ/QQQQQQQQ/8/8/8/8 b - - 0 -").unwrap();
+        let eval = evaluate(&b);
+
+        // eval does not become a mate score
+        assert!(eval > -MATE_SCORE);
+    }
 }

@@ -13,7 +13,7 @@ use crate::{
 };
 
 // various debugging fens
-pub const EMPTY_FEN: &str =  "8/8/8/8/8/8/8/8 b - - ";
+pub const EMPTY_FEN: &str =  "8/8/8/8/8/8/8/8 w - - 0 -";
 pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 pub const KIWIPETE_FEN: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 pub const KILLER_FEN: &str = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1";

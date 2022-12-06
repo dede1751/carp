@@ -53,6 +53,12 @@ pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
     WR, BR, WQ, BQ, WK, BK,
 ];
 
+// used in move generation, promotions ordered by relative importance
+pub const WHITE_PIECES    : [Piece; 6] = [ WP, WN, WB, WR, WQ, WK ];
+pub const BLACK_PIECES    : [Piece; 6] = [ BP, BN, BB, BR, BQ, BK ];
+pub const WHITE_PROMOTIONS: [Piece; 4] = [ WQ, WN, WR, WB ];
+pub const BLACK_PROMOTIONS: [Piece; 4] = [ BQ, BN, BR, BB ];
+
 // extract information from piece index
 pub const PIECE_BITS: usize = 0x0E;
 pub const PAWN      : usize = 0x00;
@@ -61,12 +67,6 @@ pub const BISHOP    : usize = 0x04;
 pub const ROOK      : usize = 0x06;
 pub const QUEEN     : usize = 0x08;
 pub const KING      : usize = 0x0A;
-
-// used in move generation
-pub const WHITE_PIECES    : [Piece; 6] = [ WP, WN, WB, WR, WQ, WK ];
-pub const WHITE_PROMOTIONS: [Piece; 4] = [ WQ, WN, WR, WB ]; // order promotions by relative importance
-pub const BLACK_PIECES    : [Piece; 6] = [ BP, BN, BB, BR, BQ, BK ];
-pub const BLACK_PROMOTIONS: [Piece; 4] = [ BQ, BN, BR, BB ];
 
 // used for printing/reading pieces
 const PIECE_CHAR: [char; PIECE_COUNT] = [

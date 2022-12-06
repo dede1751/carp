@@ -1,10 +1,7 @@
 //! # Implements Bitboards along with all relevant bitwise operations
 
 use std::fmt;
-use std::ops::{
-    Shl, Shr, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Mul, Not
-};
-// std::ops traits are shamelessly stolen from https://github.com/jordanbray/chess
+use std::ops::*;
 
 use crate::square::*;
 
@@ -18,285 +15,52 @@ pub type BB64 = [BitBoard; SQUARE_COUNT];
 pub const EMPTY_BB: BitBoard = BitBoard(0);
 pub const EMPTY_BB64: BB64 = [EMPTY_BB; SQUARE_COUNT];
 
-// Impl Shl
-impl Shl for BitBoard {
-    type Output = BitBoard;
+// idea for ops implementation is from https://github.com/analog-hors/tantabus
+/// Implement math standard operations
+macro_rules! impl_math_ops {
+    ($($trait:ident::$fn:ident),*) => {
+        $(
+            impl std::ops::$trait for BitBoard {
+                type Output = Self;
 
-    #[inline]
-    fn shl(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 << other.0)
-    }
+                #[inline(always)]
+                fn $fn(self, other: Self) -> Self::Output {
+                    Self(std::ops::$trait::$fn(self.0, other.0))
+                }
+            }
+        )*
+    };
 }
 
-impl Shl for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn shl(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 << other.0)
-    }
+impl_math_ops! {
+    Shl::shl,
+    Shr::shr,
+    BitAnd::bitand,
+    BitOr::bitor,
+    BitXor::bitxor,
+    Mul::mul
 }
 
-impl Shl<&BitBoard> for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn shl(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 << other.0)
-    }
+/// Implement math assignment operations
+macro_rules! impl_math_assign_ops {
+    ($($trait:ident::$fn:ident),*) => {
+        $(impl std::ops::$trait for BitBoard {
+            #[inline(always)]
+            fn $fn(&mut self, other: Self) {
+                std::ops::$trait::$fn(&mut self.0, other.0)
+            }
+        })*
+    };
 }
 
-impl Shl<BitBoard> for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn shl(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 << other.0)
-    }
-}
-// Impl Shr
-impl Shr for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn shr(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 >> other.0)
-    }
-}
-
-impl Shr for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn shr(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 >> other.0)
-    }
-}
-
-impl Shr<&BitBoard> for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn shr(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 >> other.0)
-    }
-}
-
-impl Shr<BitBoard> for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn shr(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 >> other.0)
-    }
-}
-
-// Impl BitAnd
-impl BitAnd for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitand(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 & other.0)
-    }
-}
-
-impl BitAnd for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitand(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 & other.0)
-    }
-}
-
-impl BitAnd<&BitBoard> for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitand(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 & other.0)
-    }
-}
-
-impl BitAnd<BitBoard> for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitand(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 & other.0)
-    }
-}
-
-// Impl BitOr
-impl BitOr for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitor(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 | other.0)
-    }
-}
-
-impl BitOr for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitor(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 | other.0)
-    }
-}
-
-impl BitOr<&BitBoard> for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitor(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 | other.0)
-    }
-}
-
-impl BitOr<BitBoard> for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitor(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 | other.0)
-    }
-}
-
-// Impl BitXor
-
-impl BitXor for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitxor(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 ^ other.0)
-    }
-}
-
-impl BitXor for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitxor(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 ^ other.0)
-    }
-}
-
-impl BitXor<&BitBoard> for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitxor(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0 ^ other.0)
-    }
-}
-
-impl BitXor<BitBoard> for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn bitxor(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0 ^ other.0)
-    }
-}
-
-// Impl BitAndAssign
-
-impl BitAndAssign for BitBoard {
-    #[inline]
-    fn bitand_assign(&mut self, other: BitBoard) {
-        self.0 &= other.0;
-    }
-}
-
-impl BitAndAssign<&BitBoard> for BitBoard {
-    #[inline]
-    fn bitand_assign(&mut self, other: &BitBoard) {
-        self.0 &= other.0;
-    }
-}
-
-// Impl BitOrAssign
-impl BitOrAssign for BitBoard {
-    #[inline]
-    fn bitor_assign(&mut self, other: BitBoard) {
-        self.0 |= other.0;
-    }
-}
-
-impl BitOrAssign<&BitBoard> for BitBoard {
-    #[inline]
-    fn bitor_assign(&mut self, other: &BitBoard) {
-        self.0 |= other.0;
-    }
-}
-
-// Impl BitXor Assign
-impl BitXorAssign for BitBoard {
-    #[inline]
-    fn bitxor_assign(&mut self, other: BitBoard) {
-        self.0 ^= other.0;
-    }
-}
-
-impl BitXorAssign<&BitBoard> for BitBoard {
-    #[inline]
-    fn bitxor_assign(&mut self, other: &BitBoard) {
-        self.0 ^= other.0;
-    }
-}
-
-// Impl Mul
-impl Mul for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn mul(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0.wrapping_mul(other.0))
-    }
-}
-
-impl Mul for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn mul(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0.wrapping_mul(other.0))
-    }
-}
-
-impl Mul<&BitBoard> for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn mul(self, other: &BitBoard) -> BitBoard {
-        BitBoard(self.0.wrapping_mul(other.0))
-    }
-}
-
-impl Mul<BitBoard> for &BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn mul(self, other: BitBoard) -> BitBoard {
-        BitBoard(self.0.wrapping_mul(other.0))
-    }
+impl_math_assign_ops! {
+    BitAndAssign::bitand_assign,
+    BitOrAssign::bitor_assign,
+    BitXorAssign::bitxor_assign
 }
 
 // Impl Not
 impl Not for BitBoard {
-    type Output = BitBoard;
-
-    #[inline]
-    fn not(self) -> BitBoard {
-        BitBoard(!self.0)
-    }
-}
-
-impl Not for &BitBoard {
     type Output = BitBoard;
 
     #[inline]

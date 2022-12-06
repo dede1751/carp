@@ -22,9 +22,10 @@ use crate::{
 ///     1000 0000 0000 0000 0000 0000 0000    castling flag      0x800000    27
 ///
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
-pub struct Move (u32);
+pub struct Move (pub u32);
 
 pub const NULL_MOVE: Move = Move(0);
+
 const SRC        : u32 = 0x0000003F;
 const TGT        : u32 = 0x00000FC0;
 const PIECE      : u32 = 0x0000F000;
@@ -59,11 +60,11 @@ impl Move {
         tgt: Square,
         piece: Piece,
         capture: Piece,
-        promote: Piece,         // values
+        promote: Piece,
         is_capture: u32,
         double_push: u32,
         en_passant: u32,
-        castle: u32    // flags
+        castle: u32
     ) -> Move {
         Move(
             (src as u32)            |

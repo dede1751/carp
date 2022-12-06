@@ -89,16 +89,15 @@ impl <'a> Search<'a>{
                 None => break,
             }
         }
-        
         pv
     }
 
     fn print_info(&self, board: Board, eval: Eval, depth: u8) {
         print!("info score ");
 
-        if eval > MATE_SCORE {          // mating
+        if is_mate(eval) {          // mating
             print!("mate {} ", (MATE_VALUE - eval) / 2 + 1);
-        } else if eval < -MATE_SCORE {  // mated
+        } else if is_mated(eval) {  // mated
             print!("mate {} ", -(eval + MATE_VALUE) / 2 - 1);
         } else {
             print!("cp {} ", eval);
@@ -141,6 +140,15 @@ impl <'a> Search<'a>{
         self.get_best_move(&mut board.clone()).unwrap()
     }
     
+    // fn search_root(
+    //     &mut self,
+    //     mut alpha: Eval,
+    //     beta: Eval,
+    //     depth: u8,
+    // ) -> (Move, Eval) {
+
+    // }
+
     fn negamax(
         &mut self,
         board: &Board,
@@ -166,10 +174,10 @@ impl <'a> Search<'a>{
         // Probe tt for eval and best move
         match self.tt.probe(board.hash) {
             Some(entry) => {
-                if entry.depth >= depth {
+                if entry.get_depth() >= depth {
                     let tt_eval = entry.get_value(ply);
         
-                    match entry.flag {
+                    match entry.get_flag() {
                         TTFlag::Exact => return tt_eval,
                         TTFlag::Upper => beta = min(beta, tt_eval),
                         TTFlag::Lower => alpha = max(alpha, tt_eval),
@@ -293,6 +301,8 @@ impl <'a> Search<'a>{
     ) -> Eval {
         self.nodes += 1;
         let mut best_eval: Eval = evaluate(board);   // try stand pat
+
+        if ply >= MAX_DEPTH { return best_eval };
         
         if best_eval >= beta { return best_eval; };              // beta cutoff
         if best_eval < alpha - FUTILITY_MARGIN { return alpha; } // delta pruning
