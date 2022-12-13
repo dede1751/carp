@@ -1,4 +1,4 @@
-# Carp
+# Carp 0.3
 
 Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach. The main goal of this project is to learn the basics of both Rust and Chess Programming.
 
@@ -10,8 +10,6 @@ and most importantly the [chess programming wiki](https://www.chessprogramming.o
 
 *Code layout/package structure/documentation is temporary for the early stage of development*
 
-*UCI functionality is currently limited to fixed depth search*
-
 ## Performance
 
 Standard perft is available as a test. Locally the move generator performs better than CMK's C engine,
@@ -20,7 +18,9 @@ that it does not bulk count horizon moves, nor keep track of pinned/checking pie
 I will improve generation once done with the actual engine.
 
 As it stands, on my local (rather weak) machine, Carp can iteratively search Kiwipete to depth 10 in roughly
-half a second. The engine is quite fun to play against when limiting the depth to reasonable values, since
+half a second. It will usually search to depth 12-13 in fast time controls during the middle game
+and up to depth 30/40 in simpler end games.
+The engine is quite fun to play against when limiting the depth to reasonable values, since
 it is still positionally "dumb", although it is yet to lose against a human player.
 
 ## Implemented optimizations
@@ -29,6 +29,7 @@ it is still positionally "dumb", although it is yet to lose against a human play
 * Tapered Evaluation
 * MVV-LVA + Killer/History move ordering
 * Fail-soft Negamax + Quiescence
+* Multithreading with Lazy-SMP
 * Iterative Deepening with Aspiration Windows
 * Transposition table with newest + highest depth replacement scheme
 * Principal Variation Search
@@ -39,8 +40,6 @@ it is still positionally "dumb", although it is yet to lose against a human play
 
 Of course it is still lacking many optimizations, most notably:
 
-* Multithreading with Lazy SMP
 * Opening book/Endgame tablebase
-* Proper time controls
 * Various other heuristics (razoring, see, search extensions...)
 * Improved evaluation (safety, mobility, open lines)

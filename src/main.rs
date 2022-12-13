@@ -20,6 +20,7 @@ pub mod tables;
 pub mod tt;
 pub mod search;
 pub mod evaluation;
+pub mod clock;
 pub mod uci;
 
 use crate::uci::UCIController;

@@ -150,13 +150,9 @@ impl TTField {
         self.flag
     }
 
-    /// Returns best move if found
-    pub fn get_best_move(&self) -> Option<Move> {
-        if self.best_move != NULL_MOVE {
-            Some(self.best_move)
-        } else {
-            None
-        }
+    /// Returns best move
+    pub fn get_move(&self) -> Move {
+        self.best_move
     }
 
     /// # Gets value while normalizing mate scores:
@@ -197,7 +193,7 @@ impl Default for AtomicField {
 impl AtomicField {
     /// Atomic read from table to a tt field struct
     #[inline]
-    pub fn read(&self) -> TTField {
+    fn read(&self) -> TTField {
         (
             self.0.load(Ordering::Relaxed),
             self.1.load(Ordering::Relaxed)
@@ -206,7 +202,7 @@ impl AtomicField {
 
     /// Atomic write to table from a tt field struct
     #[inline]
-    pub fn write(&mut self, entry: TTField) {
+    fn write(&self, entry: TTField) {
         let (a, b): (u64, u64) = entry.into();
 
         self.0.store(a, Ordering::Relaxed);
@@ -264,9 +260,9 @@ impl TT {
     /// other's entries if evaluating conditions at the same time. Since the philosophy of lazy-SMP
     /// is no sycn overhead, we happily ignore these race conditions. This requires collecting the
     /// best move at the root node of the search since it may get overwritten in the table.
-    pub fn insert(&mut self, new: TTField) {
+    pub fn insert(&self, new: TTField) {
         let tt_index: usize = (new.key & self.bitmask) as usize;
-        let old_field: &mut AtomicField = unsafe { self.table.get_unchecked_mut(tt_index) };
+        let old_field: &AtomicField = unsafe { self.table.get_unchecked(tt_index) };
         let old: TTField = old_field.read();
         
         if (old.flag != TTFlag::Exact &&                        // old is not exact bound
@@ -310,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_tt_insert() {
-        let mut tt: TT = TT::default();
+        let tt: TT = TT::default();
         
         let field1: TTField = TTField::new(
             ZHash(tt.bitmask), Move(25625038), 1, 0, -100, TTFlag::Exact, 0,
@@ -333,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_tt_collision() {
-        let mut tt: TT = TT::new(1);
+        let tt: TT = TT::new(1);
         let h1: ZHash = ZHash(65537);
         let h2: ZHash = ZHash(1);
 

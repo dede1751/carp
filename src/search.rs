@@ -1,10 +1,59 @@
-//! # Search the move tree
-//! 
-//! Alpha : lower bound, the lowest score the current player is assured of
-//! Beta  : upper bound, the highest score the opposite player is assured of
-//! 
-//! The current player wants a high score, the opposite player wants a low score
-//!  ... (will explain in more detail)
+/// Search the move tree
+/// 
+///     Negamax:
+/// Alpha : lower bound, the lowest score the current player is assured of
+/// Beta  : upper bound, the highest score the opposite player is assured of
+/// 
+/// Acceptable nodes for the current player fall between alpha and beta: a score above alpha is better
+/// than anything we've been guaranteed so far. A score above beta is "too good" and the opponent
+/// will simply choose another branch of the tree, hence we can "cutoff" or prune the branch.
+/// 
+///     TT scores and moves:
+/// Positions are hashed and saved in a lookup "transposition table" kept throughout the entire game
+/// At every node of the search tree we lookup the position in the tt to obtain the best move from
+/// previous searches and the evaluation, which can be an upper/lower bound or an exact value. 
+/// The tt move is searched first, while the value is only used if it's been searched at an appropriate
+/// depth.
+/// 
+///     Move ordering:
+/// For efficient pruning it is important to search the best moves first. This is handled by the
+/// move sorter using various static heuristics.
+/// 
+///     -- Optimizations:
+/// 
+/// * QUIESCENCE SEARCH
+/// Search until a "quiet" position where no captures are possible when reaching the highest depth.
+/// Avoids the horizon effect, where the engine throws pieces away because it doesn't see the recapture.
+/// Either player can also "stand pat" at any point in the search and just accept the position without
+/// being force to recapture.
+/// 
+/// * FUTILITY/DELTA PRUNING (withing quiescence)
+/// During an exchange, if the side to move can't make up the material difference even with the best
+/// recapture possible (a full queen) it's probably not worth going through the entire exchange.
+/// 
+/// * MATE DISTANCE PRUNING
+/// When we've already found a mate, ignore lines where any mate is necessarily longer.
+/// 
+/// * NULL MOVE PRUNING
+/// Try making a null move, aka giving your opponent a free shot. If that is still enough to go
+/// over beta (which means the null move itself is too good for us) skip searching the moves which
+/// will most likely all be better than not doing anything. The main exception is of course Zugzwang.
+/// Since a null move can be responded to with a null move, this should be taken care of.
+/// 
+/// * PRINCIPAL VARIATION SEARCH
+/// Assuming good move ordering, the first move is probably the most noteworthy and will tell us
+/// what kind of node we are in:
+///     PV-NODE   : A node where we improve alpha without going over beta.
+///     BETA-NODE : A node where we improve alpha too much and go over beta.
+///     ALPHA-NODE: A node where we do not improve alpha.
+/// Hence, if the first move was scored between alpha and beta, it's unlikely we will find an even
+/// better move that will produce a beta cutoff. From the first move on, we try to "prove" that
+/// all other moves are worse by using a much faster null-window search around alpha. We expect
+/// this search to fail low (not pass alpha), otherwise we will have to properly search the move
+/// 
+/// * LATE MOVE REDUCTION
+/// Like pvs, this assumes the earliest moves are the best. Later moves will be searched at a lower
+/// depth to prove they are worse, otherwise they will be searched again at the proper depth
 
 use std::cmp::{ max, min };
 use crate::{
@@ -13,6 +62,7 @@ use crate::{
     moves::*,
     move_order::*,
     evaluation::*,
+    clock::Clock,
     tt::*,
     zobrist::ZHash,
 };
@@ -29,126 +79,80 @@ const FUTILITY_MARGIN: Eval = 1100; // highest queen value possible
 
 pub struct Search<'a>{
     history: Vec<ZHash>,
-    tt: &'a mut TT,
+    clock: Clock,
     tables: &'a Tables,
+    tt: &'a TT,
     sorter: MoveSorter,
     step: u8,
-    nodes: u32,
+    nodes: u64,
+    stop: bool,
 }
 
 impl <'a> Search<'a>{
-    pub fn new(history: Vec<ZHash>, tt: &'a mut TT, tables: &'a Tables) -> Search<'a> {
+    pub fn new(history: Vec<ZHash>, clock: Clock, tt: &'a TT, tables: &'a Tables) -> Search<'a> {
         Search {
             history,
+            clock,
             tt,
             tables,
             sorter: MoveSorter::new(),
             step: 0,
             nodes: 0,
+            stop: false,
         }
     }
 
-    /// Probe tt for best move in given board state (updates board)
-    fn get_best_move(&self, board: &mut Board) -> Option<Move> {
-        let entry = match self.tt.probe(board.hash) {
-            Some(e) => e,
-            None => return None,
-        };
-
-        let tt_move = match entry.get_best_move() {
-            Some(m) => m,
-            None => return None,
-        };
-
-        let moves: Vec<Move> = board.generate_moves(self.tables).all_moves;
-        if moves.contains(&tt_move) {
-            match board.make_move(tt_move, self.tables) {
-                Some(b) => {
-                    *board = b;
-
-                    Some(tt_move)
-                },
-
-                None => None,
-            }
-        } else {
-            None
-        }
-    }
-
-    /// Recover pv from transposition table
-    fn recover_pv(&self, mut board: Board, depth: u8) -> Vec<Move> {
-        let mut pv: Vec<Move> = Vec::new();
-
-        // traverse down the tree through the trasposition table
-        for _ in 0..depth {
-            let best_move = self.get_best_move(&mut board);
-
-            match best_move {
-                Some(m) => pv.push(m),
-                None => break,
-            }
-        }
-        pv
-    }
-
-    fn print_info(&self, board: Board, eval: Eval, depth: u8) {
-        print!("info score ");
-
-        if is_mate(eval) {          // mating
-            print!("mate {} ", (MATE_VALUE - eval) / 2 + 1);
-        } else if is_mated(eval) {  // mated
-            print!("mate {} ", -(eval + MATE_VALUE) / 2 - 1);
-        } else {
-            print!("cp {} ", eval);
-        }
-
-        print!("depth {} nodes {} pv ", depth, self.nodes);
-
-        let pv = self.recover_pv(board, depth);
-        for m in &pv { print!("{} ", m); }
-        println!();
-    }
-
-    pub fn iterative_search(&mut self, board: &Board, depth: u8) -> Move {
+    /// Iteratively searches the board at increasing depth
+    pub fn iterative_search(&mut self, board: Board, print_info: bool) -> (Move, u8) {
+        let mut best_move: Move = NULL_MOVE;
+        let mut temp_best: Move;
         let mut alpha: Eval = MIN;
         let mut beta : Eval = MAX;
         let mut eval: Eval = 0;
+        let mut depth: u8 = 1;
 
-        for d in 1..=depth {
-            if d < ASPIRATION_THRESHOLD {
+        while !self.stop                        &&
+            self.clock.start_check(depth)       &&
+            depth < MAX_DEPTH                   &&
+            !(is_mate(eval) || is_mated(eval))
+        {
+            if depth < ASPIRATION_THRESHOLD {
                 // don't apply aspiration windows to shallow searches (< 4 ply deep)
-                eval = self.negamax(board, alpha, beta, d, 0);
+                (eval, temp_best) = self.negamax(&board, alpha, beta, depth, 0);
+                eval = -eval;
             } else {
                 // reduce window using previous eval
                 alpha = eval - ASPIRATION_WINDOW;
                 beta  = eval + ASPIRATION_WINDOW;
-                eval = self.negamax(board, alpha, beta, d, 0);
-                
-                if eval < alpha || eval > beta {
+                (eval, temp_best) = self.negamax(&board, alpha, beta, depth, 0);
+                eval = -eval;
+
+                if eval < alpha || eval > beta && !self.stop {
                     // reduced window search failed
                     alpha = MIN;
                     beta = MAX;
-                    eval = self.negamax(board, alpha, beta, d, 0);
+                    (eval, temp_best) = self.negamax(&board, alpha, beta, depth, 0);
+                    eval = -eval;
                 }
             }
 
-            self.print_info(board.clone(), eval, d);
-            self.step += 1;
+            if !self.stop {
+                best_move = temp_best;
+                if print_info { self.print_info(board.clone(), eval, depth); }
+
+                self.step += 1;
+                depth += 1;
+            } else {
+                depth -= 1; // needed for accurate depth results
+            }
         }
 
-        self.get_best_move(&mut board.clone()).unwrap()
+        (best_move, depth)
     }
-    
-    // fn search_root(
-    //     &mut self,
-    //     mut alpha: Eval,
-    //     beta: Eval,
-    //     depth: u8,
-    // ) -> (Move, Eval) {
-
-    // }
-
+  
+    /// Main negamax search function
+    /// This implementation returns the evaluation already negated to be able to also return the
+    /// best move at each recursion without dirty code.
     fn negamax(
         &mut self,
         board: &Board,
@@ -156,41 +160,50 @@ impl <'a> Search<'a>{
         mut beta: Eval,
         mut depth: u8,
         ply: u8,
-    ) -> Eval {
-        let mut best_eval: Eval = MIN;
-        let mut eval: Eval;
-        let in_check = board.king_in_check(self.tables);
-        let pv_node: bool = alpha != beta - 1; // False when in a PVS node
+    ) -> (Eval, Move) {
+        // Check if search should be continued
+        if self.stop || !self.clock.mid_check(self.nodes) {
+            self.stop = true;
+            return (0, NULL_MOVE);
+        }
 
+        // Stop searching if the position is a rule-based draw (repetition/50mr)
         self.nodes += 1;
+        if ply != 0 && self.is_draw(board) { return (0, NULL_MOVE); }
 
-        if self.is_draw(board) { return 0; } // detect draws
-        
         // Mate distance pruning
         alpha = max(-MATE_VALUE + ply as Eval, alpha);
         beta  = min( MATE_VALUE - ply as Eval - 1, beta);
-        if alpha >= beta { return alpha; }
+        if alpha >= beta { return (-alpha, NULL_MOVE); }
+        
         
         // Probe tt for eval and best move
         match self.tt.probe(board.hash) {
             Some(entry) => {
+                let tt_move = entry.get_move();
+
                 if entry.get_depth() >= depth {
                     let tt_eval = entry.get_value(ply);
-        
+                    
                     match entry.get_flag() {
-                        TTFlag::Exact => return tt_eval,
+                        TTFlag::Exact => return (-tt_eval, tt_move), 
                         TTFlag::Upper => beta = min(beta, tt_eval),
                         TTFlag::Lower => alpha = max(alpha, tt_eval),
                     }
 
                     // Upper/Lower flags can cause indirect cutoffs!
-                    if alpha >= beta { return tt_eval; }
+                    if alpha >= beta { return (-tt_eval, tt_move); }
                 }
-                self.sorter.tt_move = entry.get_best_move();
+                self.sorter.tt_move = Some(tt_move);
             }
-
+            
             None => self.sorter.tt_move = None
         };
+    
+        let mut best_eval: Eval = MIN;
+        let mut eval: Eval;
+        let in_check: bool = board.king_in_check(self.tables);
+        let pv_node: bool = alpha != beta - 1; // False when in a PVS or NMP node
 
         // Extend search depth when king is in check
         if in_check { 
@@ -199,18 +212,18 @@ impl <'a> Search<'a>{
             // Apply Null move pruning
             let nmp: Board = board.make_null_move();
             
-            eval = -self.negamax(&nmp, -beta, -beta + 1, depth - 1 - NMP_REDUCTION, ply + 1);
-            if eval >= beta { return beta; }
+            (eval, _) = self.negamax(&nmp, -beta, -beta + 1, depth - 1 - NMP_REDUCTION, ply + 1);
+            if eval >= beta { return (-beta, NULL_MOVE); }
         }
 
         // Quiescence search to avoid horizon effect
-        if depth == 0 { return self.quiescence(board, alpha, beta, ply); }
-    
+        if depth == 0 { return (-self.quiescence(board, alpha, beta, ply), NULL_MOVE); }
+
         // Main recursive search block
-        let moves: Vec<Move> = self.sorter.sort_moves(board.generate_moves(self.tables), ply);
         let mut moves_checked: u32 = 0;
         let mut best_move: Move = NULL_MOVE;
         let mut tt_bound: TTFlag = TTFlag::Upper;
+        let moves: Vec<Move> = self.sorter.sort_moves(board.generate_moves(self.tables), ply);
 
         for m in moves {
             // only consider legal moves
@@ -219,9 +232,9 @@ impl <'a> Search<'a>{
 
                 self.history.push(new.hash);
                 if moves_checked == 1 { // full depth search on first move
-                    eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
+                    (eval, _) = self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
                 } else {
-                    // apply lmr for non-pv nodes
+                    // apply lmr and pvs for all other moves
                     let mut lmr_depth = depth;
                     if  moves_checked >= LMR_THRESHOLD  &&
                         depth >= LMR_LOWER_LIMIT        &&
@@ -233,18 +246,20 @@ impl <'a> Search<'a>{
                     }
 
                     // try applying LMR + PVS
-                    eval = -self.negamax(&new, -alpha - 1, -alpha, lmr_depth - 1, ply + 1);
+                    (eval, _) = self.negamax(&new, -alpha - 1, -alpha, lmr_depth - 1, ply + 1);
                     if eval > alpha && eval < beta {            
                         // PVS failed, retry reduced depth full window
-                        eval = -self.negamax(&new, -beta, -alpha, lmr_depth - 1, ply + 1);
+                        (eval, _) = self.negamax(&new, -beta, -alpha, lmr_depth - 1, ply + 1);
 
                         if eval > alpha && lmr_depth < depth {
                             // LMR failed, retry full search.
-                            eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
+                            (eval, _) = self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
                         };
                     };
                 };
                 self.history.pop();
+
+                if self.stop { return (0, NULL_MOVE); }
 
                 if eval > best_eval {
                     best_eval = eval;
@@ -276,22 +291,24 @@ impl <'a> Search<'a>{
             }
         };
 
-        // Insert value in tt
-        let tt_entry = TTField::new(
-            board.hash,
-            best_move,
-            depth,
-            self.step,
-            best_eval,
-            tt_bound,
-            ply
-        );
+        if !self.stop { 
+            // Insert value in tt
+            let tt_entry = TTField::new(
+                board.hash,
+                best_move,
+                depth,
+                self.step,
+                best_eval,
+                tt_bound,
+                ply
+            );
+            self.tt.insert(tt_entry);
+        }
 
-        self.tt.insert(tt_entry);
-
-        best_eval
+        (-best_eval, best_move)
     }
     
+    /// Quiescence search only for capture moves
     fn quiescence(
         &mut self,
         board: &Board,
@@ -305,7 +322,7 @@ impl <'a> Search<'a>{
         if ply >= MAX_DEPTH { return best_eval };
         
         if best_eval >= beta { return best_eval; };              // beta cutoff
-        if best_eval < alpha - FUTILITY_MARGIN { return alpha; } // delta pruning
+        if best_eval < alpha - FUTILITY_MARGIN { return alpha; } // futility pruning
         if best_eval > alpha { alpha = best_eval; }              // stand pat is pv
     
         let moves: Vec<Move> = self.sorter.sort_captures(board.generate_moves(self.tables));
@@ -322,6 +339,7 @@ impl <'a> Search<'a>{
         best_eval // node fails low
     }
 
+    /// Rule-based draw detection
     fn is_draw(&self, board: &Board) -> bool {
         board.halfmoves >= 100 || self.is_repetition(board)
     }
@@ -337,29 +355,90 @@ impl <'a> Search<'a>{
             .step_by(2)                  // don't check opponent moves
             .any(|&x| { x == board.hash }) // stop at first occurrence
     }
+
+    /// Recover pv from transposition table
+    fn recover_pv(&self, mut board: Board, depth: u8) -> Vec<Move> {
+        let mut pv: Vec<Move> = Vec::new();
+
+        // traverse down the tree through the trasposition table
+        for _ in 0..depth {
+            let tt_move = match self.tt.probe(board.hash) {
+                Some(e) => e.get_move(),
+                None => break,
+            };
+
+            let moves: Vec<Move> = board.generate_moves(self.tables).all_moves;
+            if moves.contains(&tt_move) {
+                match board.make_move(tt_move, self.tables) {
+                    Some(b) => {
+                        board = b;
+
+                        pv.push(tt_move);
+                    },
+
+                    None => break,
+                }
+            } else {
+                break;
+            }
+        }
+        pv
+    }
+
+    /// Print UCI score info
+    fn print_info(&self, board: Board, eval: Eval, depth: u8) {
+        print!("info score ");
+
+        if is_mate(eval) {          // mating
+            print!("mate {} ", (MATE_VALUE - eval) / 2 + 1);
+        } else if is_mated(eval) {  // mated
+            print!("mate {} ", -(eval + MATE_VALUE) / 2 - 1);
+        } else {
+            print!("cp {} ", eval);
+        }
+
+        print!("depth {} nodes {} pv ", depth, self.nodes / 1000);
+
+        let pv = self.recover_pv(board, depth);
+        for m in &pv { print!("{} ", m); }
+        println!();
+    }
 }
 
-/// Test nodes searched
-/// Run with: cargo test --release search -- --show-output
+// Test nodes searched
+// Run with: cargo test --release search -- --show-output
 #[cfg(test)]
 mod performance_tests {
     use super::*;
     use std::time::Instant;
+    use std::sync::{
+        Arc,
+        atomic::AtomicBool
+    };
     
-    use crate::board_repr::*;
+    use crate::{
+        clock::*,
+        board_repr::*,
+        piece::Color,
+    };
 
     #[test]
     fn search_kiwipete10() {
         let board: Board = Board::try_from(KIWIPETE_FEN).unwrap();
         let tables: Tables = Tables::default();
-        let mut tt: TT = TT::default();
-        let mut search: Search = Search::new(Vec::new(), &mut tt, &tables);
+        let tt: TT = TT::default();
         let depth = 10;
+        let clock: Clock = Clock::new(
+            TimeControl::FixedDepth(depth),
+            Arc::new(AtomicBool::new(false)),
+            board.side == Color::White
+        );
+        let mut search: Search = Search::new(Vec::new(), clock, &tt, &tables);
 
         println!("\n --- KIWIPETE POSITION ---\n{}\n\n", board);
 
         let start = Instant::now();
-        let best_move = search.iterative_search(&board, depth);
+        let (best_move, _) = search.iterative_search(board, true);
         let duration = start.elapsed();
 
         println!("\nDEPTH: {} Found {} in {:?}\n--------------------------------\n", depth, best_move, duration);
@@ -369,14 +448,19 @@ mod performance_tests {
     fn search_killer10() {
         let board: Board = Board::try_from(KILLER_FEN).unwrap();
         let tables: Tables = Tables::default();
-        let mut tt: TT = TT::default();
-        let mut search: Search = Search::new(Vec::new(), &mut tt, &tables);
+        let tt: TT = TT::default();
         let depth = 10;
+        let clock: Clock = Clock::new(
+            TimeControl::FixedDepth(depth),
+            Arc::new(AtomicBool::new(false)),
+            board.side == Color::White
+        );
+        let mut search: Search = Search::new(Vec::new(), clock, &tt, &tables);
 
         println!("\n --- KILLER POSITION ---\n{}\n\n", board);
 
         let start = Instant::now();
-        let best_move = search.iterative_search(&board, depth);
+        let (best_move, _) = search.iterative_search(board, true);
         let duration = start.elapsed();
 
         println!("\nDEPTH: {} Found {} in {:?}\n--------------------------------\n", depth, best_move, duration);
