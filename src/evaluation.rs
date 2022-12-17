@@ -49,9 +49,8 @@ pub const MAX: Eval = std::i16::MAX;
 pub const MIN: Eval = -MAX;
 
 // Mate values [31000, 30872]
-pub const MATE_VALUE: Eval = 31000;                             // Value for Mate in 0 ply
-pub const MATE_SCORE: Eval = MATE_VALUE - MAX_DEPTH as Eval;    // Mate lower bound
-
+pub const MATE: Eval = 31000;                             // Value for Mate in 0 ply
+pub const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval;  // Mate lower bound
 
 pub fn evaluate(board: &Board) -> Eval {
     let mut mg: [i32; 2] = [0; 2];
@@ -71,20 +70,20 @@ pub fn evaluate(board: &Board) -> Eval {
     if game_phase > 24 { game_phase = 24 }
 
     let mut eval = (mg_score * game_phase + eg_score * (24 - game_phase)) / 24;
-    eval = max(eval, -(MATE_SCORE - 1) as i32); // clamp to minimum value
-    eval = min(eval,  (MATE_SCORE - 1) as i32); // clamp to maximum value
+    eval = max(eval, -(LONGEST_MATE - 1) as i32); // clamp to minimum value
+    eval = min(eval,  (LONGEST_MATE - 1) as i32); // clamp to maximum value
 
     eval as Eval
 }
 
 #[inline]
 pub fn is_mate(eval: Eval) -> bool {
-    eval >= MATE_SCORE && eval <= MATE_VALUE
+    eval >= LONGEST_MATE && eval <= MATE
 }
 
 #[inline]
 pub fn is_mated(eval: Eval) -> bool {
-    eval <= -MATE_SCORE && eval >= -MATE_VALUE
+    eval <= -LONGEST_MATE && eval >= -MATE
 }
 
 #[cfg(test)]
@@ -97,6 +96,6 @@ mod tests {
         let eval = evaluate(&b);
 
         // eval does not become a mate score
-        assert!(eval > -MATE_SCORE);
+        assert!(eval > -LONGEST_MATE);
     }
 }

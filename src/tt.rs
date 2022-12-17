@@ -24,72 +24,85 @@ pub enum TTFlag { Lower, Upper, Exact }
 
 /// # TTField -- 17B (136b) total, aligns at 24B
 /// 
-/// Can compress to 131b by using only 3b for the flag. Then reducing key from 64b to 61 brings
-/// us down to 128b or 16B for perfect alignment.
+/// Can compress to 128b by using only 3b for the flag and 29 for the move.
 /// 
 /// Implementation note: saving value as an i16 within the TTField led to the most absolutely insane
 /// bug I've ever had to find. Apparently i16 converted to u64 gets sign-extended before conversion,
-/// hence within into<TTEntry> the move would actually be overwritten by the eval and garbage woud;
+/// hence within into<TTEntry> the move would actually be overwritten by the eval and garbage would
 /// propagate.
+/// 
+/// Mate scores are normalized within the tt for retrieval at different plies:
+/// 
+/// Tree --> Mate scores are relative to root-distance
+///          When mating the opponent, score is     MATE - mate_distance_from_root
+///          When being mated, score is            -MATE + mate_distance_from_root
+/// TT   --> Mate scores are relative to node-distance
+///          When mating the opponent, score is     MATE - mate_distance_from_node
+///          When being mated, score is            -MATE + mate_distance_from_node
+/// 
+/// When a mate score from the tree needs to be inserted in the tt:
+/// 
+///         mate_distance_from_root = ply + mate_distance_from_node
+/// 
+///     mate  --> mate + ply  =  MATE - mate_distance_from_root + ply   =
+///                           =  MATE - (mate_distance_from_root - ply) =
+///                           =  MATE - mate_distance_from_node
+///
+///     mated --> mated - ply = -MATE + (mate_distance_from_root - ply) =
+///                           = -MATE + mate_distance_from_node
+/// 
+/// 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct TTField {
-    key: u64,        // 8B -- Only rightmost 61b
-    best_move: Move, // 4B
-    depth: u8,       // 1B
-    age: u8,         // 1B
+    key: u64,        // 8B
+    flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually used
+    best_move: Move, // 4B -- only the rightmost 28 bits are actually used
     value: u16,      // 2B
-    flag: TTFlag,    // 1B
+    depth: u8,       // 1B
+    age: u8          // 1B
 }
 
-// Masks for the first u64
-const FLAG_OFFSET: u64 = 61;
-const KEY_MASK : u64 = 0x1FFFFFFFFFFFFFFF; // first 61 bits
-const FLAG_MASK: u64 = 0xE000000000000000; // last 3 bits
-
 // Masks for the second u64
-const DEPTH_OFFSET: u64 = 8;
+const DEPTH_OFFSET: u64 =  8;
 const EVAL_OFFSET : u64 = 16;
 const MOVE_OFFSET : u64 = 32;
+const FLAG_OFFSET : u64 = 61;
 const AGE_MASK  : u64 = 0x00000000000000FF; // first byte
 const DEPTH_MASK: u64 = 0x000000000000FF00; // second byte
 const EVAL_MASK : u64 = 0x00000000FFFF0000; // third/fourth byte
-const MOVE_MASK : u64 = 0xFFFFFFFF00000000; // last four bytes
+const MOVE_MASK : u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
+const FLAG_MASK : u64 = 0xE000000000000000; // last 3 bits
 
 // Convert from external field to compressed internal
 impl Into<(u64, u64)> for TTField {
     fn into(self) -> (u64, u64) {
-        let a: u64 = 
-            self.key                                 |
-            (self.flag as u64) << FLAG_OFFSET;
-    
-        let b: u64 = 
+        let data: u64 = 
             self.age as u64                          |
             (self.depth as u64) << DEPTH_OFFSET      |
             (self.value as u64) << EVAL_OFFSET       |
-            (self.best_move.0 as u64) << MOVE_OFFSET;
+            (self.best_move.0 as u64) << MOVE_OFFSET |
+            (self.flag as u64) << FLAG_OFFSET;
 
-        (a, b)
+        (self.key ^ data, data)
     }
 }
 
 // Convert from compressed internal atomic to external
 impl From<(u64, u64)> for TTField {
-    fn from((a, b): (u64, u64)) -> Self {
-        let key: u64 = a & KEY_MASK;
-        let flag: TTFlag = unsafe { transmute((a >> FLAG_OFFSET) as u8) };
-
-        let age: u8 = (b & AGE_MASK) as u8; 
-        let depth: u8 = ((b & DEPTH_MASK) >> DEPTH_OFFSET) as u8;
-        let value: u16 = ((b & EVAL_MASK) >> EVAL_OFFSET) as u16;
-        let best_move: Move = Move(((b & MOVE_MASK) >> MOVE_OFFSET) as u32);
+    fn from((key, data): (u64, u64)) -> Self {
+        let age: u8 = (data & AGE_MASK) as u8; 
+        let depth: u8 = ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8;
+        let value: u16 = ((data & EVAL_MASK) >> EVAL_OFFSET) as u16;
+        let best_move: Move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u32);
+        let flag: TTFlag = unsafe { transmute((data >> FLAG_OFFSET) as u8) };
 
         TTField {
             key,
+            flag,
             best_move,
-            depth,
-            age,
             value,
-            flag
+            depth,
+            age
         }
     }
 }
@@ -99,11 +112,11 @@ impl Default for TTField {
     fn default() -> Self {
         TTField {
             key: 0,
-            best_move: NULL_MOVE,
-            depth: 0,
-            age: 0, // (iterative deepening "step" count)
-            value: 0,
             flag: TTFlag::Lower,
+            best_move: NULL_MOVE,
+            value: 0,
+            depth: 0,
+            age: 0,
         }
     }
 }
@@ -111,25 +124,22 @@ impl Default for TTField {
 impl TTField {
     pub fn new(
         key: ZHash,
+        flag: TTFlag,
         best_move: Move,
+        mut value: Eval,
         depth: u8,
         age: u8,
-        mut value: Eval,
-        flag: TTFlag,
         ply: u8,
     ) -> TTField {
-        // Keep only rightmost 61 bits of key.
-        let reduced_key: u64 = key.0 & KEY_MASK;
-
         // normalize mate scores
-        if value > MATE_SCORE {
+        if is_mate(value) {
             value += ply as Eval;
-        } else if value < -MATE_SCORE {
+        } else if is_mated(value) {
             value -= ply as Eval;
         };
 
         TTField {
-            key: reduced_key,
+            key: key.0,
             best_move,
             depth,
             age,
@@ -151,27 +161,21 @@ impl TTField {
     }
 
     /// Returns best move
+    #[inline]
     pub fn get_move(&self) -> Move {
         self.best_move
     }
 
-    /// # Gets value while normalizing mate scores:
-    /// 
-    /// Tree --> Mate scores are relative to root-distance
-    ///          When mating the opponent, score is     MATE - mate_distance_from_root
-    ///          When being mated, score is            -MATE + mate_distance_from_root
-    /// TT   --> Mate scores are relative to node-distance
-    ///          When mating the opponent, score is     MATE - mate_distance_from_node
-    ///          When being mated, score is            -MATE + mate_distance_from_node
-    /// 
-    /// mate_distance_from_root = ply + mate_distance_from_node
+    /// Gets value while normalizing mate scores:
+    #[inline]
     pub fn get_value(&self, ply: u8) -> Eval {
         let eval = self.value as Eval;
+        let ply = ply as Eval;
 
-        if is_mate(eval) {
-            eval - ply as Eval
-        } else if is_mated(eval) {
-            eval + ply as Eval
+        if is_mate(eval - ply) {
+            eval - ply
+        } else if is_mated(eval + ply) {
+            eval + ply
         } else {
             eval
         }
@@ -179,7 +183,7 @@ impl TTField {
 }
 
 /// Actual TTField, compressed down to 16B
-/// This is atomic for future Lazy-SMP implementation
+/// Simple lock-less design based on https://www.chessprogramming.org/Shared_Hash_Table
 #[derive(Debug)]
 struct AtomicField (AtomicU64, AtomicU64);
 
@@ -191,22 +195,35 @@ impl Default for AtomicField {
 }
 
 impl AtomicField {
-    /// Atomic read from table to a tt field struct
+    /// Atomic read from table to a TTField, checking that the checksum is correct
     #[inline]
-    fn read(&self) -> TTField {
-        (
-            self.0.load(Ordering::Relaxed),
-            self.1.load(Ordering::Relaxed)
-        ).into()
+    fn read(&self, checksum: u64) -> Option<TTField> {
+        let key = self.0.load(Ordering::Relaxed);
+        let data = self.1.load(Ordering::Relaxed);
+
+        if key ^ checksum == data {
+            Some(TTField::from((checksum, data)))
+        } else {
+            None
+        }
+    }
+
+    /// Atomic read, returns a TTField with a scrambled key
+    #[inline]
+    fn read_unchecked(&self) -> TTField {
+        let key = self.0.load(Ordering::Relaxed);
+        let data = self.1.load(Ordering::Relaxed);
+
+        TTField::from((key, data))
     }
 
     /// Atomic write to table from a tt field struct
     #[inline]
     fn write(&self, entry: TTField) {
-        let (a, b): (u64, u64) = entry.into();
+        let (key, data): (u64, u64) = entry.into();
 
-        self.0.store(a, Ordering::Relaxed);
-        self.1.store(b, Ordering::Relaxed);
+        self.0.store(key, Ordering::Relaxed);
+        self.1.store(data, Ordering::Relaxed);
     }
 }
 
@@ -239,15 +256,10 @@ impl TT {
     /// 
     /// UB: since bitmask and tables cannot be externally modified, it is impossible for get
     ///     unchecked to fail.
+    #[inline]
     pub fn probe(&self, hash: ZHash) -> Option<TTField> {
         let tt_index: usize = (hash.0 & self.bitmask) as usize;
-        let field: TTField = unsafe { self.table.get_unchecked(tt_index).read() };
-
-        if field.key == (hash.0 & KEY_MASK) {
-            Some(field)
-        } else {
-            None
-        }
+        unsafe { self.table.get_unchecked(tt_index).read(hash.0) }
     }
 
     /// Insert entry in appropriate tt field.
@@ -255,26 +267,17 @@ impl TT {
     /// Uses highest depth + aging for replacement, but takes special care of different flag types
     /// to maintain the pv within the transposition table. Conditions are explained here:
     /// https://stackoverflow.com/questions/37782131/chess-extracting-the-principal-variation-from-the-transposition-table
-    /// 
-    /// Since insertion condition evaluation is not atomic, multiple threads can overrite each
-    /// other's entries if evaluating conditions at the same time. Since the philosophy of lazy-SMP
-    /// is no sycn overhead, we happily ignore these race conditions. This requires collecting the
-    /// best move at the root node of the search since it may get overwritten in the table.
+    #[inline]
     pub fn insert(&self, new: TTField) {
         let tt_index: usize = (new.key & self.bitmask) as usize;
-        let old_field: &AtomicField = unsafe { self.table.get_unchecked(tt_index) };
-        let old: TTField = old_field.read();
-        
-        if (old.flag != TTFlag::Exact &&                        // old is not exact bound
-            (new.flag == TTFlag::Exact || (new.age > old.age || new.depth >= old.depth))) // new is exact or better
+        let old_slot: &AtomicField = unsafe { self.table.get_unchecked(tt_index) };
+        let old: TTField = old_slot.read_unchecked();
 
-            ||
-        
-            (old.flag == TTFlag::Exact &&                     // old is exact bound
-            new.flag == TTFlag::Exact &&                      // new is exact bound
-            (new.age > old.age || new.depth >= old.depth))    // new is a better entry
+        if  new.age > old.age || ( // always replace old entries
+            (old.flag != TTFlag::Exact && (new.flag == TTFlag::Exact || new.depth > old.depth)) ||
+            (old.flag == TTFlag::Exact && new.flag == TTFlag::Exact && new.depth > old.depth))
         {
-            old_field.write(new);
+            old_slot.write(new);
         }
     }
 }
@@ -282,19 +285,6 @@ impl TT {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_tt_field_conversion() {
-        let field: TTField = TTField::new(
-            ZHash(5), NULL_MOVE, 4, 1, 50, TTFlag::Upper, 0
-        );
-
-        let x: (u64, u64) = field.into();
-        let new_field: TTField = x.into();
-        println!("\n{:?}\n{:?}", field, new_field);
-
-        assert_eq!(field, new_field);
-    }
 
     #[test]
     fn test_tt_init() {
@@ -309,11 +299,11 @@ mod tests {
         let tt: TT = TT::default();
         
         let field1: TTField = TTField::new(
-            ZHash(tt.bitmask), Move(25625038), 1, 0, -100, TTFlag::Exact, 0,
+            ZHash(tt.bitmask), TTFlag::Exact, Move(25625038), -100, 1, 0, 0,
         );
         
         let field2: TTField = TTField::new(
-            ZHash(tt.bitmask), Move(25625038), 2, 0, -100, TTFlag::Exact, 0,
+            ZHash(tt.bitmask), TTFlag::Exact, Move(25625038), -100, 2, 0, 0,
         );
 
         tt.insert(field1); // insert in empty field
@@ -334,11 +324,11 @@ mod tests {
         let h2: ZHash = ZHash(1);
 
         let field1: TTField = TTField::new(
-            h1, NULL_MOVE, 1, 0, 100, TTFlag::Exact, 0,
+            h1, TTFlag::Exact, NULL_MOVE, 100, 1, 0, 0,
         );
 
         let field2: TTField = TTField::new(
-            h2, NULL_MOVE, 2, 0, 100, TTFlag::Exact, 0,
+            h2, TTFlag::Exact, NULL_MOVE, 100, 2, 0, 0,
         );
 
         tt.insert(field1); // insert field 1
