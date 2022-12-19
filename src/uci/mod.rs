@@ -17,7 +17,7 @@ use crate::{
 };
 
 const ENGINE_ID: &str = 
-"id name Carp 0.5
+"id name Carp 0.4
 id author Andrea Sgobbi";
 
 const ENGINE_OPTIONS:&str = 
