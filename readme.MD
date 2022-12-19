@@ -12,7 +12,7 @@ and most importantly the [chess programming wiki](https://www.chessprogramming.o
 
 ## Performance
 
-Standard perft is available as a test. Locally the move generator performs better than CMK's C engine,
+Standard perft is available as a UCI command. Locally the move generator performs better than CMK's C engine,
 while being 8-9 times slower than the fastest generators around. Understandable given
 that it does not bulk count horizon moves, nor keep track of pinned/checking pieces in attack generation.
 I will improve generation once done with the actual engine.

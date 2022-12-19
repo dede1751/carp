@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::{
-    board_repr::Board,
+    board::Board,
     clock::TimeControl,
 };
 
@@ -80,13 +80,14 @@ impl UCIController {
     }
 }
 
-/// Enum to represent UCI commands.
+/// Enum to represent UCI commands (and extra debug commands)
 enum UCICommand {
     UciNewGame,
     Uci,
     IsReady,
     Position(Board, Vec<String>),
     Go(TimeControl),
+    Perft(u8),
     Option(String, String),
     Quit,
     Stop,
@@ -118,6 +119,12 @@ impl TryFrom<&str> for UCICommand {
             Some("stop") => Ok(Self::Stop),
             Some("quit") => Ok(Self::Quit),
             Some("go") => Ok(Self::Go(TimeControl::try_from(tokens)?)),
+            Some("perft") => {
+                match tokens.next().ok_or("No option value!")?.parse() {
+                    Ok(d) => Ok(Self::Perft(d)),
+                    _ => return Err("Could not parse depth!")
+                }
+            }
             Some("position") => {
                 let board = match tokens.next() {
                     Some("startpos") => Board::default(),

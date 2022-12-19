@@ -228,7 +228,7 @@ impl MoveSorter {
 mod tests {
     use super::*;
     use crate::{
-        board_repr::*,
+        board::*,
         tables::Tables,
     };
 

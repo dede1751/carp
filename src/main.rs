@@ -8,16 +8,16 @@ pub mod bitboard;
 pub mod square;
 pub mod piece;
 pub mod moves;
-pub mod move_order;
 
-pub mod castling_rights;
-pub mod board_repr;
+pub mod move_order;
+pub mod castle;
 pub mod zobrist;
+pub mod board;
 
 pub mod tables;
 pub mod tt;
-pub mod search;
 pub mod evaluation;
+pub mod search;
 pub mod clock;
 pub mod uci;
 

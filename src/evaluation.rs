@@ -3,7 +3,7 @@
 use std::cmp::{ max, min };
 
 use crate::{
-  board_repr::Board,
+  board::Board,
   square::*,
   piece::*,
   search::MAX_DEPTH,

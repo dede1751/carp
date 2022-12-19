@@ -1,4 +1,3 @@
-
 /// UCI Chess engine
 /// 
 /// Sets up positions and dispatches searches. The search itself is responsible for the stop
@@ -10,13 +9,15 @@ use std::{
     thread,
     sync::{ Arc, mpsc },
     sync::atomic::{ AtomicBool, Ordering },
+    time::Instant,
 };
 
 use super::UCICommand;
 use crate::{
-    board_repr::Board,
+    board::Board,
     piece::Color,
     moves::Move,
+    move_order::MoveList,
     tables::Tables,
     search::Search,
     tt::{TT, DEFAULT_SIZE},
@@ -157,6 +158,26 @@ impl UCIEngine {
                     println!("\nbestmove {}", best_move);
                 }
 
+                UCICommand::Perft(d) => {
+                    let move_list: MoveList = self.board.generate_moves(&tables);
+                    let mut total_nodes = 0;
+                
+                    let start = Instant::now();
+                    for m in move_list {
+                        let start = Instant::now();
+                        let root = self.board.make_move(m, &tables).unwrap();
+                        let nodes = perft_driver(&root, &tables, d - 1);
+                        total_nodes += nodes;
+                        let duration = start.elapsed();
+                
+                        println!("{}{} -- {} nodes in {:?}", m.get_src(), m.get_tgt(), nodes, duration);
+                    }
+                    let duration = start.elapsed();
+                
+                    let perf: u128 = total_nodes as u128 / duration.as_micros();
+                    println!("\n{} nodes in {:?} - {}Mnodes/s", total_nodes, duration, perf);
+                }
+
                 UCICommand::Option(name, value) => {
                     match &name[..] {
                         "Hash" => {
@@ -184,4 +205,19 @@ impl UCIEngine {
             }
         }
     }
+}
+
+/// Recursive move generation
+fn perft_driver(board: &Board, tables: &Tables, depth: u8) -> u64 {
+    if depth == 0 { return 1};
+
+    let move_list: MoveList = board.generate_moves(&tables);
+    let mut nodes: u64 = 0;
+    for m in move_list {
+        let new_board = board.make_move(m, tables);
+        
+        if let Some(b) = new_board { nodes += perft_driver(&b, tables, depth - 1) };
+    }
+
+    nodes
 }

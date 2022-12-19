@@ -57,7 +57,7 @@
 
 use std::cmp::{ max, min };
 use crate::{
-    board_repr::Board,
+    board::Board,
     tables::Tables,
     moves::*,
     move_order::*,
@@ -514,7 +514,7 @@ mod performance_tests {
     
     use crate::{
         clock::*,
-        board_repr::*,
+        board::*,
         piece::Color,
     };
 
