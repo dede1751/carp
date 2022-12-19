@@ -1,4 +1,4 @@
-//! # Implements board representation and move generation
+/// Implements board representation and move generation
 use std::fmt;
 
 use crate::{
@@ -229,8 +229,7 @@ impl Board {
 
     /// Looks for which piece was captured on tgt square
     /// 
-    /// ## Panics
-    /// If no piece is set on the tgt square. Only call if it's sure to be a capture.
+    /// Panics if no piece is set on the tgt square. Only call if it's sure to be a capture.
     #[inline]
     fn get_captured_piece(&self, tgt: Square) -> Piece {
         match self.side {
@@ -245,7 +244,7 @@ impl Board {
         }
     }
     
-    /// # Generate all pawns moves
+    /// Generate all pawns moves
     fn generate_pawn_moves(&self, tables: &Tables, move_list: &mut MoveList) {
         let (piece,
             promotions,
@@ -319,7 +318,7 @@ impl Board {
         }        
     }
 
-    /// # Generate pseudolegal castling moves (king can be left in check)
+    /// Generate pseudolegal castling moves (king can be left in check)
     fn generate_castling_moves(&self, tables: &Tables, move_list: &mut MoveList) {
         let side: usize = self.side as usize;
         let source = CASTLE_SQUARES[side];
@@ -342,7 +341,7 @@ impl Board {
         }
     }
 
-    /// # Generate "conventional" moves for all pieces except pawns through attack tables
+    /// Generate "conventional" moves for all pieces except pawns through attack tables
     fn generate_piece_moves(&self, piece: Piece, tables: &Tables, move_list: &mut MoveList) {
         let piece_bb: BitBoard = self.pieces[piece as usize];
         let blockers: BitBoard = self.occupancy;
@@ -371,7 +370,7 @@ impl Board {
         }
     }
 
-    /// # Generate all pseudo-legal moves for the current side.
+    /// Generate all pseudo-legal moves for the current side.
     ///
     /// Assumes position legality according to the starting position, so for example pawns can only
     /// be between 2nd and 7th and when having castling rights the king is on the start square.
@@ -398,10 +397,10 @@ impl Board {
         move_list
     }
 
-    /// # Clone current board state and perform a pseudolegal move. None if move is illegal.
+    /// Clone current board state and perform a pseudolegal move. None if move is illegal.
     /// Requires that supplied moves be pseudolegal moves.
     /// 
-    /// ## PANICS
+    /// Panics if:
     /// Move is flagged as capture but no piece to capture is found.
     /// Move is castle but target is neither G1, C1, G8 or C8
     /// 
@@ -492,6 +491,7 @@ impl Board {
         Some(new)
     }
 
+    /// Pass turn to opponent, used for Null Move Pruning in the search
     #[inline]
     pub fn make_null_move(&self) -> Board {
         let mut b = self.clone();

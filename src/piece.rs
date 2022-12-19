@@ -1,4 +1,4 @@
-//! # Structures to represent a piece along with its color 
+/// Structures to represent a piece along with its color 
 
 use std::ops::Not;
 use std::mem::transmute;
@@ -6,7 +6,7 @@ use std::fmt;
 
 use crate::from;
 
-/// # Piece/Player color enum
+/// Piece/Player color enum
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum Color { White, Black }
@@ -16,9 +16,17 @@ impl Not for Color {
     type Output = Color;
 
     // get opposite color
-    #[inline]
+    #[inline(always)]
     fn not(self) -> Color {
         self.opposite()
+    }
+}
+
+/// Simple trick to make not trait constexpr
+impl Color {
+    #[inline(always)]
+    const fn opposite(self) -> Color {
+        from!(self as u8 ^ 1, 1)
     }
 }
 
@@ -32,15 +40,7 @@ impl fmt::Display for Color {
     }
 }
 
-/// Simple trick to make not trait constexpr
-impl Color {
-    const fn opposite(self) -> Color {
-        from!(self as u8 ^ 1, 1)
-    }
-}
-
-/// # Chess Piece enum (includes color)
-/// 
+/// Chess Piece enum (includes color)
 /// Pieces alternate between Black and White so that the least significant bit is the color
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
@@ -100,7 +100,8 @@ impl TryFrom<char> for Piece {
 }
 
 /// Create piece from usize index
-/// ## UB 
+/// 
+/// UB:
 /// If 12 <= index mod 16 <=15 this will try to transmute to a non-existent piece
 /// Simply use indices that make sense
 impl From<usize> for Piece {
@@ -116,13 +117,13 @@ impl Piece {
     }
 
     /// Get piece color
-    #[inline]
+    #[inline(always)]
     pub const fn color(self) -> Color {
         from!(self as u8, 1)
     }
 
     /// Switch piece color
-    #[inline]
+    #[inline(always)]
     pub const fn opposite_color(self) -> Piece {
         from!(self as u8 ^ 1, 15) // ^1 flips color bit
     }

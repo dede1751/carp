@@ -1,4 +1,4 @@
-//! # Slow attack generation to initialize attack tables
+/// Slow attack generation to initialize attack tables
 
 use crate::{
     bitboard::{ BitBoard, EMPTY_BB },

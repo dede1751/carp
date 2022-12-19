@@ -61,34 +61,34 @@ impl ZHash {
         hash
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn toggle_piece(&mut self, piece: Piece, square: Square) {
         self.0 ^= PIECE_KEYS[piece as usize][square as usize];
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
         self.0 ^= PIECE_KEYS[piece as usize][from as usize];
         self.0 ^= PIECE_KEYS[piece as usize][to as usize];
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn toggle_ep(&mut self, square: Square) {
         self.0 ^= EP_KEYS[square as usize];
     }
     
-    #[inline]
+    #[inline(always)]
     pub fn toggle_castle(&mut self, castle: CastlingRights) {
         self.0 ^= CASTLE_KEYS[castle.index()];
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn swap_castle(&mut self, old_castle: CastlingRights, new_castle: CastlingRights) {
         self.0 ^= CASTLE_KEYS[old_castle.index()];
         self.0 ^= CASTLE_KEYS[new_castle.index()];
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn toggle_side(&mut self) {
         self.0 ^= SIDE_KEY;
     }

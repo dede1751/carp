@@ -1,6 +1,5 @@
-//! # PeSTO's tapered evaluation tables with RofChade piece table values
-//! 
-//! Interpolates piece value tables over 24 different game phases.
+/// PeSTO's tapered evaluation tables with RofChade piece table values
+/// Interpolates piece value tables over 24 different game phases.
 use std::cmp::{ max, min };
 
 use crate::{
@@ -44,13 +43,8 @@ const GAME_PHASE_INCREMENT: [i32; 12] = [ 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
 
 pub type Eval = i16;
 
-// Max absolute values: 32767, -32767
-pub const MAX: Eval = std::i16::MAX;
-pub const MIN: Eval = -MAX;
-
-// Mate values [31000, 30872]
-pub const MATE: Eval = 31000;                             // Value for Mate in 0 ply
-pub const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval;  // Mate lower bound
+pub const MATE: Eval = 30000;                         // Mate score
+const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval;  // Mate lower bound
 
 pub fn evaluate(board: &Board) -> Eval {
     let mut mg: [i32; 2] = [0; 2];
@@ -76,14 +70,14 @@ pub fn evaluate(board: &Board) -> Eval {
     eval as Eval
 }
 
-#[inline]
+#[inline(always)]
 pub fn is_mate(eval: Eval) -> bool {
-    eval >= LONGEST_MATE && eval <= MATE
+    eval >= LONGEST_MATE && eval < MATE
 }
 
-#[inline]
+#[inline(always)]
 pub fn is_mated(eval: Eval) -> bool {
-    eval <= -LONGEST_MATE && eval >= -MATE
+    eval <= -LONGEST_MATE && eval > -MATE
 }
 
 #[cfg(test)]

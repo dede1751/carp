@@ -1,4 +1,4 @@
-//! # Implements move encoding and MoveList struct
+/// Implements move encoding and MoveList struct
 
 use std::fmt;
 
@@ -7,7 +7,7 @@ use crate::{
     piece::*,
 };
 
-/// # Move -- Encodes move in a single 4B word
+/// Move -- Encodes move in a single 4B word
 /// Smaller encoding can be achieved using only 2B (6b src, 6b tgt, 3b promotion, 1b extra) but it
 /// makes the rest of the engine much less ergonomic. We only use the least significant 28 bits
 /// 
@@ -20,12 +20,12 @@ use crate::{
 ///     0010 0000 0000 0000 0000 0000 0000    double push flag   0x200000    25
 ///     0100 0000 0000 0000 0000 0000 0000    enpassant flag     0x400000    26
 ///     1000 0000 0000 0000 0000 0000 0000    castling flag      0x800000    27
-///
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct Move (pub u32);
 
 pub const NULL_MOVE: Move = Move(0);
 
+// bit masks for the various parts of the move
 const SRC        : u32 = 0x0000003F;
 const TGT        : u32 = 0x00000FC0;
 const PIECE      : u32 = 0x0000F000;
@@ -80,61 +80,61 @@ impl Move {
     }
 
     /// Returns the move source square
-    #[inline]
+    #[inline(always)]
     pub fn get_src(&self) -> Square {
         Square::from((self.0 & SRC) as usize)
     }
 
     /// Returns the move target square
-    #[inline]
+    #[inline(always)]
     pub fn get_tgt(&self) -> Square {
         Square::from(((self.0 & TGT) >> 6) as usize)
     }
 
     /// Returns the moving piece
-    #[inline]
+    #[inline(always)]
     pub fn get_piece(&self) -> Piece {
         Piece::from(((self.0 & PIECE) >> 12) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
-    #[inline]
+    #[inline(always)]
     pub fn get_capture(&self) -> Piece {
         Piece::from(((self.0 & CAPTURE) >> 16) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
-    #[inline]
+    #[inline(always)]
     pub fn get_promotion(&self) -> Piece {
         Piece::from(((self.0 & PROMOTE) >> 20) as usize)
     }
 
     /// Returns true if the move is a promotion
-    #[inline]
+    #[inline(always)]
     pub fn is_promotion(&self) -> bool {
         self.0 & PROMOTE != 0
     }
 
     /// Returns true if the move is a capture
-    #[inline]
+    #[inline(always)]
     pub fn is_capture(&self) -> bool {
         self.0 & IS_CAP != 0
     }
 
     /// Returns true if the move is a double pawn push
-    #[inline]
+    #[inline(always)]
     pub fn is_double_push(&self) -> bool {
         self.0 & DOUBLE_PUSH != 0
     }
 
     /// Returns true if the move is an enpassant capture
-    #[inline]
+    #[inline(always)]
     pub fn is_enpassant(&self) -> bool {
         self.0 & ENPASSANT != 0
     }
 
     /// Returns true if the move is a castling move
-    #[inline]
+    #[inline(always)]
     pub fn is_castle(&self) -> bool {
         self.0 & CASTLE  != 0
     }

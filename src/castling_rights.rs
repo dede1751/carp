@@ -1,5 +1,4 @@
-//! # Implements castling related operations
-//! 
+/// Implements castling related operations
 use std::fmt;
 
 use crate::{
@@ -8,19 +7,18 @@ use crate::{
     piece::Color,
 };
 
-///     Castling rights struct
+/// Castling rights struct
 /// Implemented through a flag bit vector. This allows for fast castle update without needing
 /// bitboard lookups.
 /// 
 ///  WK | WQ | BK | BQ  --> only using least significant 8 bits
 ///  08   04   02   01 
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct CastlingRights (u8);
 pub const CASTLE_COUNT: usize = 16;
 pub const NO_RIGHTS: CastlingRights = CastlingRights(0);
 
-// bit masks each right
+// bit masks for each right
 const WK: u8 = 0x08;
 const WQ: u8 = 0x04;
 const BK: u8 = 0x02;
@@ -121,12 +119,13 @@ impl TryFrom<&str> for CastlingRights {
 
 impl CastlingRights {
     /// Get index of rights as usize
+    #[inline(always)]
     pub const fn index(&self) -> usize {
         self.0 as usize
     }
 
     /// Checks whether given color has kingside rights
-    #[inline]
+    #[inline(always)]
     pub const fn has_kingside(&self, side: Color) -> bool {
         match side {
             Color::White => self.0 & WK != 0,
@@ -135,7 +134,7 @@ impl CastlingRights {
     }
 
     /// Checks whether given color has queenside rights
-    #[inline]
+    #[inline(always)]
     pub const fn has_queenside(&self, side: Color) -> bool {
         match side {
             Color::White => self.0 & WQ != 0,
@@ -147,7 +146,7 @@ impl CastlingRights {
     /// Based on the idea that any move starting or ending on one of the four corners of the board
     /// will remove the rights relative to that corner, and remove all rights in case the move 
     /// starts (or ends but it's impossible) on the king start square
-    #[inline]
+    #[inline(always)]
     pub fn update(&self, src: Square, tgt: Square) -> CastlingRights {
         let mut new: CastlingRights = *self;
         

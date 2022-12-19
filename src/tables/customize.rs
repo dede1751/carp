@@ -1,9 +1,9 @@
-//! # Customize various constants hardcoded into the program
-//! 
-//! Both magics and Zobrist keys are saved as constants in the source code since there is no real
-//! need to create new ones. All functions dedicated to their generation are saved in this module.
-//! 
-//! Evaluation can be modified by changing various PSTs
+/// Customize various constants hardcoded into the program
+/// 
+/// Both magics and Zobrist keys are saved as constants in the source code since there is no real
+/// need to create new ones. All functions dedicated to their generation are saved in this module.
+/// 
+/// Evaluation can be modified by changing various PSTs
 
 use std::cell::RefCell;
 

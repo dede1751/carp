@@ -1,5 +1,4 @@
-//! # Move order -- Implements ordering through a MoveList and a Sorter for it
-//! 
+/// Implement move ordering through a MoveList and a Sorter for it
 
 use crate::{
     square::*,
@@ -8,7 +7,7 @@ use crate::{
     search::MAX_DEPTH,
 };
 
-/// # MoveList -- Separates captures and quiets and allows for move ordering
+/// MoveList, saves captures and quiets independently.
 pub struct MoveList {
     pub captures : Vec<Move>,
     pub all_moves: Vec<Move>,
@@ -72,22 +71,24 @@ impl MoveList {
     }
 }
 
-/// # Move Scoring - lower is better
+/// Move Scoring - lower is better
 /// 
 /// * TT moves when found are scored best.
 /// * Promotions receive an extra score to always put them at the top of the list. Knight promotions
 ///   are ordered after queen because they are the most likely underpromotion.
-///   will get 
 /// * Captures are evaluated with MVV-LVA values            MoveScore = [-100 -> -605]
 /// * Quiet moves are evaluated in the following order:
 ///     - Killer moves are awarded the most points:
 ///         first and second killer from current ply get -5 and -4 points
 ///         first and second killer from 2 plies ago get -3 and -2 points
-///     - Castling is awarded -1 point
+///     - Castling always comes after killers and before all other quiets
 ///     - Remaining quiets all have positive scores, obtained from the history score + 30000.
 ///       history moves are reset so as to not have them get positive scores.
-
 type MoveScore = i32;
+const TT_SCORE: MoveScore = -10000;
+const PROMOTION_OFFSETS: [MoveScore; PIECE_COUNT] = [
+    0, 0, -7000, -7000, -5000, -5000, -6000, -6000, -8000, -8000, 0, 0,
+];
 const MVV_LVA: [[MoveScore; PIECE_COUNT]; PIECE_COUNT] = [
 //      WP    BP    WN    BN    WB    BB    WR    BR    WQ    BQ    WK    BK 
     [ -105, -105, -205, -205, -305, -305, -405, -405, -505, -505, -605, -605 ], // WP
@@ -103,15 +104,11 @@ const MVV_LVA: [[MoveScore; PIECE_COUNT]; PIECE_COUNT] = [
     [ -100, -100, -200, -200, -300, -300, -400, -400, -500, -500, -600, -600 ], // WK
     [ -100, -100, -200, -200, -300, -300, -400, -400, -500, -500, -600, -600 ], // BK
 ];
-const PROMOTION_OFFSETS: [MoveScore; PIECE_COUNT] = [
-    0, 0, -7000, -7000, -5000, -5000, -6000, -6000, -8000, -8000, 0, 0,
-];
-const TT_SCORE: MoveScore = -10000;
+const FIRST_KILLER_OFFSET: MoveScore = -5;
+const SECOND_KILLER_OFFSET: MoveScore = -4;
 const CASTLE_SCORE: MoveScore = -1;
 
 const MAX_KILLERS: usize = 2;
-const FIRST_KILLER_OFFSET: MoveScore = -5;
-const SECOND_KILLER_OFFSET: MoveScore = -4;
 
 const HISTORY_OFFSET: MoveScore = 30000;
 
@@ -132,7 +129,8 @@ impl MoveSorter {
         }
     }
 
-    #[inline]
+    /// Save quiet moves that caused a cutoff at given ply
+    #[inline(always)]
     pub fn add_killer(&mut self, m: Move, ply: u8) {
         let ply = ply as usize;
         let first_killer = self.killer_moves[ply][0];
@@ -143,6 +141,8 @@ impl MoveSorter {
         }
     }
 
+    /// Increase cutoff move's history score
+    #[inline(always)]
     pub fn add_history(&mut self, m: Move, depth: u8) {
         let p = m.get_piece() as usize;
         let sq = m.get_tgt() as usize;
@@ -158,12 +158,12 @@ impl MoveSorter {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn score_capture(m: Move) -> MoveScore {
         MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
     }
 
-    #[inline]
+    #[inline(always)]
     fn score_killer(&self, m: Move, ply: u8) -> MoveScore {
         if m == self.killer_moves[ply as usize][0] {
             FIRST_KILLER_OFFSET
@@ -196,13 +196,15 @@ impl MoveSorter {
         }
     }
 
-    #[inline]
+    /// Sort only the captures in the movelist
+    #[inline(always)]
     pub fn sort_captures(&self, mut move_list: MoveList) -> Vec<Move> {
         move_list.captures.sort_by_key(|m|{ Self::score_capture(*m) });
         move_list.captures
     }
 
-    #[inline]
+    /// Sort all moves in the movelist
+    #[inline(always)]
     pub fn sort_moves(&self, mut move_list: MoveList, ply: u8) -> Vec<Move> {
         match self.tt_move {
             Some(tt_move) => {

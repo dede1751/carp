@@ -1,14 +1,14 @@
-//! # Module for initializing various global constants
-//! 
-//! The module exposes the precalculated attack tables, but also includes functionality to generate
-//! new zobrist keys and evaluation tables, to replace the hardcoded ones.
-//! 
-//! Carp uses plain magic bitboards found through random guessing for slider piece attack tables.
-//! RNG for the guessing is built-in and consistent (no need for security), magic values are
-//! hardcoded into the engine because there really is no need to change them. The code to generate
-//! them remains in the rng module.
-//! Move tables are used for attacks only: quiet moves are calculated on the fly by the move
-//! generator.
+/// Module for initializing various global constants
+/// 
+/// The module exposes the precalculated attack tables, but also includes functionality to generate
+/// new zobrist keys and evaluation tables, to replace the hardcoded ones.
+/// 
+/// Carp uses plain magic bitboards found through random guessing for slider piece attack tables.
+/// RNG for the guessing is built-in and consistent (no need for security), magic values are
+/// hardcoded into the engine because there really is no need to change them. The code to generate
+/// them remains in the rng module.
+/// Move tables are used for attacks only: quiet moves are calculated on the fly by the move
+/// generator.
 
 mod attacks;
 mod magics;
@@ -86,15 +86,15 @@ impl Tables {
     // initializes leaper tables
     fn init_leaper_attacks(&mut self) {
         for square in ALL_SQUARES {
-            let file = square.rank();
+            let rank = square.rank();
             let sq = square as usize;
     
             // pawn attacks are also generated behind the starting rank, needed to be able to check
             // quickly for attacks when the opposite colors pawns are one rank from promotion
-            if file != Rank::Eight {
+            if rank != Rank::Eight {
                 self.pawn_attacks[0][sq] = mask_pawn_attacks(square, Color::White);
             }
-            if file != Rank::First {
+            if rank != Rank::First {
                 self.pawn_attacks[1][sq] = mask_pawn_attacks(square, Color::Black);
             }
             self.knight_attacks[sq] = mask_knight_attacks(square);

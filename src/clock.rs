@@ -73,6 +73,7 @@ impl TryFrom<SplitWhitespace<'_>> for TimeControl {
     }
 }
 
+// number of nodes between clock checks
 const CHECK_FREQUENCY: u64 = 2048;
 
 #[derive(Clone, Debug)]

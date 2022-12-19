@@ -1,7 +1,7 @@
-//! # Implements a transposition table to lookup previously searched nodes
-//! 
-//! The transposition table uses internal Atomic entries to reduce memory footprint and future
-//! multithreading capabilities. The internal representation 
+/// Implements a transposition table to lookup previously searched nodes
+/// 
+/// The transposition table uses internal atomic entries with lockless access as seen on
+/// https://www.chessprogramming.org/Shared_Hash_Table
 
 use std::mem::{
     transmute,
@@ -18,45 +18,23 @@ use crate::{
     zobrist::*,
 };
 
+/// TTFlag: determines the type of value stored in the field
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum TTFlag { Lower, Upper, Exact }
 
-/// # TTField -- 17B (136b) total, aligns at 24B
+/// TTField: uncompressed external representation of tt entries
 /// 
 /// Can compress to 128b by using only 3b for the flag and 29 for the move.
-/// 
-/// Implementation note: saving value as an i16 within the TTField led to the most absolutely insane
-/// bug I've ever had to find. Apparently i16 converted to u64 gets sign-extended before conversion,
-/// hence within into<TTEntry> the move would actually be overwritten by the eval and garbage would
-/// propagate.
-/// 
 /// Mate scores are normalized within the tt for retrieval at different plies:
 /// 
 /// Tree --> Mate scores are relative to root-distance
-///          When mating the opponent, score is     MATE - mate_distance_from_root
-///          When being mated, score is            -MATE + mate_distance_from_root
 /// TT   --> Mate scores are relative to node-distance
-///          When mating the opponent, score is     MATE - mate_distance_from_node
-///          When being mated, score is            -MATE + mate_distance_from_node
-/// 
-/// When a mate score from the tree needs to be inserted in the tt:
-/// 
-///         mate_distance_from_root = ply + mate_distance_from_node
-/// 
-///     mate  --> mate + ply  =  MATE - mate_distance_from_root + ply   =
-///                           =  MATE - (mate_distance_from_root - ply) =
-///                           =  MATE - mate_distance_from_node
-///
-///     mated --> mated - ply = -MATE + (mate_distance_from_root - ply) =
-///                           = -MATE + mate_distance_from_node
-/// 
-/// 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct TTField {
     key: u64,        // 8B
-    flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually used
-    best_move: Move, // 4B -- only the rightmost 28 bits are actually used
+    flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually of note
+    best_move: Move, // 4B -- only the rightmost 28 bits are actually of note
     value: u16,      // 2B
     depth: u8,       // 1B
     age: u8          // 1B
@@ -73,7 +51,7 @@ const EVAL_MASK : u64 = 0x00000000FFFF0000; // third/fourth byte
 const MOVE_MASK : u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
 const FLAG_MASK : u64 = 0xE000000000000000; // last 3 bits
 
-// Convert from external field to compressed internal
+/// Convert from external field to compressed internal
 impl Into<(u64, u64)> for TTField {
     fn into(self) -> (u64, u64) {
         let data: u64 = 
@@ -87,7 +65,7 @@ impl Into<(u64, u64)> for TTField {
     }
 }
 
-// Convert from compressed internal atomic to external
+/// Convert from compressed internal to external
 impl From<(u64, u64)> for TTField {
     fn from((key, data): (u64, u64)) -> Self {
         let age: u8 = (data & AGE_MASK) as u8; 
@@ -122,6 +100,7 @@ impl Default for TTField {
 }
 
 impl TTField {
+    /// Initialize tt entry with normalized score
     pub fn new(
         key: ZHash,
         flag: TTFlag,
@@ -149,25 +128,25 @@ impl TTField {
     }
 
     /// Returns entry depth
-    #[inline]
+    #[inline(always)]
     pub fn get_depth(&self) -> u8 {
         self.depth
     }
 
     /// Returns entry flag
-    #[inline]
+    #[inline(always)]
     pub fn get_flag(&self) -> TTFlag {
         self.flag
     }
 
     /// Returns best move
-    #[inline]
+    #[inline(always)]
     pub fn get_move(&self) -> Move {
         self.best_move
     }
 
     /// Gets value while normalizing mate scores:
-    #[inline]
+    #[inline(always)]
     pub fn get_value(&self, ply: u8) -> Eval {
         let eval = self.value as Eval;
         let ply = ply as Eval;
@@ -180,10 +159,17 @@ impl TTField {
             eval
         }
     }
+
+    /// Update field contents for search
+    #[inline]
+    pub fn update_data(&mut self, flag: TTFlag, best_move: Move, value: Eval) {
+        self.flag = flag;
+        self.best_move = best_move;
+        self.value = value as u16;
+    }
 }
 
 /// Actual TTField, compressed down to 16B
-/// Simple lock-less design based on https://www.chessprogramming.org/Shared_Hash_Table
 #[derive(Debug)]
 struct AtomicField (AtomicU64, AtomicU64);
 
@@ -196,7 +182,7 @@ impl Default for AtomicField {
 
 impl AtomicField {
     /// Atomic read from table to a TTField, checking that the checksum is correct
-    #[inline]
+    #[inline(always)]
     fn read(&self, checksum: u64) -> Option<TTField> {
         let key = self.0.load(Ordering::Relaxed);
         let data = self.1.load(Ordering::Relaxed);
@@ -209,7 +195,7 @@ impl AtomicField {
     }
 
     /// Atomic read, returns a TTField with a scrambled key
-    #[inline]
+    #[inline(always)]
     fn read_unchecked(&self) -> TTField {
         let key = self.0.load(Ordering::Relaxed);
         let data = self.1.load(Ordering::Relaxed);
@@ -218,7 +204,7 @@ impl AtomicField {
     }
 
     /// Atomic write to table from a tt field struct
-    #[inline]
+    #[inline(always)]
     fn write(&self, entry: TTField) {
         let (key, data): (u64, u64) = entry.into();
 
@@ -232,11 +218,12 @@ pub struct TT {
     table: Vec<AtomicField>,
     bitmask: u64,
 }
+pub const DEFAULT_SIZE: usize = 256;
 
 // Default to 256 MiB size
 impl Default for TT {
     fn default() -> Self {
-        TT::new(256)
+        TT::new(DEFAULT_SIZE)
     }
 }
 
@@ -265,7 +252,13 @@ impl TT {
     /// Insert entry in appropriate tt field.
     /// 
     /// Uses highest depth + aging for replacement, but takes special care of different flag types
-    /// to maintain the pv within the transposition table. Conditions are explained here:
+    /// to maintain the pv within the transposition table: 
+    ///     - highest priority is given to entry age
+    ///     - second highest is given to Exact entries: they only get replaced by better exact ones
+    ///     - inexact entries get overwritten by exact entries or entries at the same depth. this
+    ///       is because in the search_root function we may replace the same entry many times.
+    /// 
+    /// Conditions are explained here:
     /// https://stackoverflow.com/questions/37782131/chess-extracting-the-principal-variation-from-the-transposition-table
     #[inline]
     pub fn insert(&self, new: TTField) {
@@ -274,7 +267,7 @@ impl TT {
         let old: TTField = old_slot.read_unchecked();
 
         if  new.age > old.age || ( // always replace old entries
-            (old.flag != TTFlag::Exact && (new.flag == TTFlag::Exact || new.depth > old.depth)) ||
+            (old.flag != TTFlag::Exact && (new.flag == TTFlag::Exact || new.depth >= old.depth)) ||
             (old.flag == TTFlag::Exact && new.flag == TTFlag::Exact && new.depth > old.depth))
         {
             old_slot.write(new);

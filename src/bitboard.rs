@@ -1,8 +1,6 @@
-//! # Implements Bitboards along with all relevant bitwise operations
+/// Implements Bitboards along with all relevant bitwise operations
 
 use std::fmt;
-use std::ops::*;
-
 use crate::square::*;
 
 /// Bitboard implemented as a simple tuple struct.
@@ -37,8 +35,17 @@ impl_math_ops! {
     Shr::shr,
     BitAnd::bitand,
     BitOr::bitor,
-    BitXor::bitxor,
-    Mul::mul
+    BitXor::bitxor
+}
+
+/// Mul uses different implementation for overflow protection
+impl std::ops::Mul for BitBoard {
+    type Output = Self;
+
+    #[inline(always)]
+    fn mul(self, other: Self) -> Self::Output {
+        Self(self.0.wrapping_mul(other.0))
+    }
 }
 
 /// Implement math assignment operations
@@ -60,10 +67,10 @@ impl_math_assign_ops! {
 }
 
 // Impl Not
-impl Not for BitBoard {
+impl std::ops::Not for BitBoard {
     type Output = BitBoard;
 
-    #[inline]
+    #[inline(always)]
     fn not(self) -> BitBoard {
         BitBoard(!self.0)
     }
@@ -90,11 +97,10 @@ impl fmt::Display for BitBoard {
     }
 }
 
-// Impl Iterator (over squares)
+/// Impl Iterator over the 1 squares of the board
 impl Iterator for BitBoard {
     type Item = Square;
 
-    // Iterate over set squares in bitboard
     fn next(&mut self) -> Option<Square> {
         if *self == EMPTY_BB {
             None
@@ -112,19 +118,19 @@ impl BitBoard {
     }
 
     /// Check whether given square is set on the board
-    #[inline]
+    #[inline(always)]
     pub fn get_bit(self, square: Square) -> bool {
         self.0 & (1u64 << square as usize) != 0
     }
 
     /// Sets given square on the board
-    #[inline]
+    #[inline(always)]
     pub fn set_bit(&mut self, square: Square) {
         self.0 |= 1u64 << square as usize;
     }
 
     /// Pops given square off the board
-    #[inline]
+    #[inline(always)]
     pub fn pop_bit(&mut self, square: Square) {
         if self.get_bit(square) {
             self.0 ^= 1u64 << square as usize;
@@ -133,13 +139,13 @@ impl BitBoard {
 
     /// Returns popcnt
     /// Using RUSTFLAGS='target-cpu=native' we enforce llvm to use the popcntl simd instruction
-    #[inline]
+    #[inline(always)]
     pub fn count_bits(self) -> u32 {
         self.0.count_ones()
     }
 
     /// Pops first set square from board (least significant 1 bit)
-    #[inline]
+    #[inline(always)]
     pub fn ls1b_index(self) -> Square {
         Square::from(self.0.trailing_zeros() as usize)
     }
