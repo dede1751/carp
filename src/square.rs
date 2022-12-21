@@ -82,41 +82,41 @@ impl From<usize> for Square {
 
 impl Square {
     /// Get square from (rank, file) coordinates
-    #[inline(always)]
+    #[inline]
     pub const fn from_coords(file: File, rank: Rank) -> Square {
         from!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file
     }
     
     /// Flips square vertically
-    #[inline(always)]
+    #[inline]
     pub const fn flipv(self) -> Square{
         from!(self as u8 ^ 56, 63)
     }
 
     /// Converts square to bitboard
-    #[inline(always)]
+    #[inline]
     pub const fn to_board(self) -> BitBoard {
         BitBoard(1u64 << self as usize)
     }
 
     /// Gets file coordinate
-    #[inline(always)]
+    #[inline]
     pub const fn file(self) -> File {
         from!(self as u8, 7)
     }
     /// Gets rank coordinate
-    #[inline(always)]
+    #[inline]
     pub const fn rank(self) -> Rank {
         from!(self as u8 >> 3, 7)
     }
     /// Get (rank, file) coordinates of square
-    #[inline(always)]
+    #[inline]
     pub const fn coords(self) -> (File, Rank) {
         (self.file(), self.rank())
     }
 
     /// Gets integer distances between current and given square
-    #[inline(always)]
+    #[inline]
     pub const fn dist(self, tgt: Square) -> (i8, i8) {
         let (tf, tr) = (tgt.file() as i8, tgt.rank() as i8);
         let (sf, sr) = (self.file() as i8, self.rank() as i8);
@@ -125,25 +125,25 @@ impl Square {
     }
 
     /// Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
-    #[inline(always)]
+    #[inline]
     pub const fn right(self) -> Square {
         from!(self as u8 + 1, 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (A4.left() = H5)
-    #[inline(always)]
+    #[inline]
     pub const fn left(self) -> Square {
         from!((self as u8).wrapping_sub(1), 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (H1.down() = H8)
-    #[inline(always)]
+    #[inline]
     pub const fn down(self) -> Square {
         from!(self as u8 + 8, 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (A8.up() = A1)
-    #[inline(always)]
+    #[inline]
     pub const fn up(self) -> Square {
         from!((self as u8).wrapping_sub(8), 63)
     }
@@ -164,13 +164,13 @@ pub const ALL_FILES: [File; FILE_COUNT] = [
 
 impl File {
     /// Gets file to the right, wraps H->A
-    #[inline(always)]
+    #[inline]
     pub const fn right(self) -> File {
         from!((self as u8) + 1, 7)
     }
 
     /// Gets file to the left, wraps A->H
-    #[inline(always)]
+    #[inline]
     pub const fn left(self) -> File {
         from!((self as u8).wrapping_sub(1), 7) // avoids of
     }
@@ -192,13 +192,13 @@ pub const ALL_RANKS: [Rank; RANK_COUNT] = [
 
 impl Rank {
     // Gets rank below, wraps First->Eight
-    #[inline(always)]
+    #[inline]
     pub const fn down(self) -> Rank {
         from!(self as u8 + 1, 7)
     }
 
     // Gets rank above, wraps Eight->First
-    #[inline(always)]
+    #[inline]
     pub const fn up(self) -> Rank {
         from!((self as u8).wrapping_sub(1), 7) // avoids of
     }

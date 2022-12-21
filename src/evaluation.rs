@@ -70,12 +70,12 @@ pub fn evaluate(board: &Board) -> Eval {
     eval as Eval
 }
 
-#[inline(always)]
+#[inline]
 pub fn is_mate(eval: Eval) -> bool {
     eval >= LONGEST_MATE && eval < MATE
 }
 
-#[inline(always)]
+#[inline]
 pub fn is_mated(eval: Eval) -> bool {
     eval <= -LONGEST_MATE && eval > -MATE
 }

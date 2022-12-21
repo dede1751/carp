@@ -128,25 +128,25 @@ impl TTField {
     }
 
     /// Returns entry depth
-    #[inline(always)]
+    #[inline]
     pub fn get_depth(&self) -> u8 {
         self.depth
     }
 
     /// Returns entry flag
-    #[inline(always)]
+    #[inline]
     pub fn get_flag(&self) -> TTFlag {
         self.flag
     }
 
     /// Returns best move
-    #[inline(always)]
+    #[inline]
     pub fn get_move(&self) -> Move {
         self.best_move
     }
 
     /// Gets value while normalizing mate scores:
-    #[inline(always)]
+    #[inline]
     pub fn get_value(&self, ply: u8) -> Eval {
         let eval = self.value as Eval;
         let ply = ply as Eval;
@@ -182,7 +182,7 @@ impl Default for AtomicField {
 
 impl AtomicField {
     /// Atomic read from table to a TTField, checking that the checksum is correct
-    #[inline(always)]
+    #[inline]
     fn read(&self, checksum: u64) -> Option<TTField> {
         let key = self.0.load(Ordering::Relaxed);
         let data = self.1.load(Ordering::Relaxed);
@@ -195,7 +195,7 @@ impl AtomicField {
     }
 
     /// Atomic read, returns a TTField with a scrambled key
-    #[inline(always)]
+    #[inline]
     fn read_unchecked(&self) -> TTField {
         let key = self.0.load(Ordering::Relaxed);
         let data = self.1.load(Ordering::Relaxed);
@@ -204,7 +204,7 @@ impl AtomicField {
     }
 
     /// Atomic write to table from a tt field struct
-    #[inline(always)]
+    #[inline]
     fn write(&self, entry: TTField) {
         let (key, data): (u64, u64) = entry.into();
 

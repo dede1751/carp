@@ -130,7 +130,7 @@ impl MoveSorter {
     }
 
     /// Save quiet moves that caused a cutoff at given ply
-    #[inline(always)]
+    #[inline]
     pub fn add_killer(&mut self, m: Move, ply: u8) {
         let ply = ply as usize;
         let first_killer = self.killer_moves[ply][0];
@@ -142,7 +142,7 @@ impl MoveSorter {
     }
 
     /// Increase cutoff move's history score
-    #[inline(always)]
+    #[inline]
     pub fn add_history(&mut self, m: Move, depth: u8) {
         let p = m.get_piece() as usize;
         let sq = m.get_tgt() as usize;
@@ -158,12 +158,12 @@ impl MoveSorter {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn score_capture(m: Move) -> MoveScore {
         MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
     }
 
-    #[inline(always)]
+    #[inline]
     fn score_killer(&self, m: Move, ply: u8) -> MoveScore {
         if m == self.killer_moves[ply as usize][0] {
             FIRST_KILLER_OFFSET
@@ -197,14 +197,14 @@ impl MoveSorter {
     }
 
     /// Sort only the captures in the movelist
-    #[inline(always)]
+    #[inline]
     pub fn sort_captures(&self, mut move_list: MoveList) -> Vec<Move> {
         move_list.captures.sort_by_key(|m|{ Self::score_capture(*m) });
         move_list.captures
     }
 
     /// Sort all moves in the movelist
-    #[inline(always)]
+    #[inline]
     pub fn sort_moves(&self, mut move_list: MoveList, ply: u8) -> Vec<Move> {
         match self.tt_move {
             Some(tt_move) => {

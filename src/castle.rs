@@ -119,13 +119,13 @@ impl TryFrom<&str> for CastlingRights {
 
 impl CastlingRights {
     /// Get index of rights as usize
-    #[inline(always)]
+    #[inline]
     pub const fn index(&self) -> usize {
         self.0 as usize
     }
 
     /// Checks whether given color has kingside rights
-    #[inline(always)]
+    #[inline]
     pub const fn has_kingside(&self, side: Color) -> bool {
         match side {
             Color::White => self.0 & WK != 0,
@@ -134,7 +134,7 @@ impl CastlingRights {
     }
 
     /// Checks whether given color has queenside rights
-    #[inline(always)]
+    #[inline]
     pub const fn has_queenside(&self, side: Color) -> bool {
         match side {
             Color::White => self.0 & WQ != 0,
@@ -146,7 +146,7 @@ impl CastlingRights {
     /// Based on the idea that any move starting or ending on one of the four corners of the board
     /// will remove the rights relative to that corner, and remove all rights in case the move 
     /// starts (or ends but it's impossible) on the king start square
-    #[inline(always)]
+    #[inline]
     pub fn update(&self, src: Square, tgt: Square) -> CastlingRights {
         let mut new: CastlingRights = *self;
         

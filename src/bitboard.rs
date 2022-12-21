@@ -21,7 +21,7 @@ macro_rules! impl_math_ops {
             impl std::ops::$trait for BitBoard {
                 type Output = Self;
 
-                #[inline(always)]
+                #[inline]
                 fn $fn(self, other: Self) -> Self::Output {
                     Self(std::ops::$trait::$fn(self.0, other.0))
                 }
@@ -42,7 +42,7 @@ impl_math_ops! {
 impl std::ops::Mul for BitBoard {
     type Output = Self;
 
-    #[inline(always)]
+    #[inline]
     fn mul(self, other: Self) -> Self::Output {
         Self(self.0.wrapping_mul(other.0))
     }
@@ -52,7 +52,7 @@ impl std::ops::Mul for BitBoard {
 macro_rules! impl_math_assign_ops {
     ($($trait:ident::$fn:ident),*) => {
         $(impl std::ops::$trait for BitBoard {
-            #[inline(always)]
+            #[inline]
             fn $fn(&mut self, other: Self) {
                 std::ops::$trait::$fn(&mut self.0, other.0)
             }
@@ -70,7 +70,7 @@ impl_math_assign_ops! {
 impl std::ops::Not for BitBoard {
     type Output = BitBoard;
 
-    #[inline(always)]
+    #[inline]
     fn not(self) -> BitBoard {
         BitBoard(!self.0)
     }
@@ -118,19 +118,19 @@ impl BitBoard {
     }
 
     /// Check whether given square is set on the board
-    #[inline(always)]
+    #[inline]
     pub fn get_bit(self, square: Square) -> bool {
         self.0 & (1u64 << square as usize) != 0
     }
 
     /// Sets given square on the board
-    #[inline(always)]
+    #[inline]
     pub fn set_bit(&mut self, square: Square) {
         self.0 |= 1u64 << square as usize;
     }
 
     /// Pops given square off the board
-    #[inline(always)]
+    #[inline]
     pub fn pop_bit(&mut self, square: Square) {
         if self.get_bit(square) {
             self.0 ^= 1u64 << square as usize;
@@ -139,13 +139,13 @@ impl BitBoard {
 
     /// Returns popcnt
     /// Using RUSTFLAGS='target-cpu=native' we enforce llvm to use the popcntl simd instruction
-    #[inline(always)]
+    #[inline]
     pub fn count_bits(self) -> u32 {
         self.0.count_ones()
     }
 
     /// Pops first set square from board (least significant 1 bit)
-    #[inline(always)]
+    #[inline]
     pub fn ls1b_index(self) -> Square {
         Square::from(self.0.trailing_zeros() as usize)
     }

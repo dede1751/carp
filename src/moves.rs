@@ -80,61 +80,61 @@ impl Move {
     }
 
     /// Returns the move source square
-    #[inline(always)]
+    #[inline]
     pub fn get_src(&self) -> Square {
         Square::from((self.0 & SRC) as usize)
     }
 
     /// Returns the move target square
-    #[inline(always)]
+    #[inline]
     pub fn get_tgt(&self) -> Square {
         Square::from(((self.0 & TGT) >> 6) as usize)
     }
 
     /// Returns the moving piece
-    #[inline(always)]
+    #[inline]
     pub fn get_piece(&self) -> Piece {
         Piece::from(((self.0 & PIECE) >> 12) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
-    #[inline(always)]
+    #[inline]
     pub fn get_capture(&self) -> Piece {
         Piece::from(((self.0 & CAPTURE) >> 16) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
-    #[inline(always)]
+    #[inline]
     pub fn get_promotion(&self) -> Piece {
         Piece::from(((self.0 & PROMOTE) >> 20) as usize)
     }
 
     /// Returns true if the move is a promotion
-    #[inline(always)]
+    #[inline]
     pub fn is_promotion(&self) -> bool {
         self.0 & PROMOTE != 0
     }
 
     /// Returns true if the move is a capture
-    #[inline(always)]
+    #[inline]
     pub fn is_capture(&self) -> bool {
         self.0 & IS_CAP != 0
     }
 
     /// Returns true if the move is a double pawn push
-    #[inline(always)]
+    #[inline]
     pub fn is_double_push(&self) -> bool {
         self.0 & DOUBLE_PUSH != 0
     }
 
     /// Returns true if the move is an enpassant capture
-    #[inline(always)]
+    #[inline]
     pub fn is_enpassant(&self) -> bool {
         self.0 & ENPASSANT != 0
     }
 
     /// Returns true if the move is a castling move
-    #[inline(always)]
+    #[inline]
     pub fn is_castle(&self) -> bool {
         self.0 & CASTLE  != 0
     }
