@@ -21,7 +21,6 @@ macro_rules! impl_math_ops {
             impl std::ops::$trait for BitBoard {
                 type Output = Self;
 
-                #[inline]
                 fn $fn(self, other: Self) -> Self::Output {
                     Self(std::ops::$trait::$fn(self.0, other.0))
                 }
@@ -42,7 +41,6 @@ impl_math_ops! {
 impl std::ops::Mul for BitBoard {
     type Output = Self;
 
-    #[inline]
     fn mul(self, other: Self) -> Self::Output {
         Self(self.0.wrapping_mul(other.0))
     }
@@ -52,7 +50,6 @@ impl std::ops::Mul for BitBoard {
 macro_rules! impl_math_assign_ops {
     ($($trait:ident::$fn:ident),*) => {
         $(impl std::ops::$trait for BitBoard {
-            #[inline]
             fn $fn(&mut self, other: Self) {
                 std::ops::$trait::$fn(&mut self.0, other.0)
             }
@@ -70,7 +67,6 @@ impl_math_assign_ops! {
 impl std::ops::Not for BitBoard {
     type Output = BitBoard;
 
-    #[inline]
     fn not(self) -> BitBoard {
         BitBoard(!self.0)
     }

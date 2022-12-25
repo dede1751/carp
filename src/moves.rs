@@ -1,10 +1,15 @@
 /// Implements move encoding and MoveList struct
 
-use std::fmt;
+use std::{
+    fmt,
+    collections::HashSet
+};
 
 use crate::{
     square::*,
     piece::*,
+    board::Board,
+    tables::Tables,
 };
 
 /// Move -- Encodes move in a single 4B word
@@ -54,8 +59,7 @@ impl Move {
     /// 
     /// When not promoting, pass WP
     /// Flags are u32 boolean values (must be 0 or 1)
-    #[inline]
-    pub fn encode(
+    pub const fn encode(
         src: Square,
         tgt: Square,
         piece: Piece,
@@ -110,33 +114,96 @@ impl Move {
     }
 
     /// Returns true if the move is a promotion
-    #[inline]
-    pub fn is_promotion(&self) -> bool {
+    pub const fn is_promotion(&self) -> bool {
         self.0 & PROMOTE != 0
     }
 
     /// Returns true if the move is a capture
-    #[inline]
-    pub fn is_capture(&self) -> bool {
+    pub const fn is_capture(&self) -> bool {
         self.0 & IS_CAP != 0
     }
 
     /// Returns true if the move is a double pawn push
-    #[inline]
-    pub fn is_double_push(&self) -> bool {
+    pub const fn is_double_push(&self) -> bool {
         self.0 & DOUBLE_PUSH != 0
     }
 
     /// Returns true if the move is an enpassant capture
-    #[inline]
-    pub fn is_enpassant(&self) -> bool {
+    pub const fn is_enpassant(&self) -> bool {
         self.0 & ENPASSANT != 0
     }
 
     /// Returns true if the move is a castling move
-    #[inline]
-    pub fn is_castle(&self) -> bool {
-        self.0 & CASTLE  != 0
+    pub const fn is_castle(&self) -> bool {
+        self.0 & CASTLE != 0
+    }
+
+    /// Writes move in standard algebraic notation
+    pub fn to_algebraic(&self, board: &Board, tables: &Tables) -> String {
+        if self.is_castle() {
+            let file = self.get_tgt().file();
+
+            if file == File::G { return String::from("O-O"); }
+            else { return String::from("O-O-O"); }
+        }
+
+        let mut move_str = String::new();
+        let src = self.get_src();
+        let tgt = self.get_tgt();
+        let p = self.get_piece();
+        let is_pawn = p == Piece::WP || p == Piece::BP;
+
+        // disambiguate non-pawn pieces
+        if !is_pawn {
+            move_str.push(p.to_char().to_ascii_uppercase());
+
+            // get all ambiguous (file, rank) source squares
+            let (files, ranks): (HashSet<File>, HashSet<Rank>) = board.generate_moves(tables)
+                .into_iter()
+                .filter(|m|
+                    m.get_src() != src  && // different source square
+                    m.get_tgt() == tgt  && // same target square
+                    m.get_piece() == p  && // same piece
+                    board.make_move(*m, tables).is_some()) // legality
+                .map(|m| m.get_src().coords())
+                .unzip();
+            
+            // if a move is unambiguous, files and ranks will be empty
+            if files.len() != 0 && ranks.len() != 0 {
+                if !files.contains(&src.file()) {
+                    move_str.push(src.file().to_char())
+                } else if !ranks.contains(&src.rank()) {
+                    move_str.push(src.rank().to_char())
+                } else {
+                    move_str.push_str(&src.to_string());
+                }
+            }
+        }
+
+        if self.is_capture() {
+            if is_pawn { move_str.push(src.file().to_char()) } // pawn captures always specify file
+            move_str.push('x')
+        }
+        move_str.push_str(&tgt.to_string());        // destination
+
+        // add promotion
+        if self.is_promotion() {
+            move_str.push(self.get_promotion().to_char())
+        }
+
+        // check/checkmate
+        let new = board.make_move(*self, tables).unwrap();
+        if new.king_in_check(tables) { 
+            let checkmate: bool = new.generate_moves(tables)
+                .into_iter()
+                .filter(|&m| new.make_move(m, tables).is_some())
+                .count() == 0;
+            
+            if checkmate { move_str.push('#'); }
+            else { move_str.push('+'); }
+        }
+
+        move_str
     }
 }
 

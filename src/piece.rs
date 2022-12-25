@@ -16,7 +16,6 @@ impl Not for Color {
     type Output = Color;
 
     // get opposite color
-    #[inline]
     fn not(self) -> Color {
         self.opposite()
     }
@@ -24,7 +23,6 @@ impl Not for Color {
 
 /// Simple trick to make not trait constexpr
 impl Color {
-    #[inline]
     const fn opposite(self) -> Color {
         from!(self as u8 ^ 1, 1)
     }
@@ -117,13 +115,11 @@ impl Piece {
     }
 
     /// Get piece color
-    #[inline]
     pub const fn color(self) -> Color {
         from!(self as u8, 1)
     }
 
     /// Switch piece color
-    #[inline]
     pub const fn opposite_color(self) -> Piece {
         from!(self as u8 ^ 1, 15) // ^1 flips color bit
     }

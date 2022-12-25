@@ -1,5 +1,6 @@
 /// UCI integration
 mod engine;
+mod bench;
 
 use engine::UCIEngine;
 
@@ -85,10 +86,11 @@ enum UCICommand {
     UciNewGame,
     Uci,
     IsReady,
+    Option(String, String),
+    Bench,
+    Perft(u8),
     Position(Board, Vec<String>),
     Go(TimeControl),
-    Perft(u8),
-    Option(String, String),
     Quit,
     Stop,
 }
@@ -103,6 +105,7 @@ impl TryFrom<&str> for UCICommand {
         match tokens.next() {
             Some("ucinewgame") => Ok(Self::UciNewGame),
             Some("uci") => Ok(Self::Uci),
+            Some("isready") => Ok(Self::IsReady),
             Some("setoption") => {
                 let opt_name: String = match tokens.next() {
                     Some("name") => tokens.next().ok_or("No option name!")?.to_owned(),
@@ -115,10 +118,7 @@ impl TryFrom<&str> for UCICommand {
                 
                 Ok(Self::Option(opt_name, opt_value))
             }
-            Some("isready") => Ok(Self::IsReady),
-            Some("stop") => Ok(Self::Stop),
-            Some("quit") => Ok(Self::Quit),
-            Some("go") => Ok(Self::Go(TimeControl::try_from(tokens)?)),
+            Some("bench") => Ok(Self::Bench),
             Some("perft") => {
                 match tokens.next().ok_or("No option value!")?.parse() {
                     Ok(d) => Ok(Self::Perft(d)),
@@ -130,28 +130,31 @@ impl TryFrom<&str> for UCICommand {
                     Some("startpos") => Board::default(),
                     Some("fen") => {
                         let fen = &tokens
-                            .clone()
-                            .take(6)
-                            .collect::<Vec<&str>>()
-                            .join(" ")
-                            [..];
-                
+                        .clone()
+                        .take(6)
+                        .collect::<Vec<&str>>()
+                        .join(" ")
+                        [..];
+                        
                         for _ in 0..6 { tokens.next(); } // advance iterator
-
+                        
                         Board::try_from(fen)?
                     },
                     _ => return Err("Invalid position command"),
                 };
-
+                
                 let mut moves = Vec::new();
                 if let Some("moves") = tokens.next() {
                     moves = tokens
-                        .map(String::from)
-                        .collect();
+                    .map(String::from)
+                    .collect();
                 }
-
+                
                 Ok(Self::Position(board, moves))
             }
+            Some("go") => Ok(Self::Go(TimeControl::try_from(tokens)?)),
+            Some("stop") => Ok(Self::Stop),
+            Some("quit") => Ok(Self::Quit),
             _ => Err("Error parsing command!"),
         }
     }
