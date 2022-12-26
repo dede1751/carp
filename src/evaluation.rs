@@ -1,14 +1,24 @@
-/// PeSTO's tapered evaluation tables with RofChade piece table values
+/// PeSTO's tapered evaluation tables with RofChade piece table values.
+/// Heuristic optimizations:
+///     - doubled pawns
+///     - isolated pawns
+///     - passed pawns
+///     - semi/open files for king and rook
+///     - mobility for bishop and queen
+///     - king pawn shield
 /// Interpolates piece value tables over 24 different game phases.
 use std::cmp::{ max, min };
 
 use crate::{
-  board::Board,
-  square::*,
-  piece::*,
-  search::MAX_DEPTH,
+    bitboard::*,
+    board::Board,
+    square::*,
+    piece::*,
+    search::MAX_DEPTH,
+    tables::*,
 };
 
+/// PST's
 const MG_TABLES: [[i32; SQUARE_COUNT]; PIECE_COUNT] = [
     [94, 94, 94, 94, 94, 94, 94, 94, 272, 267, 252, 228, 241, 226, 259, 281, 188, 194, 179, 161, 150, 147, 176, 178, 126, 118, 107, 99, 92, 98, 111, 111, 107, 103, 91, 87, 87, 86, 97, 93, 98, 101, 88, 95, 94, 89, 93, 86, 107, 102, 102, 104, 107, 94, 96, 87, 94, 94, 94, 94, 94, 94, 94, 94],
     [94, 94, 94, 94, 94, 94, 94, 94, 107, 102, 102, 104, 107, 94, 96, 87, 98, 101, 88, 95, 94, 89, 93, 86, 107, 103, 91, 87, 87, 86, 97, 93, 126, 118, 107, 99, 92, 98, 111, 111, 188, 194, 179, 161, 150, 147, 176, 178, 272, 267, 252, 228, 241, 226, 259, 281, 94, 94, 94, 94, 94, 94, 94, 94],
@@ -23,7 +33,6 @@ const MG_TABLES: [[i32; SQUARE_COUNT]; PIECE_COUNT] = [
     [11926, 11965, 11982, 11982, 11989, 12015, 12004, 11983, 11988, 12017, 12014, 12017, 12017, 12038, 12023, 12011, 12010, 12017, 12023, 12015, 12020, 12045, 12044, 12013, 11992, 12022, 12024, 12027, 12026, 12033, 12026, 12003, 11982, 11996, 12021, 12024, 12027, 12023, 12009, 11989, 11981, 11997, 12011, 12021, 12023, 12016, 12007, 11991, 11973, 11989, 12004, 12013, 12014, 12004, 11995, 11983, 11947, 11966, 11979, 11989, 11972, 11986, 11976, 11957],
     [11947, 11966, 11979, 11989, 11972, 11986, 11976, 11957, 11973, 11989, 12004, 12013, 12014, 12004, 11995, 11983, 11981, 11997, 12011, 12021, 12023, 12016, 12007, 11991, 11982, 11996, 12021, 12024, 12027, 12023, 12009, 11989, 11992, 12022, 12024, 12027, 12026, 12033, 12026, 12003, 12010, 12017, 12023, 12015, 12020, 12045, 12044, 12013, 11988, 12017, 12014, 12017, 12017, 12038, 12023, 12011, 11926, 11965, 11982, 11982, 11989, 12015, 12004, 11983]
 ];
-
 const EG_TABLES: [[i32; SQUARE_COUNT]; PIECE_COUNT] = [
     [82, 82, 82, 82, 82, 82, 82, 82, 180, 216, 143, 177, 150, 208, 116, 71, 76, 89, 108, 113, 147, 138, 107, 62, 68, 95, 88, 103, 105, 94, 99, 59, 55, 80, 77, 94, 99, 88, 92, 57, 56, 78, 78, 72, 85, 85, 115, 70, 47, 81, 62, 59, 67, 106, 120, 60, 82, 82, 82, 82, 82, 82, 82, 82],
     [82, 82, 82, 82, 82, 82, 82, 82, 47, 81, 62, 59, 67, 106, 120, 60, 56, 78, 78, 72, 85, 85, 115, 70, 55, 80, 77, 94, 99, 88, 92, 57, 68, 95, 88, 103, 105, 94, 99, 59, 76, 89, 108, 113, 147, 138, 107, 62, 180, 216, 143, 177, 150, 208, 116, 71, 82, 82, 82, 82, 82, 82, 82, 82],
@@ -39,29 +48,194 @@ const EG_TABLES: [[i32; SQUARE_COUNT]; PIECE_COUNT] = [
     [11985, 12036, 12012, 11946, 12008, 11972, 12024, 12014, 12001, 12007, 11992, 11936, 11957, 11984, 12009, 12008, 11986, 11986, 11978, 11954, 11956, 11970, 11985, 11973, 11951, 11999, 11973, 11961, 11954, 11956, 11967, 11949, 11983, 11980, 11988, 11973, 11970, 11975, 11986, 11964, 11991, 12024, 12002, 11984, 11980, 12006, 12022, 11978, 12029, 11999, 11980, 11993, 11992, 11996, 11962, 11971, 11935, 12023, 12016, 11985, 11944, 11966, 12002, 12013]
 ];
 
+/// Pawn evaluation values
+const MG_DOUBLED: i32 = -5;
+const EG_DOUBLED: i32 = -10;
+const MG_ISOLATED: i32 = -5;
+const EG_ISOLATED: i32 = -10;
+const PASSER_BONUS: [[i32; RANK_COUNT]; 2] = [
+    [ 0, 150, 100, 75, 50, 30, 10, 0 ],
+    [ 0, 10, 30, 50, 75, 100, 150, 0 ] 
+];
+
+/// Rook/king file occupancy bonuses
+const SEMI_OPEN_BONUS: i32 = 10;
+const OPEN_BONUS: i32 = 15;
+
+/// Bishop mobility values
+const BISHOP_MOBILITY_UNIT: i32 = 4;
+const MG_BISHOP_MOBILITY: i32 = 5;
+const EG_BISHOP_MOBILITY: i32 = 5;
+
+/// Queen mobility values
+const QUEEN_MOBILITY_UNIT: i32 = 9;
+const MG_QUEEN_MOBILITY: i32 = 1;
+const EG_QUEEN_MOBILITY: i32 = 2;
+
+/// King safety value
+const KING_SHIELD_BONUS: i32 = 5;
+
+/// Game phase interpolation values
 const GAME_PHASE_INCREMENT: [i32; 12] = [ 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
 
 pub type Eval = i16;
-
 pub const MATE: Eval = 30000;                         // Mate score
 const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval;  // Mate lower bound
 
-pub fn evaluate(board: &Board) -> Eval {
+pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
     let mut mg: [i32; 2] = [0; 2];
     let mut eg: [i32; 2] = [0; 2];
     let mut game_phase: i32 = 0;
 
-    for piece in ALL_PIECES {
-        for square in board.pieces[piece as usize] {
-            mg[piece.color() as usize] += MG_TABLES[piece as usize][square as usize];
-            eg[piece.color() as usize] += EG_TABLES[piece as usize][square as usize];
-            game_phase += GAME_PHASE_INCREMENT[piece as usize];
+    for piece in ALL_PIECES { // this will all get unrolled by llvm anyways
+        let p = piece as usize;
+        let c = piece.color() as usize;
+
+        match piece {
+            Piece::WP | Piece::BP => {
+                for square in board.pieces[p] {
+                    let sq = square as usize;
+            
+                    // doubled pawn penalty (only the backwards pawn counts as doubled)
+                    let doubled_count = (board.pieces[p] & DOUBLED_MASKS[c][sq]).count_bits() as i32;
+                    mg[c] += (doubled_count) * MG_DOUBLED;
+                    eg[c] += (doubled_count) * EG_DOUBLED;
+            
+                    // isolated pawn penalty
+                    if board.pieces[p] & ISOLATED_MASKS[sq] == EMPTY_BB {
+                        mg[c] += MG_ISOLATED;
+                        eg[c] += EG_ISOLATED;
+                    }
+
+                    // passer bonus (doubled pawns are not passers)
+                    let opp_p = piece.opposite_color() as usize;
+
+                    if  doubled_count == 0                                      &&
+                        board.pieces[opp_p] & PASSED_MASKS[c][sq] == EMPTY_BB
+                    {
+                        mg[c] += PASSER_BONUS[c][square.rank() as usize];
+                        eg[c] += PASSER_BONUS[c][square.rank() as usize];
+                    }
+
+                    // positional score
+                    mg[c] += MG_TABLES[p][sq];
+                    eg[c] += EG_TABLES[p][sq];
+                    game_phase += GAME_PHASE_INCREMENT[p];
+                }
+            }
+
+            Piece::WN | Piece::BN => {
+                for square in board.pieces[piece as usize] {
+                    let sq  = square as usize;
+        
+                    // positional score
+                    mg[c] += MG_TABLES[p][sq];
+                    eg[c] += EG_TABLES[p][sq];
+                    game_phase += GAME_PHASE_INCREMENT[p];
+                }
+            }
+
+            Piece::WB | Piece::BB => {
+                for square in board.pieces[p] {
+                    let sq = square as usize;
+                    let attack_count = tables
+                        .get_bishop_attack(square, board.occupancy)
+                        .count_bits() as i32;
+                    
+                    // mobility score
+                    mg[c] += (attack_count - BISHOP_MOBILITY_UNIT) * MG_BISHOP_MOBILITY;
+                    eg[c] += (attack_count - BISHOP_MOBILITY_UNIT) * EG_BISHOP_MOBILITY;
+
+                    // positional score
+                    mg[c] += MG_TABLES[p][sq];
+                    eg[c] += EG_TABLES[p][sq];
+                    game_phase += GAME_PHASE_INCREMENT[p];
+                }
+            }
+
+            Piece::WR | Piece::BR => {
+                for square in board.pieces[piece as usize] {
+                    let sq  = square as usize;
+                    let (own_pawn, opp_pawn) = match piece.color() {
+                        Color::White => (Piece::WP as usize, Piece::BP as usize),
+                        Color::Black => (Piece::BP as usize, Piece::WP as usize)
+                    };
+        
+                    // semi open file bonus
+                    if board.pieces[own_pawn] & FILE_MASKS[sq] == EMPTY_BB {
+                        mg[c] += SEMI_OPEN_BONUS;
+                        eg[c] += SEMI_OPEN_BONUS;
+                    }
+
+                    // open file bonus
+                    if (board.pieces[own_pawn] | board.pieces[opp_pawn]) & FILE_MASKS[sq] == EMPTY_BB {
+                        mg[c] += OPEN_BONUS;
+                        eg[c] += OPEN_BONUS;
+                    }
+                    
+                    // positional score
+                    mg[c] += MG_TABLES[p][sq];
+                    eg[c] += EG_TABLES[p][sq];
+                    game_phase += GAME_PHASE_INCREMENT[p];
+                }
+            }
+
+            Piece::WQ | Piece::BQ => {
+                for square in board.pieces[p] {
+                    let sq = square as usize;
+                    let attack_count = tables
+                        .get_queen_attack(square, board.occupancy)
+                        .count_bits() as i32;
+                    
+                    // mobility score
+                    mg[c] += (attack_count - QUEEN_MOBILITY_UNIT) * MG_QUEEN_MOBILITY;
+                    eg[c] += (attack_count - QUEEN_MOBILITY_UNIT) * EG_QUEEN_MOBILITY;
+
+                    // positional score
+                    mg[c] += MG_TABLES[p][sq];
+                    eg[c] += EG_TABLES[p][sq];
+                    game_phase += GAME_PHASE_INCREMENT[p];
+                }
+            }
+            
+            Piece::WK | Piece::BK => {
+                for square in board.pieces[piece as usize] {
+                    let sq  = square as usize;
+                    let (own_pawn, opp_pawn) = match piece.color() {
+                        Color::White => (Piece::WP as usize, Piece::BP as usize),
+                        Color::Black => (Piece::BP as usize, Piece::WP as usize)
+                    };
+        
+                    // semi open file penalty
+                    if board.pieces[own_pawn] & FILE_MASKS[sq] == EMPTY_BB {
+                        mg[c] -= SEMI_OPEN_BONUS;
+                        eg[c] -= SEMI_OPEN_BONUS;
+                    }
+
+                    // open file penalty
+                    if (board.pieces[own_pawn] | board.pieces[opp_pawn]) & FILE_MASKS[sq] == EMPTY_BB {
+                        mg[c] -= OPEN_BONUS;
+                        eg[c] -= OPEN_BONUS;
+                    }
+
+                    // king shield score (only over pawns)
+                    let shield_count = (tables.get_king_attack(square) & board.pieces[own_pawn])
+                        .count_bits() as i32;
+                    mg[c] += shield_count * KING_SHIELD_BONUS;
+                    eg[c] += shield_count * KING_SHIELD_BONUS;
+
+                    // positional score
+                    mg[c] += MG_TABLES[p][sq];
+                    eg[c] += EG_TABLES[p][sq];
+                    game_phase += GAME_PHASE_INCREMENT[p];
+                }
+            }
         }
     };
 
     let mg_score: i32 = mg[board.side as usize] - mg[(!board.side) as usize];
     let eg_score: i32 = eg[board.side as usize] - eg[(!board.side) as usize];
-    if game_phase > 24 { game_phase = 24 }
+    game_phase = max(game_phase, 24);
 
     let mut eval = (mg_score * game_phase + eg_score * (24 - game_phase)) / 24;
     eval = max(eval, -(LONGEST_MATE - 1) as i32); // clamp to minimum value
@@ -86,8 +260,9 @@ mod tests {
 
     #[test]
     fn test_clamp() {
+        let t = Tables::default();
         let b: Board = Board::try_from("QQQQQQQQ/RNBKQBNR/QQQQQQQQ/QQQQQQQQ/8/8/8/8 b - - 0 -").unwrap();
-        let eval = evaluate(&b);
+        let eval = evaluate(&b, &t);
 
         // eval does not become a mate score
         assert!(eval > -LONGEST_MATE);

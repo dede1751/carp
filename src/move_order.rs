@@ -246,7 +246,9 @@ mod tests {
     #[test]
     fn test_sorter() {
         let ms: MoveSorter = MoveSorter::new();
-        let b: Board = Board::try_from(KILLER_FEN).unwrap();
+        let b: Board = Board::try_from(
+            "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
+        ).unwrap();
         let t: Tables = Tables::default();
         let move_list = b.generate_moves(&t);
         let len = move_list.len();

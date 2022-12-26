@@ -3,7 +3,8 @@
 /// Both magics and Zobrist keys are saved as constants in the source code since there is no real
 /// need to create new ones. All functions dedicated to their generation are saved in this module.
 /// 
-/// Evaluation can be modified by changing various PSTs
+/// Evaluation can be modified by changing various PSTs and also includes the code to generate the
+/// various positional masks.
 
 use std::cell::RefCell;
 
@@ -359,4 +360,79 @@ pub fn init_tables() {
     }
 
     println!("MG:\n\n{:?}\n\n\nEG:\n\n{:?}", eg_table, mg_table);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+/// PAWN MASKS
+fn mask_file(file: File) -> BitBoard {
+    ALL_SQUARES.into_iter()
+        .filter(|sq| sq.file() == file)
+        .fold(EMPTY_BB, |acc, sq| acc | sq.to_board())
+}
+
+fn mask_rank(rank: Rank) -> BitBoard {
+    ALL_SQUARES.into_iter()
+        .filter(|sq| sq.rank() == rank)
+        .fold(EMPTY_BB, |acc, sq| acc | sq.to_board())
+}
+
+fn generate_masks() {
+    let mut file_masks: BB64 = [EMPTY_BB; SQUARE_COUNT];
+    let mut rank_masks: BB64 = [EMPTY_BB; SQUARE_COUNT];
+    let mut isolated_masks: BB64 = [EMPTY_BB; SQUARE_COUNT];
+    let mut white_doubled_masks: BB64 = [EMPTY_BB; SQUARE_COUNT];
+    let mut black_doubled_masks: BB64 = [EMPTY_BB; SQUARE_COUNT];
+    let mut white_passed_masks: BB64 = [EMPTY_BB; SQUARE_COUNT];
+    let mut black_passed_masks: BB64 = [EMPTY_BB; SQUARE_COUNT];
+
+    for square in ALL_SQUARES {
+        let (file, rank) = square.coords();
+
+        // set file/rank masks
+        file_masks[square as usize] = mask_file(file);
+        rank_masks[square as usize] = mask_rank(rank);
+        
+        // set central part of passed mask and doubled mask
+        let mut temp_passed = mask_file(file);
+        let temp_doubled = mask_file(file);
+
+        if file != File::A { // set left side of isolated/passed masks
+            isolated_masks[square as usize] |= mask_file(file.left());
+            temp_passed |= mask_file(file.left());
+        }
+        if file != File::H { // set right side of isolated/passed masks
+            isolated_masks[square as usize] |= mask_file(file.right());
+            temp_passed |= mask_file(file.right());
+        }
+
+        // clear "backwards" part of passed/doubled mask
+        white_doubled_masks[square as usize] = temp_doubled.clone()
+            .into_iter()
+            .filter(|sq| sq.rank() < rank)
+            .fold(EMPTY_BB, |acc, sq| acc | sq.to_board());
+        
+        white_passed_masks[square as usize] = temp_passed.clone()
+            .into_iter()
+            .filter(|sq| sq.rank() < rank)
+            .fold(EMPTY_BB, |acc, sq| acc | sq.to_board());
+        
+
+        black_doubled_masks[square as usize] = temp_doubled.clone()
+            .into_iter()
+            .filter(|sq| sq.rank() < rank)
+            .fold(EMPTY_BB, |acc, sq| acc | sq.to_board());
+        
+        black_passed_masks[square as usize] = temp_passed.clone()
+            .into_iter()
+            .filter(|sq| sq.rank() > rank)
+            .fold(EMPTY_BB, |acc, sq| acc | sq.to_board());
+    }
+
+    println!(
+        "{:?} \n{:?} \n{:?} \n{:?} \n{:?} \n{:?} \n{:?}",
+        file_masks, rank_masks, isolated_masks,
+        white_doubled_masks, black_doubled_masks,
+        white_passed_masks, black_passed_masks
+    );
 }

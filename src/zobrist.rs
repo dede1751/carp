@@ -1,14 +1,14 @@
-//! # Implements Zobrist hashing for board states
-//! 
-//! Zobrist keys are initialized randomly
-//! ZHash -- u64 hash type
-//! 
-//! ## Didactic note: 
-//! Zobrist hashes for two identical positions are the same ONLY if obtained through any combination
-//! of toggles from the SAME state. Given position A and B, if they both lead to C through m1..mn,
-//! ZH(C(A)) == ZH(C(B))   <=>     ZH(B) is obtained from ZH(A) through some sequence of moves.
-//! 
-//! Building ZH(A) and ZH(B) independently by summing material score WILL NOT produce the same hash
+/// Implements Zobrist hashing for board states
+/// 
+/// Zobrist keys are initialized randomly
+/// ZHash -- u64 hash type
+/// 
+/// Didactic note: 
+/// Zobrist hashes for two identical positions are the same ONLY if obtained through any combination
+/// of toggles from the SAME state. Given position A and B, if they both lead to C through m1..mn,
+/// ZH(C(A)) == ZH(C(B))   <=>     ZH(B) is obtained from ZH(A) through some sequence of moves.
+/// 
+/// Building ZH(A) and ZH(B) independently by summing material score WILL NOT produce the same hash
 
 use crate::board::*;
 use crate::square::*;

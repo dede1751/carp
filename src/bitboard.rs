@@ -93,7 +93,7 @@ impl fmt::Display for BitBoard {
     }
 }
 
-/// Impl Iterator over the 1 squares of the board
+/// Impl Iterator over the 1 bits of the board
 impl Iterator for BitBoard {
     type Item = Square;
 

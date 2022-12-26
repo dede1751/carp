@@ -1,6 +1,6 @@
-//! # Magic numbers and helper functions
-//! 
-//! Process for finding them is documented in https://www.chessprogramming.org/Looking_for_Magics
+/// Magic numbers and helper functions
+/// 
+/// Process for finding them is documented in https://www.chessprogramming.org/Looking_for_Magics
 
 use crate::bitboard::*;
 use crate::square::*;

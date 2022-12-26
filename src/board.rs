@@ -12,14 +12,8 @@ use crate::{
     zobrist::{ZHash, NULL_HASH},
 };
 
-// various debugging fens
-pub const EMPTY_FEN: &str =  "8/8/8/8/8/8/8/8 w - - 0 -";
+/// Starting position
 pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-pub const KIWIPETE_FEN: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
-pub const KILLER_FEN: &str = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1";
-pub const CMK_FEN: &str = "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 b - - 0 9";
-pub const REPETITIONS_FEN: &str = "2r3k1/R7/8/1R6/8/8/P4KPP/8 w - - 0 40";
-
 const FEN_LENGTH: usize = 6; // number of fen tokens
 
 /// Piece-centric board representation
@@ -533,7 +527,9 @@ mod tests {
     #[test]
     fn test_square_attacks() {
         let tables: Tables = Tables::default();
-        let b1: Board = Board::try_from(KILLER_FEN).unwrap();
+        let b1: Board = Board::try_from(
+            "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
+        ).unwrap();
 
         println!("{}", b1.is_square_attacked(&tables, Square::E5, Color::White));
 
@@ -547,7 +543,9 @@ mod tests {
     #[test]
     fn test_pseudolegal_generation() {
         let tables: Tables = Tables::default();
-        let b1: Board = Board::try_from(KIWIPETE_FEN).unwrap();
+        let b1: Board = Board::try_from(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+        ).unwrap();
         let b2: Board = Board::try_from(START_FEN).unwrap();
         let m1: MoveList = b1.generate_moves(&tables);
         let m2: MoveList = b2.generate_moves(&tables);

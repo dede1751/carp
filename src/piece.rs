@@ -110,7 +110,7 @@ impl From<usize> for Piece {
 
 impl Piece {
     /// Returns fen formatted piece
-    pub fn to_char(self) -> char {
+    pub const fn to_char(self) -> char {
         PIECE_CHAR[self as usize]
     }
 
