@@ -22,9 +22,10 @@ As it stands, on my local (rather weak) machine, Carp will usually search to dep
 time controls during the middle game.
 In standard arena games, with the improved evaluation, it seems to handily beat BBC, although
 further and more rigorous testing should be conduced.
+
 The engine is quite fun to play against when limiting the depth to reasonable values, since
 it is relatively dumb positionally: provided it does not see some crazy computer tactic a good
-human player should
+human player should be able to hold out and enjoy a good game.
 
 ## Implemented optimizations
 
