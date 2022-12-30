@@ -254,6 +254,29 @@ pub fn is_mated(eval: Eval) -> bool {
     eval <= -LONGEST_MATE && eval > -MATE
 }
 
+/// Draw by insufficient material (strictly for when it is impossible to mate):
+/// 
+///     - King vs King
+///     - King vs King + Bishop
+///     - King vs King + Knight
+///     - King + Bishop vs King + Bishop
+#[inline]
+pub fn insufficient_material(board: &Board) -> bool {
+    match board.occupancy.count_bits() {
+        2 => true,
+        3 => { // bishop or knight left
+            (board.pieces[Piece::WN as usize] | board.pieces[Piece::BN as usize]).count_bits() == 1 ||
+            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 1
+        }
+        4 => { // opposite color bishops
+            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 2 &&
+            ((board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]) & WHITE_SQUARES)
+                .count_bits() == 1
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

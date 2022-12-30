@@ -46,6 +46,10 @@ const SQUARE_STR: [&str; SQUARE_COUNT] = [
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", 
 ];
 
+/// Black/White square bitboards
+pub const WHITE_SQUARES: BitBoard = BitBoard(12273903644374837845);
+pub const BLACK_SQUARES: BitBoard = BitBoard(6172840429334713770);
+
 /// Print fen formatted square.
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

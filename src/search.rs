@@ -118,9 +118,6 @@ impl <'a> Search<'a>{
         let mut eval: Eval = 0;
         let mut depth: u8 = 1;
 
-        // don't search draws
-        if self.is_draw(&board) { return (NULL_MOVE, 0); }
-
         while !self.stop                        &&
             self.clock.start_check(depth)       &&
             !(is_mate(eval) || is_mated(eval))  &&
@@ -303,7 +300,9 @@ impl <'a> Search<'a>{
             let nmp: Board = board.make_null_move();
             
             eval = -self.negamax(&nmp, -beta, -beta + 1, depth - 1 - NMP_REDUCTION, ply + 1);
-            if eval >= beta { return beta; }
+
+            // cutoff above beta and not for mate scores!
+            if eval >= beta && !is_mate(eval.abs()) { return beta; }
         }
 
         // Main recursive search block
@@ -436,7 +435,7 @@ impl <'a> Search<'a>{
 
     /// Rule-based draw detection
     fn is_draw(&self, board: &Board) -> bool {
-        board.halfmoves >= 100 || self.is_repetition(board)
+        board.halfmoves >= 100 || self.is_repetition(board) || insufficient_material(board)
     }
 
     /// Check for repetitions in hash history.
