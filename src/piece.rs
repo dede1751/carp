@@ -21,8 +21,29 @@ impl Not for Color {
     }
 }
 
-/// Simple trick to make not trait constexpr
+/// Implement functions to get each piece based on color
+macro_rules! impl_conversions {
+    ($($piece:ident, $val:literal),*) => {
+        $(
+            impl Color {
+                pub const fn $piece(self) -> Piece {
+                    from!($val + self as u8, 15)
+                }
+            }
+        )*
+    };
+}
+impl_conversions! {
+    pawn,   0x00u8,
+    knight, 0x02u8,
+    bishop, 0x04u8,
+    rook,   0x06u8,
+    queen,  0x08u8,
+    king,   0x0Au8
+}
+
 impl Color {
+    /// Simple trick to make not trait constexpr
     const fn opposite(self) -> Color {
         from!(self as u8 ^ 1, 1)
     }

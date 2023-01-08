@@ -62,6 +62,13 @@ pub const QUEENSIDE_OCCUPANCIES: [BitBoard; 2] = [
     BitBoard(1008806316530991104),
     BitBoard(14),
 ];
+
+// for queenside, it's fine for B1/B8 to be attacked but it cannot be occupied
+pub const QUEENSIDE_THREATS: [BitBoard; 2] = [
+    BitBoard(864691128455135232),
+    BitBoard(12),
+];
+
 // squares skipped by queenside castling move
 pub const QUEENSIDE_SQUARES: [Square; 2] = [ Square::D1, Square::D8 ];
 pub const QUEENSIDE_TARGETS: [Square; 2] = [ Square::C1, Square::C8 ];

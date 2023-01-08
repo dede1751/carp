@@ -101,8 +101,8 @@ impl Iterator for BitBoard {
         if *self == EMPTY_BB {
             None
         } else {        
-            let index = self.ls1b_index(); // get ls1b index
-            *self ^= index.to_board();             // pops bit at ls1b
+            let index = self.ls1b(); // get ls1b index
+            *self ^= index.to_board();       // pops bit at ls1b
             Some(index)
         }
     }
@@ -142,7 +142,7 @@ impl BitBoard {
 
     /// Pops first set square from board (least significant 1 bit)
     #[inline]
-    pub fn ls1b_index(self) -> Square {
+    pub fn ls1b(self) -> Square {
         Square::from(self.0.trailing_zeros() as usize)
     }
 }

@@ -5,13 +5,36 @@
 use crate::bitboard::*;
 use crate::square::*;
 
+/// Relevant occupancy bits for each square for bishops and rooks
+pub const BISHOP_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
+    6, 5, 5, 5, 5, 5, 5, 6,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    5, 5, 7, 7, 7, 7, 5, 5,
+    5, 5, 7, 9, 9, 7, 5, 5,
+    5, 5, 7, 9, 9, 7, 5, 5,
+    5, 5, 7, 7, 7, 7, 5, 5,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    6, 5, 5, 5, 5, 5, 5, 6,
+];
+pub const ROOK_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
+    12, 11, 11, 11, 11, 11, 11, 12,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    12, 11, 11, 11, 11, 11, 11, 12,
+];
+
+/// Default bishop/rook magics obtained from customize submodule
 pub const DEFAULT_BISHOP_MAGICS: BB64 = [
-    BitBoard(18018831494946945),    BitBoard(5683392850989056),     BitBoard(1154048864819347976),
-    BitBoard(1130506259411456),     BitBoard(9295994850753466656),  BitBoard(722274213532008961),
-    BitBoard(144679242373791746),   BitBoard(2819852240160768),     BitBoard(72066458926448704),
-    BitBoard(79238992794112),       BitBoard(1134698215018542),     BitBoard(44092287352833),
-    BitBoard(13836474536570134528), BitBoard(35768558952715),       BitBoard(9223409424612344080),
-    BitBoard(612885924355252480),   BitBoard(5208413037808118789),  BitBoard(1155245891784015936),
+    BitBoard(18018831494946945),    BitBoard(5683392850989056),      BitBoard(1154048864819347976),
+    BitBoard(1130506259411456),     BitBoard(9295994850753466656),   BitBoard(722274213532008961),
+    BitBoard(144679242373791746),   BitBoard(2819852240160768),      BitBoard(72066458926448704),
+    BitBoard(79238992794112),       BitBoard(1134698215018542),      BitBoard(44092287352833),
+    BitBoard(13836474536570134528), BitBoard(35768558952715),        BitBoard(9223409424612344080),
+    BitBoard(612885924355252480),   BitBoard(5208413037808118789),   BitBoard(1155245891784015936),
     BitBoard(2252075903829120),     BitBoard(9225624940543279114),   BitBoard(1189513612367104000),
     BitBoard(9512306104749523472),  BitBoard(576742365927198723),    BitBoard(4539885961085440),
     BitBoard(2308103606194341892),  BitBoard(13862397412175380998),  BitBoard(333415950299702305),

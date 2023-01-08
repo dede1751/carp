@@ -12,7 +12,7 @@ use crate::{
 fn perft_driver(board: &Board, tables: &Tables, depth: u8) -> u64 {
     if depth == 0 { return 1; }
 
-    let move_list: MoveList = board.generate_moves(&tables);
+    let move_list: MoveList = board.generate_moves(tables);
     let mut nodes: u64 = 0;
     for m in move_list {
         let new_board = board.make_move(m, tables);

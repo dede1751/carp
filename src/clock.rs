@@ -80,7 +80,6 @@ const CHECK_FREQUENCY: u64 = 2048;
 pub struct Clock {
     stop: Arc<AtomicBool>,
     time_control: TimeControl,
-    white_to_move: bool,
     start_time: Instant,
     end_time: Duration,
     check_count: u64,
@@ -112,7 +111,6 @@ impl Clock {
         Clock {
             stop,
             time_control,
-            white_to_move,
             start_time: Instant::now(),
             end_time,
             check_count: 0

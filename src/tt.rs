@@ -49,7 +49,6 @@ const AGE_MASK  : u64 = 0x00000000000000FF; // first byte
 const DEPTH_MASK: u64 = 0x000000000000FF00; // second byte
 const EVAL_MASK : u64 = 0x00000000FFFF0000; // third/fourth byte
 const MOVE_MASK : u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
-const FLAG_MASK : u64 = 0xE000000000000000; // last 3 bits
 
 /// Convert from external field to compressed internal
 impl Into<(u64, u64)> for TTField {
