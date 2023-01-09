@@ -82,6 +82,36 @@ pub type Eval = i16;
 pub const MATE: Eval = 30000;                         // Mate score
 const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval;  // Mate lower bound
 
+pub fn is_mate(eval: Eval) -> bool {
+    eval >= LONGEST_MATE && eval < MATE
+}
+
+pub fn is_mated(eval: Eval) -> bool {
+    eval <= -LONGEST_MATE && eval > -MATE
+}
+
+/// Draw by insufficient material (strictly for when it is impossible to mate):
+/// 
+///     - King vs King
+///     - King vs King + Bishop
+///     - King vs King + Knight
+///     - King + Bishop vs King + Bishop
+pub fn insufficient_material(board: &Board) -> bool {
+    match board.occupancy.count_bits() {
+        2 => true,
+        3 => { // bishop or knight left
+            (board.pieces[Piece::WN as usize] | board.pieces[Piece::BN as usize]).count_bits() == 1 ||
+            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 1
+        }
+        4 => { // opposite color bishops
+            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 2 &&
+            ((board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]) & WHITE_SQUARES)
+                .count_bits() == 1
+        }
+        _ => false,
+    }
+}
+
 pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
     let mut mg: [i32; 2] = [0; 2];
     let mut eg: [i32; 2] = [0; 2];
@@ -156,10 +186,9 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
             Piece::WR | Piece::BR => {
                 for square in board.pieces[piece as usize] {
                     let sq  = square as usize;
-                    let (own_pawn, opp_pawn) = match piece.color() {
-                        Color::White => (Piece::WP as usize, Piece::BP as usize),
-                        Color::Black => (Piece::BP as usize, Piece::WP as usize)
-                    };
+                    let (own_pawn, opp_pawn) = (
+                        piece.color().pawn() as usize, (!piece.color()).pawn() as usize
+                    );
         
                     // semi open file bonus
                     if board.pieces[own_pawn] & FILE_MASKS[sq] == EMPTY_BB {
@@ -201,10 +230,9 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
             Piece::WK | Piece::BK => {
                 for square in board.pieces[piece as usize] {
                     let sq  = square as usize;
-                    let (own_pawn, opp_pawn) = match piece.color() {
-                        Color::White => (Piece::WP as usize, Piece::BP as usize),
-                        Color::Black => (Piece::BP as usize, Piece::WP as usize)
-                    };
+                    let (own_pawn, opp_pawn) = (
+                        piece.color().pawn() as usize, (!piece.color()).pawn() as usize
+                    );
         
                     // semi open file penalty
                     if board.pieces[own_pawn] & FILE_MASKS[sq] == EMPTY_BB {
@@ -221,6 +249,7 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
                     // king shield score (only over pawns)
                     let shield_count = (tables.get_king_attack(square) & board.pieces[own_pawn])
                         .count_bits() as i32;
+                    
                     mg[c] += shield_count * KING_SHIELD_BONUS;
                     eg[c] += shield_count * KING_SHIELD_BONUS;
 
@@ -244,38 +273,6 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
     eval as Eval
 }
 
-#[inline]
-pub fn is_mate(eval: Eval) -> bool {
-    eval >= LONGEST_MATE && eval < MATE
-}
-
-#[inline]
-pub fn is_mated(eval: Eval) -> bool {
-    eval <= -LONGEST_MATE && eval > -MATE
-}
-
-/// Draw by insufficient material (strictly for when it is impossible to mate):
-/// 
-///     - King vs King
-///     - King vs King + Bishop
-///     - King vs King + Knight
-///     - King + Bishop vs King + Bishop
-#[inline]
-pub fn insufficient_material(board: &Board) -> bool {
-    match board.occupancy.count_bits() {
-        2 => true,
-        3 => { // bishop or knight left
-            (board.pieces[Piece::WN as usize] | board.pieces[Piece::BN as usize]).count_bits() == 1 ||
-            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 1
-        }
-        4 => { // opposite color bishops
-            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 2 &&
-            ((board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]) & WHITE_SQUARES)
-                .count_bits() == 1
-        }
-        _ => false,
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -1,4 +1,4 @@
-/// Implements Zobrist hashing for board states
+/// Implements Zobrist incremental hashing for board states
 /// 
 /// Zobrist keys are initialized randomly
 /// ZHash -- u64 hash type
@@ -38,6 +38,7 @@ const SIDE_KEY: u64 = 4747071328949516916;
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct ZHash (pub u64);
+
 pub const NULL_HASH: ZHash = ZHash(0);
 pub const START_HASH: ZHash = ZHash(11231077536533049824);
 
@@ -63,34 +64,28 @@ impl ZHash {
         hash
     }
 
-    #[inline]
     pub fn toggle_piece(&mut self, piece: Piece, square: Square) {
         self.0 ^= PIECE_KEYS[piece as usize][square as usize];
     }
 
-    #[inline]
     pub fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
         self.0 ^= PIECE_KEYS[piece as usize][from as usize];
         self.0 ^= PIECE_KEYS[piece as usize][to as usize];
     }
 
-    #[inline]
     pub fn toggle_ep(&mut self, square: Square) {
         self.0 ^= EP_KEYS[square as usize];
     }
     
-    #[inline]
     pub fn toggle_castle(&mut self, castle: CastlingRights) {
         self.0 ^= CASTLE_KEYS[castle.index()];
     }
 
-    #[inline]
     pub fn swap_castle(&mut self, old_castle: CastlingRights, new_castle: CastlingRights) {
         self.0 ^= CASTLE_KEYS[old_castle.index()];
         self.0 ^= CASTLE_KEYS[new_castle.index()];
     }
 
-    #[inline]
     pub fn toggle_side(&mut self) {
         self.0 ^= SIDE_KEY;
     }

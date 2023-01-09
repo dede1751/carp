@@ -15,6 +15,7 @@ use crate::{
 ///  08   04   02   01 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct CastlingRights (u8);
+
 pub const CASTLE_COUNT: usize = 16;
 pub const NO_RIGHTS: CastlingRights = CastlingRights(0);
 
@@ -142,19 +143,16 @@ impl TryFrom<&str> for CastlingRights {
 
 impl CastlingRights {
     /// Get index of rights as usize
-    #[inline]
     pub const fn index(&self) -> usize {
         self.0 as usize
     }
 
     /// Checks whether given color has kingside rights
-    #[inline]
     pub const fn has_kingside(&self, side: Color) -> bool {
         self.0 & KINGSIDE[side as usize] != 0
     }
 
     /// Checks whether given color has queenside rights
-    #[inline]
     pub const fn has_queenside(&self, side: Color) -> bool {
         self.0 & QUEENSIDE[side as usize] != 0
     }
@@ -163,7 +161,6 @@ impl CastlingRights {
     /// Based on the idea that any move starting or ending on one of the four corners of the board
     /// will remove the rights relative to that corner, and remove all rights in case the move 
     /// starts (or ends but it's impossible) on the king start square
-    #[inline]
     pub const fn update(&self, src: Square, tgt: Square) -> CastlingRights {
         let mut new: CastlingRights = *self;
         

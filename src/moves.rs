@@ -117,31 +117,26 @@ impl Move {
     }
 
     /// Returns the move source square
-    #[inline]
     pub fn get_src(&self) -> Square {
         Square::from((self.0 & SRC) as usize)
     }
 
     /// Returns the move target square
-    #[inline]
     pub fn get_tgt(&self) -> Square {
         Square::from(((self.0 & TGT) >> 6) as usize)
     }
 
     /// Returns the moving piece
-    #[inline]
     pub fn get_piece(&self) -> Piece {
         Piece::from(((self.0 & PIECE) >> 12) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
-    #[inline]
     pub fn get_capture(&self) -> Piece {
         Piece::from(((self.0 & CAPTURE) >> 16) as usize)
     }
 
     /// Returns the piece the pawn is promoting to
-    #[inline]
     pub fn get_promotion(&self) -> Piece {
         Piece::from(((self.0 & PROMOTE) >> 20) as usize)
     }

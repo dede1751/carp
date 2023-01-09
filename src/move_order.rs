@@ -30,13 +30,11 @@ impl MoveList {
     }
 
     /// Returns total length of the move list
-    #[inline]
     pub fn len(&self) -> usize {
         self.moves.len()
     }
 
     /// Initialize and add a capture move to the capture vector
-    #[inline]
     pub fn add_capture(&mut self, src: Square, tgt: Square, piece: Piece, capture: Piece) {
         self.moves.push(
             Move::encode(src, tgt, piece, capture, Piece::WP, 1, 0, 0, 0)
@@ -44,7 +42,6 @@ impl MoveList {
     }
 
     /// Initialize and add an en-passant capture to the move list
-    #[inline]
     pub fn add_enpassant(&mut self, src: Square, tgt: Square, side: Color) {
         self.moves.push(
             Move::encode(src, tgt, side.pawn(), (!side).pawn(), Piece::WP, 1, 0, 1, 0)
@@ -52,7 +49,6 @@ impl MoveList {
     }
 
     /// Adds pawn capture to move list, or all the possible promotions if on promotion rank
-    #[inline]
     pub fn add_pawn_capture(&mut self, src: Square, tgt: Square, side: Color, capture: Piece) {
         if src.rank() == PROMOTION_RANKS[side as usize] {
             for promotion in PROMOTIONS[side as usize] {
@@ -68,7 +64,6 @@ impl MoveList {
     }
 
     /// Adds pawn quiet move to move list, or all the possible promotions if on promotion rank
-    #[inline]
     pub fn add_pawn_quiet(&mut self, src: Square, tgt: Square, side: Color, double_push: u32) {
         if src.rank() == PROMOTION_RANKS[side as usize] {
             for promotion in PROMOTIONS[side as usize] {
@@ -84,7 +79,6 @@ impl MoveList {
     }
 
     /// Initialize and add a quiet move to the quiet vector
-    #[inline]
     pub fn add_quiet(&mut self, src: Square, tgt: Square, piece: Piece, castle: u32) {
         self.moves.push(
             Move::encode(src, tgt, piece, Piece::WP, Piece::WP, 0, 0, 0, castle)
@@ -151,7 +145,6 @@ impl MoveSorter {
     }
 
     /// Save quiet moves that caused a cutoff at given ply
-    #[inline]
     pub fn add_killer(&mut self, m: Move, ply: u8) {
         let ply = ply as usize;
         let first_killer = self.killer_moves[ply][0];
@@ -163,7 +156,6 @@ impl MoveSorter {
     }
 
     /// Increase cutoff move's history score
-    #[inline]
     pub fn add_history(&mut self, m: Move, depth: u8) {
         let p = m.get_piece() as usize;
         let sq = m.get_tgt() as usize;
@@ -179,12 +171,10 @@ impl MoveSorter {
         }
     }
 
-    #[inline]
     fn score_capture(m: Move) -> MoveScore {
         MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
     }
 
-    #[inline]
     fn score_killer(&self, m: Move, ply: u8) -> MoveScore {
         if m == self.killer_moves[ply as usize][0] {
             FIRST_KILLER_OFFSET
@@ -218,7 +208,6 @@ impl MoveSorter {
     }
 
     /// Sort only the captures in the movelist
-    #[inline]
     pub fn sort_captures(&self, move_list: &mut MoveList) {
         move_list.moves.sort_by_key(|m|{
             Self::score_capture(*m)
@@ -226,7 +215,6 @@ impl MoveSorter {
     }
 
     /// Sort all moves in the movelist
-    #[inline]
     pub fn sort_moves(&self, move_list: &mut MoveList, ply: u8) {
         match self.tt_move {
             Some(tt_move) => {

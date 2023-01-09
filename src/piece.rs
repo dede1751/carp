@@ -123,19 +123,16 @@ impl From<usize> for Piece {
 
 impl Piece {
     /// Returns fen formatted piece
-    #[inline]
     pub const fn to_char(self) -> char {
         PIECE_CHAR[self as usize]
     }
 
     /// Get piece color
-    #[inline]
     pub const fn color(self) -> Color {
         from!(self as u8, 1)
     }
 
     /// Switch piece color
-    #[inline]
     pub const fn opposite_color(self) -> Piece {
         from!(self as u8 ^ 1, 15) // ^1 flips color bit
     }

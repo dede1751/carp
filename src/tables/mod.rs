@@ -1,18 +1,14 @@
 /// Module for initializing various global constants
 /// 
-/// The module exposes the precalculated attack tables, but also includes functionality to generate
-/// new zobrist keys and evaluation tables, to replace the hardcoded ones.
-/// 
 /// Carp uses plain magic bitboards found through random guessing for slider piece attack tables.
 /// RNG for the guessing is built-in and consistent (no need for security), magic values are
-/// hardcoded into the engine because there really is no need to change them. The code to generate
-/// them remains in the rng module.
+/// hardcoded into the engine because there really is no need to change them. (code to generate
+/// them is in past commits)
 /// Move tables are used for attacks only: quiet moves are calculated on the fly by the move
 /// generator.
 
 mod attacks;
 mod magics;
-mod customize;
 
 use attacks::*;
 use magics::*;

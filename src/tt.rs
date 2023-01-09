@@ -123,25 +123,21 @@ impl TTField {
     }
 
     /// Returns entry depth
-    #[inline]
     pub fn get_depth(&self) -> u8 {
         self.depth
     }
 
     /// Returns entry flag
-    #[inline]
     pub fn get_flag(&self) -> TTFlag {
         self.flag
     }
 
     /// Returns best move
-    #[inline]
     pub fn get_move(&self) -> Move {
         self.best_move
     }
 
     /// Gets value while normalizing mate scores
-    #[inline]
     pub fn get_value(&self, ply: u8) -> Eval {
         let eval = self.value as Eval;
         let ply = ply as Eval;
@@ -156,7 +152,6 @@ impl TTField {
     }
 
     /// Update field contents for search
-    #[inline]
     pub fn update_data(&mut self, flag: TTFlag, best_move: Move, value: Eval) {
         self.flag = flag;
         self.best_move = best_move;
@@ -177,7 +172,6 @@ impl Default for AtomicField {
 
 impl AtomicField {
     /// Atomic read from table to a TTField, checking that the checksum is correct
-    #[inline]
     fn read(&self, checksum: u64) -> Option<TTField> {
         let key = self.0.load(Ordering::Relaxed);
         let data = self.1.load(Ordering::Relaxed);
@@ -190,7 +184,6 @@ impl AtomicField {
     }
 
     /// Atomic read, returns a TTField with a scrambled key
-    #[inline]
     fn read_unchecked(&self) -> TTField {
         let key = self.0.load(Ordering::Relaxed);
         let data = self.1.load(Ordering::Relaxed);
@@ -199,7 +192,6 @@ impl AtomicField {
     }
 
     /// Atomic write to table from a tt field struct
-    #[inline]
     fn write(&self, entry: TTField) {
         let (key, data): (u64, u64) = entry.into();
 
@@ -238,7 +230,6 @@ impl TT {
     /// 
     /// UB: since bitmask and tables cannot be externally modified, it is impossible for get
     ///     unchecked to fail.
-    #[inline]
     pub fn probe(&self, hash: ZHash) -> Option<TTField> {
         let tt_index: usize = (hash.0 & self.bitmask) as usize;
         unsafe { self.table.get_unchecked(tt_index).read(hash.0) }
@@ -255,7 +246,6 @@ impl TT {
     /// 
     /// Conditions are explained here:
     /// https://stackoverflow.com/questions/37782131/chess-extracting-the-principal-variation-from-the-transposition-table
-    #[inline]
     pub fn insert(&self, new: TTField) {
         let tt_index: usize = (new.key & self.bitmask) as usize;
         let old_slot: &AtomicField = unsafe { self.table.get_unchecked(tt_index) };

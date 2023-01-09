@@ -110,7 +110,7 @@ impl<'a> Bencher<'a> {
 }
 
 
-
+/// Decodes EPD into board, description and suggested move
 fn read_epd(epd: &str, tables: &Tables) -> (Board, bool, Vec<Move>, String) {
     let mut partial_fen: String = epd.clone()
         .split_whitespace()

@@ -166,12 +166,10 @@ macro_rules! impl_piece_lookups {
     ($($piece:ident, $own:ident, $opp:ident),*) => {
         $(impl Board {
 
-            #[inline]
             const fn $own(&self) -> BitBoard {
                 self.pieces[self.side.$piece() as usize]
             }
 
-            #[inline]
             const fn $opp(&self) -> BitBoard {
                 self.pieces[self.side.$piece().opposite_color() as usize]
             }
@@ -190,21 +188,18 @@ impl_piece_lookups! {
 
 /// Implement side occupancy and diagonal/hv slider lookups
 impl Board {
-    #[inline]
     fn own_occupancy(&self) -> BitBoard {
         self.side_occupancy[self.side as usize]
     }
-    #[inline]
+
     fn opp_occupancy(&self) -> BitBoard {
         self.side_occupancy[!(self.side) as usize]
     }
 
-    #[inline]
     fn opp_queen_bishop(&self) -> BitBoard {
         self.opp_queens() | self.opp_bishops()
     }
 
-    #[inline]
     fn opp_queen_rook(&self) -> BitBoard {
         self.opp_queens() | self.opp_rooks()
     }
@@ -227,14 +222,12 @@ impl Board {
 
     /// Set/remove piece while managing occupancy boards.
     /// Always remove first and set later!
-    #[inline]
     fn remove_piece(&mut self, piece: Piece, square: Square) {
         self.pieces[piece as usize].pop_bit(square);
         self.occupancy.pop_bit(square);
         self.side_occupancy[piece.color() as usize].pop_bit(square);
         self.hash.toggle_piece(piece, square);
     }
-    #[inline]
     fn set_piece(&mut self, piece: Piece, square: Square) {
         self.pieces[piece as usize].set_bit(square);
         self.occupancy.set_bit(square);
@@ -309,7 +302,6 @@ impl Board {
     }
 
     /// Pass turn to opponent, used for Null Move Pruning in the search
-    #[inline]
     pub fn make_null_move(&self) -> Board {
         let mut b = self.clone();
 
@@ -333,7 +325,6 @@ impl Board {
     /// on the attacked square it will attack its old square. Hence we generate attacks on the
     /// target square for each piece, and check whether they land on any of the pieces stored
     /// in the board representation.
-    #[inline]
     pub fn king_in_check(&self, tables: &Tables) -> bool {
         let square = self.own_king().ls1b();
 
@@ -345,7 +336,6 @@ impl Board {
     }
 
     /// Gets bitboard with all enemy pieces directly attacking the king (same logic as king_in_check)
-    #[inline]
     fn map_king_attackers(&self, tables: &Tables) -> BitBoard {
         let square = self.own_king().ls1b();
 
@@ -360,7 +350,6 @@ impl Board {
     /// 
     /// We pretend the king is not on the board so that sliders also attack behind the king, since
     /// otherwise that square would be considered not attacked
-    #[inline]
     fn map_king_threats(&self, tables: &Tables) -> BitBoard {
         let king_square = self.own_king().ls1b();
         let mut occupancies = self.occupancy;
@@ -393,7 +382,6 @@ impl Board {
     /// 
     /// Pin masks are defined as the squares between a pinning enemy piece and one's own king.
     /// Any pinned piece can safely move along these squares (simply & moves with pinmask)
-    #[inline]
     fn map_pins(&self, tables: &Tables) -> (BitBoard, BitBoard, BitBoard) {
         let king_square = self.own_king().ls1b();
 
@@ -426,7 +414,6 @@ impl Board {
 
     /// Looks for which piece was captured on tgt square
     /// Panics if no piece is set on the tgt square. Only call if it's sure to be a capture.
-    #[inline]
     fn get_captured_piece(&self, tgt: Square) -> Piece {
         (PIECES[!self.side as usize]).into_iter()
             .find(|&p| { self.pieces[p as usize].get_bit(tgt) })
@@ -434,7 +421,6 @@ impl Board {
     }
 
     /// Converts attack bitboard to target squares and adds all the moves to the movelist
-    #[inline]
     fn add_moves(&self, piece: Piece, source: Square, attacks: BitBoard, move_list: &mut MoveList) {
         for target in attacks {
             if self.opp_occupancy().get_bit(target) {
@@ -448,7 +434,6 @@ impl Board {
     }
 
     /// Converts attack bitboard to target squares and adds all of them as captures to the movelist
-    #[inline]
     fn add_captures(&self, piece: Piece, source: Square, attacks: BitBoard, move_list: &mut MoveList) {
         for target in attacks {
             let captured_piece = self.get_captured_piece(target);
@@ -458,7 +443,6 @@ impl Board {
     }
 
     /// Generate all legal king moves
-    #[inline]
     fn generate_king_moves(&self, threats: BitBoard, tables: &Tables, move_list: &mut MoveList) {
         let king_square = self.own_king().ls1b();
         let attacks = tables
@@ -470,7 +454,6 @@ impl Board {
     }
 
     /// Generate only legal king captures
-    #[inline]
     fn generate_king_captures(&self, threats: BitBoard, tables: &Tables, move_list: &mut MoveList) {
         let king_square = self.own_king().ls1b();
         let attacks = tables
@@ -482,7 +465,6 @@ impl Board {
     }
 
     /// Generate all legal castling moves
-    #[inline]
     fn generate_castling_moves(&self, threats: BitBoard, move_list: &mut MoveList) {
         let side: usize = self.side as usize;
         let source = CASTLE_SQUARES[side];
@@ -502,7 +484,6 @@ impl Board {
     }
 
     /// Generate all legal pawn pushes
-    #[inline]
     fn generate_pawn_quiets(
         &self,
         blocker_mask: BitBoard,
@@ -538,7 +519,6 @@ impl Board {
     }
 
     /// Generate all legal pawn captures (including enpassant)
-    #[inline]
     fn generate_pawn_captures(
         &self,
         blocker_mask: BitBoard,
@@ -599,7 +579,6 @@ impl Board {
     }
 
     /// Generate all legal knight moves
-    #[inline]
     fn generate_knight_moves(
         &self,
         check_mask: BitBoard,
@@ -619,7 +598,6 @@ impl Board {
     }
 
     /// Generate only legal knight captures
-    #[inline]
     fn generate_knight_captures(
         &self,
         check_mask: BitBoard,
@@ -639,7 +617,6 @@ impl Board {
     }
 
     /// Generate all legal bishop moves
-    #[inline]
     fn generate_bishop_moves(
         &self,
         check_mask: BitBoard,
@@ -664,7 +641,6 @@ impl Board {
     }
 
     /// Generate only legal bishop captures
-    #[inline]
     fn generate_bishop_captures(
         &self,
         check_mask: BitBoard,
@@ -689,7 +665,6 @@ impl Board {
     }
 
     /// Generate all legal rook moves
-    #[inline]
     fn generate_rook_moves(
         &self,
         check_mask: BitBoard,
@@ -714,7 +689,6 @@ impl Board {
     }
 
     /// Generate only legal rook captures
-    #[inline]
     fn generate_rook_captures(
         &self,
         check_mask: BitBoard,
@@ -739,7 +713,6 @@ impl Board {
     }
 
     /// Generate all legal queen moves
-    #[inline]
     fn generate_queen_moves(
         &self,
         check_mask: BitBoard,
@@ -768,7 +741,6 @@ impl Board {
     }
 
     /// Generate only legal queen captures
-    #[inline]
     fn generate_queen_captures(
         &self,
         check_mask: BitBoard,
