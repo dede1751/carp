@@ -11,6 +11,7 @@ use crate::{
 /// Recursive move generation
 fn perft_driver(board: &Board, tables: &Tables, depth: u8) -> u64 {
     if depth == 1 { return board.generate_moves(tables).len() as u64; }
+    else if depth == 0 { return 1; }
 
     let move_list: MoveList = board.generate_moves(tables);
     let mut nodes: u64 = 0;
@@ -24,7 +25,7 @@ fn perft_driver(board: &Board, tables: &Tables, depth: u8) -> u64 {
 }
 
 /// Cumulative (divide) perft
-pub fn perft(board: &Board, tables: &Tables, depth: u8) {
+pub fn perft(board: &Board, tables: &Tables, depth: u8) -> u64{
     let move_list: MoveList = board.generate_moves(tables);
     let mut total_nodes = 0;
 
@@ -42,6 +43,8 @@ pub fn perft(board: &Board, tables: &Tables, depth: u8) {
 
     let perf: u128 = total_nodes as u128 / duration.as_micros();
     println!("\n{} nodes in {:?} - {}Mnodes/s", total_nodes, duration, perf);
+
+    total_nodes
 }
 
 /// Benchmark engine using list of EPD
@@ -268,3 +271,58 @@ pub const EIGENMANN_RAPID: [&str; 111] = [
     r#"4r1k1/1bq2r1p/p2p1np1/3Pppb1/P1P5/1N3P2/1R2B1PP/1Q1R2BK w - - bm c5; id "ERET 110 - Passed Pawn";"#,
     r#"8/8/8/8/4kp2/1R6/P2q1PPK/8 w - - bm a3; id "ERET 111 - Fortress";"#,
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PERFT_SUITE: [(&str, &str, u64, u8); 14] = [
+        ("8/8/4k3/8/2p5/8/B2P2K1/8 w - - 0 1", "Illegal ep move #1", 1134888, 6),
+        ("3k4/3p4/8/K1P4r/8/8/8/8 b - - 0 1", "Illegal ep move #2", 1015133, 6),
+        ("8/8/1k6/2b5/2pP4/8/5K2/8 b - d3 0 1", "Ep capture checks opponent", 1440467, 6),
+        ("5k2/8/8/8/8/8/8/4K2R w K - 0 1", "Short castling gives check", 661072, 6),
+        ("3k4/8/8/8/8/8/8/R3K3 w Q - 0 1", "Long castling gives check", 803711, 6),
+        ("r3k2r/1b4bq/8/8/8/8/7B/R3K2R w KQkq - 0 1", "Castle rights", 1274206, 4),
+        ("r3k2r/8/3Q4/8/8/5q2/8/R3K2R b KQkq - 0 1", "Castling prevented", 1720476, 4),
+        ("2K2r2/4P3/8/8/8/8/8/3k4 w - - 0 1", "Promote out of check", 3821001, 6),
+        ("8/8/1P2K3/8/2n5/1q6/8/5k2 b - - 0 1", "Discovered check", 1004658, 5),
+        ("4k3/1P6/8/8/8/8/K7/8 w - - 0 1", "Promote to give check", 217342, 6),
+        ("8/P1k5/K7/8/8/8/8/8 w - - 0 1", "Under promote to give check", 92683, 6),
+        ("K1k5/8/P7/8/8/8/8/8 w - - 0 1", "Self stalemate", 2217, 6),
+        ("8/k1P5/8/1K6/8/8/8/8 w - - 0 1", "Stalemate & checkmate #1", 567584, 7),
+        ("8/8/2k5/5q2/5n2/8/5K2/8 b - - 0 1", "Stalemate & checkmate #2", 23527, 4)
+    ];
+
+    #[test]
+    fn perft_default_6() {
+        let board: Board = Board::default();
+        let nodes = perft(&board, &Tables::default(), 6);
+
+        assert_eq!(nodes, 119060324);
+    }
+
+    #[test]
+    fn perft_kiwipete_5() {
+        let board: Board = Board::try_from(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+        ).unwrap();
+        let nodes = perft(&board, &Tables::default(), 5);
+
+        assert_eq!(nodes, 193690690);
+    }
+
+    #[test]
+    fn perft_suite() {
+        let tables = Tables::default();
+
+        for (fen, description, correct_count, depth) in PERFT_SUITE {
+            let board: Board = Board::try_from(fen).unwrap();
+            println!("{}", description);
+            println!("{}", board);
+
+            let nodes = perft(&board, &tables, depth);
+            assert_eq!(nodes, correct_count);
+        }
+
+    }
+}

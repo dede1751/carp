@@ -99,7 +99,9 @@ impl UCIEngine {
                     }
                 }
 
-                UCICommand::Perft(d) => perft(&self.board, &tables, d),
+                UCICommand::Perft(d) => {
+                    perft(&self.board, &tables, d);
+                },
 
                 UCICommand::Position(board, moves) => {
                     self.history = vec![board.hash];

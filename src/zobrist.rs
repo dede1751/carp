@@ -116,6 +116,8 @@ mod tests {
         let m = Move::encode(Square::E1, Square::G1, Piece::WK, Piece::WP, Piece::WP, 0, 0, 0, 1);
         let b2 = b1.make_move(m);
 
+        println!("{}\n{}", b1, b2);
+        
         let mut z1 = b1.hash;
         z1.toggle_piece(Piece::WK, Square::E1);
         z1.toggle_piece(Piece::WK, Square::G1);

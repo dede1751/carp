@@ -191,15 +191,12 @@ impl Board {
     fn own_occupancy(&self) -> BitBoard {
         self.side_occupancy[self.side as usize]
     }
-
     fn opp_occupancy(&self) -> BitBoard {
         self.side_occupancy[!(self.side) as usize]
     }
-
     fn opp_queen_bishop(&self) -> BitBoard {
         self.opp_queens() | self.opp_bishops()
     }
-
     fn opp_queen_rook(&self) -> BitBoard {
         self.opp_queens() | self.opp_rooks()
     }
@@ -250,17 +247,17 @@ impl Board {
         if piece == Piece::WP || piece == Piece::BP { new.halfmoves = 0 } // halfmove clock reset
 
         // handle captures, enpassant or castling moves
-        if m.is_enpassant() { // enpassant
+        if m.is_enpassant() {
             let ep_target = PUSH[!self.side as usize][tgt as usize];
 
-            new.remove_piece(piece.opposite_color(), ep_target);
+            new.remove_piece(m.get_capture(), ep_target);
 
-        } else if m.is_capture() { // normal capture
+        } else if m.is_capture() {
             new.remove_piece(m.get_capture(), tgt);
             new.halfmoves = 0;     // halfmove clock reset
 
-        } else if m.is_castle() {  // castling
-            let rook = (!self.side).rook();
+        } else if m.is_castle() {
+            let rook = self.side.rook();
             let (rook_src, rook_tgt) = ROOK_CASTLING_MOVE[tgt as usize];
             
             new.remove_piece(rook, rook_src);
@@ -381,7 +378,9 @@ impl Board {
     /// Returns: (pinned pieces bb, diagonal pin bb, vertical pin bb)
     /// 
     /// Pin masks are defined as the squares between a pinning enemy piece and one's own king.
-    /// Any pinned piece can safely move along these squares (simply & moves with pinmask)
+    /// Any pinned piece can safely move along these squares (simply & moves with pinmask).
+    /// For simplicity, pin masks also indirectly include the check mask (this has no actual
+    /// effect on the pin use, as no piece can be sitting on the check mask anyways)
     fn map_pins(&self, tables: &Tables) -> (BitBoard, BitBoard, BitBoard) {
         let king_square = self.own_king().ls1b();
 
@@ -874,16 +873,19 @@ mod tests {
     fn test_pin_mask() {
         let tables: Tables = Tables::default();
         let board: Board = Board::try_from(
-            "R2bk3/5p2/4r1B1/1Q6/8/4Q3/8/2K5 b - - 0 1"
+            "R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1"
         ).unwrap();
         println!("{}", board);
 
         let (pinned, diag, hv) = board.map_pins(&tables);
         println!("{}\n{}\n{}", pinned, diag, hv);
 
-        assert_eq!(pinned, BitBoard(1056776));
-        assert_eq!(diag, BitBoard(4202496));
-        assert_eq!(hv, BitBoard(17661175009295));
+        assert!(pinned.get_bit(Square::F7));
+        assert!(pinned.get_bit(Square::E6));
+        assert!(diag.get_bit(Square::G6));
+        assert!(hv.get_bit(Square::C8));
+        assert!(hv.get_bit(Square::E3));
+        assert!(!hv.get_bit(Square::E2));
     }
 
     #[test]

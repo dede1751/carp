@@ -16,7 +16,7 @@ Standard perft is available as a UCI command, alongside benchmarking using the E
 set.
 
 Move generation is fully legal, inspired by [this article](https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator)
-and perft(7) will achieve ~110MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
+and perft(7) on startpos will achieve ~115 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
 As it stands, on my local (rather weak) machine, Carp will usually search to depths 11-13 in fast
 time controls during the middle game.

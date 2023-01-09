@@ -63,14 +63,14 @@ pub const KINGSIDE_TARGETS: [Square; 2] = [ G1, G8 ];
 
 // rook source and target square for each king castling move
 pub const ROOK_CASTLING_MOVE: [(Square, Square); SQUARE_COUNT] = [
-    (A8, A8), (A8, D8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (H8, F8), (A8, A8), 
+    (A8, A8), (A8, A8), (A8, D8), (A8, A8), (A8, A8), (A8, A8), (H8, F8), (A8, A8), 
     (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
     (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
     (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
     (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
     (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
     (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
-    (A8, A8), (A1, D1), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (H1, F1), (A8, A8),
+    (A8, A8), (A8, A8), (A1, D1), (A8, A8), (A8, A8), (A8, A8), (H1, F1), (A8, A8),
 ];
 
 
