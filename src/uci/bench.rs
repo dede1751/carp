@@ -10,14 +10,14 @@ use crate::{
 
 /// Recursive move generation
 fn perft_driver(board: &Board, tables: &Tables, depth: u8) -> u64 {
-    if depth == 0 { return 1; }
+    if depth == 1 { return board.generate_moves(tables).len() as u64; }
 
     let move_list: MoveList = board.generate_moves(tables);
     let mut nodes: u64 = 0;
     for m in move_list {
-        let new_board = board.make_move(m, tables);
+        let new_board = board.make_move(m);
         
-        if let Some(b) = new_board { nodes += perft_driver(&b, tables, depth - 1); }
+        nodes += perft_driver(&new_board, tables, depth - 1);
     }
 
     nodes
@@ -31,7 +31,7 @@ pub fn perft(board: &Board, tables: &Tables, depth: u8) {
     let start = Instant::now();
     for m in move_list {
         let start = Instant::now();
-        let root = board.make_move(m, tables).unwrap();
+        let root = board.make_move(m);
         let nodes = perft_driver(&root, tables, depth - 1);
         total_nodes += nodes;
         let duration = start.elapsed();
@@ -140,7 +140,6 @@ fn read_epd(epd: &str, tables: &Tables) -> (Board, bool, Vec<Move>, String) {
                     let m = board.generate_moves(tables)
                         .into_iter()
                         .find(|m|
-                            board.make_move(*m, tables).is_some()       &&
                             tgt_move == m.to_algebraic(&board, tables)
                                          .trim_end_matches(|x| x == '#' || x == '+'))
                         .unwrap();

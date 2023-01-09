@@ -16,8 +16,9 @@ impl Not for Color {
     type Output = Color;
 
     // get opposite color
+    #[inline]
     fn not(self) -> Color {
-        self.opposite()
+        from!(self as u8 ^ 1, 1)
     }
 }
 
@@ -26,6 +27,7 @@ macro_rules! impl_conversions {
     ($($piece:ident, $val:literal),*) => {
         $(
             impl Color {
+                #[inline]
                 pub const fn $piece(self) -> Piece {
                     from!($val + self as u8, 15)
                 }
@@ -40,13 +42,6 @@ impl_conversions! {
     rook,   0x06u8,
     queen,  0x08u8,
     king,   0x0Au8
-}
-
-impl Color {
-    /// Simple trick to make not trait constexpr
-    const fn opposite(self) -> Color {
-        from!(self as u8 ^ 1, 1)
-    }
 }
 
 /// Pretty print color to string
@@ -72,20 +67,17 @@ pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
     WR, BR, WQ, BQ, WK, BK,
 ];
 
-// used in move generation, promotions ordered by relative importance
-pub const WHITE_PIECES    : [Piece; 6] = [ WP, WN, WB, WR, WQ, WK ];
-pub const BLACK_PIECES    : [Piece; 6] = [ BP, BN, BB, BR, BQ, BK ];
-pub const WHITE_PROMOTIONS: [Piece; 4] = [ WQ, WN, WR, WB ];
-pub const BLACK_PROMOTIONS: [Piece; 4] = [ BQ, BN, BR, BB ];
+/// All pieces indexed by color
+pub const PIECES: [[Piece; 6]; 2] = [
+    [ WP, WN, WB, WR, WQ, WK ],
+    [ BP, BN, BB, BR, BQ, BK ]
+];
 
-// extract information from piece index
-pub const PIECE_BITS: usize = 0x0E;
-pub const PAWN      : usize = 0x00;
-pub const KNIGHT    : usize = 0x02;
-pub const BISHOP    : usize = 0x04;
-pub const ROOK      : usize = 0x06;
-pub const QUEEN     : usize = 0x08;
-pub const KING      : usize = 0x0A;
+/// All possible promotions, ordered by "usefulness"
+pub const PROMOTIONS: [[Piece; 4]; 2] = [
+    [ WQ, WN, WR, WB ],
+    [ BQ, BN, BR, BB ]
+];
 
 // used for printing/reading pieces
 const PIECE_CHAR: [char; PIECE_COUNT] = [
@@ -131,16 +123,19 @@ impl From<usize> for Piece {
 
 impl Piece {
     /// Returns fen formatted piece
+    #[inline]
     pub const fn to_char(self) -> char {
         PIECE_CHAR[self as usize]
     }
 
     /// Get piece color
+    #[inline]
     pub const fn color(self) -> Color {
         from!(self as u8, 1)
     }
 
     /// Switch piece color
+    #[inline]
     pub const fn opposite_color(self) -> Piece {
         from!(self as u8 ^ 1, 15) // ^1 flips color bit
     }

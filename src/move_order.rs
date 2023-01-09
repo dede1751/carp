@@ -9,8 +9,7 @@ use crate::{
 
 /// MoveList, saves captures and quiets independently.
 pub struct MoveList {
-    pub captures : Vec<Move>,
-    pub all_moves: Vec<Move>,
+    pub moves: Vec<Move>,
 }
 
 impl IntoIterator for MoveList {
@@ -19,55 +18,77 @@ impl IntoIterator for MoveList {
 
     // iterate over all the moves
     fn into_iter(self) -> Self::IntoIter {
-        self.all_moves.into_iter()
+        self.moves.into_iter()
     }
 }
 
 impl MoveList {
     pub fn new() -> MoveList {
         MoveList {
-            captures : Vec::with_capacity(16),
-            all_moves: Vec::with_capacity(40),
+            moves: Vec::with_capacity(50),
         }
     }
 
     /// Returns total length of the move list
     #[inline]
     pub fn len(&self) -> usize {
-        self.all_moves.len()
+        self.moves.len()
     }
 
     /// Initialize and add a capture move to the capture vector
     #[inline]
-    pub fn add_capture(
-        &mut self,
-        src: Square,
-        tgt: Square,
-        piece: Piece,
-        capture: Piece,
-        promote: Piece,
-        en_passant: u32
-    ) {
-        let m = Move::encode(src, tgt, piece, capture, promote, 1, 0, en_passant, 0);
+    pub fn add_capture(&mut self, src: Square, tgt: Square, piece: Piece, capture: Piece) {
+        self.moves.push(
+            Move::encode(src, tgt, piece, capture, Piece::WP, 1, 0, 0, 0)
+        );
+    }
 
-        self.captures.push(m);
-        self.all_moves.push(m);
+    /// Initialize and add an en-passant capture to the move list
+    #[inline]
+    pub fn add_enpassant(&mut self, src: Square, tgt: Square, side: Color) {
+        self.moves.push(
+            Move::encode(src, tgt, side.pawn(), (!side).pawn(), Piece::WP, 1, 0, 1, 0)
+        );
+    }
+
+    /// Adds pawn capture to move list, or all the possible promotions if on promotion rank
+    #[inline]
+    pub fn add_pawn_capture(&mut self, src: Square, tgt: Square, side: Color, capture: Piece) {
+        if src.rank() == PROMOTION_RANKS[side as usize] {
+            for promotion in PROMOTIONS[side as usize] {
+                self.moves.push(
+                    Move::encode(src, tgt, side.pawn(), capture, promotion, 1, 0, 0, 0)
+                );
+            }
+        } else {
+            self.moves.push(
+                Move::encode(src, tgt, side.pawn(), capture, Piece::WP, 1, 0, 0, 0)
+            );
+        }
+    }
+
+    /// Adds pawn quiet move to move list, or all the possible promotions if on promotion rank
+    #[inline]
+    pub fn add_pawn_quiet(&mut self, src: Square, tgt: Square, side: Color, double_push: u32) {
+        if src.rank() == PROMOTION_RANKS[side as usize] {
+            for promotion in PROMOTIONS[side as usize] {
+                self.moves.push(
+                    Move::encode(src, tgt, side.pawn(), Piece::WP, promotion, 0, 0, 0, 0)
+                );
+            }
+        } else {    
+            self.moves.push(
+                Move::encode(src, tgt, side.pawn(), Piece::WP, Piece::WP, 0, double_push, 0, 0)
+            );
+        }
     }
 
     /// Initialize and add a quiet move to the quiet vector
     #[inline]
-    pub fn add_quiet(
-        &mut self,
-        src: Square,
-        tgt: Square,
-        piece: Piece,
-        promote: Piece,
-        double_push: u32,
-        castle: u32
-    ) {
-        self.all_moves.push(
-            Move::encode(src, tgt, piece, Piece::WP, promote, 0, double_push, 0, castle)
-        )
+    pub fn add_quiet(&mut self, src: Square, tgt: Square, piece: Piece, castle: u32) {
+        self.moves.push(
+            Move::encode(src, tgt, piece, Piece::WP, Piece::WP, 0, 0, 0, castle)
+        );
     }
 }
 
@@ -198,17 +219,18 @@ impl MoveSorter {
 
     /// Sort only the captures in the movelist
     #[inline]
-    pub fn sort_captures(&self, mut move_list: MoveList) -> Vec<Move> {
-        move_list.captures.sort_by_key(|m|{ Self::score_capture(*m) });
-        move_list.captures
+    pub fn sort_captures(&self, move_list: &mut MoveList) {
+        move_list.moves.sort_by_key(|m|{
+            Self::score_capture(*m)
+        });
     }
 
     /// Sort all moves in the movelist
     #[inline]
-    pub fn sort_moves(&self, mut move_list: MoveList, ply: u8) -> Vec<Move> {
+    pub fn sort_moves(&self, move_list: &mut MoveList, ply: u8) {
         match self.tt_move {
             Some(tt_move) => {
-                move_list.all_moves.sort_by_key(|m| {
+                move_list.moves.sort_by_key(|m| {
                     if *m == tt_move {
                         TT_SCORE
                     } else {
@@ -216,10 +238,8 @@ impl MoveSorter {
                     }
                 });
             }
-            None => move_list.all_moves.sort_by_key(|m| { self.score_move(*m, ply) })
+            None => move_list.moves.sort_by_key(|m| { self.score_move(*m, ply) })
         };
-
-        move_list.all_moves
     }
 }
 
@@ -236,8 +256,8 @@ mod tests {
     fn test_movelist() {
         let mut l: MoveList = MoveList::new();
 
-        l.add_capture(Square::E2, Square::D3, Piece::WP, Piece::BP, Piece::WP, 0);
-        l.add_quiet(Square::E2, Square::E4, Piece::WP, Piece::WP, 1, 0);
+        l.add_pawn_capture(Square::E2, Square::D3, Color::White, Piece::BP);
+        l.add_pawn_quiet(Square::E2, Square::E4, Color::White, 1);
 
         let full_list: Vec<Move> = l.into_iter().collect();
         assert_eq!(full_list.len(), 2);
@@ -245,19 +265,17 @@ mod tests {
 
     #[test]
     fn test_sorter() {
-        let ms: MoveSorter = MoveSorter::new();
         let b: Board = Board::try_from(
             "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
         ).unwrap();
         let t: Tables = Tables::default();
-        let move_list = b.generate_moves(&t);
+        let ms: MoveSorter = MoveSorter::new();
+
+        let mut move_list = b.generate_moves(&t);
         let len = move_list.len();
 
-        let sorted = ms.sort_moves(move_list, 0);
+        ms.sort_moves(&mut move_list, 0);
 
-        for m in &sorted {
-            println!("{}", m);
-        }
-        assert_eq!(sorted.len(), len);
+        assert_eq!(move_list.len(), len);
     }
 }

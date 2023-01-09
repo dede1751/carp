@@ -17,15 +17,14 @@ pub const EMPTY_BB64: BB64 = [EMPTY_BB; SQUARE_COUNT];
 /// Implement math standard operations
 macro_rules! impl_math_ops {
     ($($trait:ident::$fn:ident),*) => {
-        $(
-            impl std::ops::$trait for BitBoard {
-                type Output = Self;
+        $(impl std::ops::$trait for BitBoard {
+            type Output = Self;
 
-                fn $fn(self, other: Self) -> Self::Output {
-                    Self(std::ops::$trait::$fn(self.0, other.0))
-                }
+            #[inline]
+            fn $fn(self, other: Self) -> Self::Output {
+                Self(std::ops::$trait::$fn(self.0, other.0))
             }
-        )*
+        })*
     };
 }
 
@@ -50,6 +49,8 @@ impl std::ops::Mul for BitBoard {
 macro_rules! impl_math_assign_ops {
     ($($trait:ident::$fn:ident),*) => {
         $(impl std::ops::$trait for BitBoard {
+
+            #[inline]
             fn $fn(&mut self, other: Self) {
                 std::ops::$trait::$fn(&mut self.0, other.0)
             }

@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+//#![allow(dead_code)]
 /// Carp chess engine by Andrea Sgobbi
 /// 
 /// This is a didactic chess engine for both approaching chess programming and learning to code

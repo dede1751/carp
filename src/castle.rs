@@ -3,7 +3,7 @@ use std::fmt;
 
 use crate::{
     bitboard::BitBoard,
-    square::*,
+    square::{*, Square::*},
     piece::Color,
 };
 
@@ -23,6 +23,9 @@ const WK: u8 = 0x08;
 const WQ: u8 = 0x04;
 const BK: u8 = 0x02;
 const BQ: u8 = 0x01;
+
+const KINGSIDE: [u8; 2] = [ WK, BK ];
+const QUEENSIDE: [u8; 2] = [ WQ, BQ ];
 
 // bit masks for removing castle rights
 const ALL: u8 = 0x0F;
@@ -46,7 +49,7 @@ const CASTLE_MASKS: [u8; SQUARE_COUNT] = [
 ];
 
 // castle source squares
-pub const CASTLE_SQUARES: [Square; 2] = [ Square::E1, Square::E8 ];
+pub const CASTLE_SQUARES: [Square; 2] = [ E1, E8 ];
 
 // bitboards for kingside castling relevant occupancies, 0 -> White, 1 -> Black
 pub const KINGSIDE_OCCUPANCIES: [BitBoard; 2] = [
@@ -54,8 +57,21 @@ pub const KINGSIDE_OCCUPANCIES: [BitBoard; 2] = [
     BitBoard(96),
 ];
 // squares skipped by the kingside castling move
-pub const KINGSIDE_SQUARES: [Square; 2] = [ Square::F1, Square::F8 ];
-pub const KINGSIDE_TARGETS: [Square; 2] = [ Square::G1, Square::G8 ];
+pub const KINGSIDE_SQUARES: [Square; 2] = [ F1, F8 ];
+pub const KINGSIDE_TARGETS: [Square; 2] = [ G1, G8 ];
+
+// rook source and target square for each king castling move
+pub const ROOK_CASTLING_MOVE: [(Square, Square); SQUARE_COUNT] = [
+    (A8, A8), (A8, D8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (H8, F8), (A8, A8), 
+    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
+    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
+    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
+    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
+    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
+    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
+    (A8, A8), (A1, D1), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (H1, F1), (A8, A8),
+];
+
 
 // bitboards for queenside castling relevant occupancies, 0 -> White, 1 -> Black
 pub const QUEENSIDE_OCCUPANCIES: [BitBoard; 2] = [
@@ -70,8 +86,8 @@ pub const QUEENSIDE_THREATS: [BitBoard; 2] = [
 ];
 
 // squares skipped by queenside castling move
-pub const QUEENSIDE_SQUARES: [Square; 2] = [ Square::D1, Square::D8 ];
-pub const QUEENSIDE_TARGETS: [Square; 2] = [ Square::C1, Square::C8 ];
+pub const QUEENSIDE_SQUARES: [Square; 2] = [ D1, D8 ];
+pub const QUEENSIDE_TARGETS: [Square; 2] = [ C1, C8 ];
 
 /// Prints rights to fen format
 impl fmt::Display for CastlingRights {
@@ -126,30 +142,28 @@ impl TryFrom<&str> for CastlingRights {
 
 impl CastlingRights {
     /// Get index of rights as usize
+    #[inline]
     pub const fn index(&self) -> usize {
         self.0 as usize
     }
 
     /// Checks whether given color has kingside rights
+    #[inline]
     pub const fn has_kingside(&self, side: Color) -> bool {
-        match side {
-            Color::White => self.0 & WK != 0,
-            Color::Black => self.0 & BK != 0,
-        }
+        self.0 & KINGSIDE[side as usize] != 0
     }
 
     /// Checks whether given color has queenside rights
+    #[inline]
     pub const fn has_queenside(&self, side: Color) -> bool {
-        match side {
-            Color::White => self.0 & WQ != 0,
-            Color::Black => self.0 & BQ != 0,
-        }
+        self.0 & QUEENSIDE[side as usize] != 0
     }
 
     /// Updates rights according to move.
     /// Based on the idea that any move starting or ending on one of the four corners of the board
     /// will remove the rights relative to that corner, and remove all rights in case the move 
     /// starts (or ends but it's impossible) on the king start square
+    #[inline]
     pub const fn update(&self, src: Square, tgt: Square) -> CastlingRights {
         let mut new: CastlingRights = *self;
         

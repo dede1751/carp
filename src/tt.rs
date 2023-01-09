@@ -3,13 +3,9 @@
 /// The transposition table uses internal atomic entries with lockless access as seen on
 /// https://www.chessprogramming.org/Shared_Hash_Table
 
-use std::mem::{
-    transmute,
-    size_of,
-};
-use std::sync::atomic::{
-    AtomicU64,
-    Ordering,
+use std::{
+    mem::{ transmute, size_of },
+    sync::atomic::{ AtomicU64, Ordering }
 };
 
 use crate::{
@@ -144,7 +140,7 @@ impl TTField {
         self.best_move
     }
 
-    /// Gets value while normalizing mate scores:
+    /// Gets value while normalizing mate scores
     #[inline]
     pub fn get_value(&self, ply: u8) -> Eval {
         let eval = self.value as Eval;

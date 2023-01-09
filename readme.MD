@@ -1,4 +1,4 @@
-# Carp 1.0.0
+# Carp 1.1.0
 ![example workflow](https://github.com/dede1751/carp/actions/workflows/rust.yml/badge.svg)
 
 Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.
@@ -13,10 +13,10 @@ and most importantly the [chess programming wiki](https://www.chessprogramming.o
 ## Performance
 
 Standard perft is available as a UCI command, alongside benchmarking using the Eigenmann Rapid test
-set. Locally the move generator performs better than CMK's C engine, while being 8-9 times slower
-than the fastest generators around.
-Understandable given that it does not bulk count horizon moves, nor keep track of pinned/checking
-pieces in attack generation. I will improve generation once done with the actual engine.
+set.
+
+Move generation is fully legal, inspired by [this article](https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator)
+and perft(7) will achieve ~110MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
 As it stands, on my local (rather weak) machine, Carp will usually search to depths 11-13 in fast
 time controls during the middle game.
@@ -30,6 +30,7 @@ human player should be able to hold out and enjoy a good game.
 ## Implemented optimizations
 
 * Plain magic bitboards for move precalculation
+* Fully legal move generation
 * Tapered Evaluation from PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
 * MVV-LVA + Killer/History move ordering
 * Fail-Hard Negamax + Quiescence

@@ -184,49 +184,49 @@ impl <'a> Search<'a>{
             self.age,
             0
         );
-        let moves: Vec<Move> = self.sorter.sort_moves(board.generate_moves(self.tables), 0);
 
-        for m in moves {
-            // only consider legal moves
-            if let Some(new) = board.make_move(m, self.tables){
-                moves_checked += 1;
+        let mut move_list: MoveList = board.generate_moves(self.tables);
+        self.sorter.sort_moves(&mut move_list, 0);
 
-                self.history.push(new.hash);
-                if moves_checked == 1 {
-                    // full search on first move
+        for m in move_list {
+            let new = board.make_move(m);
+            moves_checked += 1;
+
+            self.history.push(new.hash);
+            if moves_checked == 1 {
+                // full search on first move
+                eval = -self.negamax(&new, -beta, -alpha, depth - 1, 1);
+                best_move = m;
+            } else {
+                // only pvs in root node
+                eval = -self.negamax(&new, -alpha - 1, -alpha, depth - 1, 1);
+                if eval > alpha && eval < beta {
                     eval = -self.negamax(&new, -beta, -alpha, depth - 1, 1);
-                    best_move = m;
-                } else {
-                    // only pvs in root node
-                    eval = -self.negamax(&new, -alpha - 1, -alpha, depth - 1, 1);
-                    if eval > alpha && eval < beta {
-                        eval = -self.negamax(&new, -beta, -alpha, depth - 1, 1);
-                    }
-                };
-                self.history.pop();
-
-                if self.stop { return (0, NULL_MOVE); }
-
-                if eval > alpha {               // possible pv node
-                    best_move = m;
-                    alpha = eval;
-
-                    if eval >= beta {           // beta cutoff
-                        if !(m.is_capture()) {
-                            self.sorter.add_killer(m, 0);
-                            self.sorter.add_history(m, depth);
-                        };
-
-                        tt_entry.update_data(TTFlag::Lower, best_move, beta);
-                        self.tt.insert(tt_entry);
-                        
-                        return (beta, best_move);
-                    }
-
-                    // in root, we insert partial results for the other threads to use
-                    tt_entry.update_data(TTFlag::Upper, best_move, alpha);
-                    self.tt.insert(tt_entry);
                 }
+            };
+            self.history.pop();
+
+            if self.stop { return (0, NULL_MOVE); }
+
+            if eval > alpha {               // possible pv node
+                best_move = m;
+                alpha = eval;
+
+                if eval >= beta {           // beta cutoff
+                    if !(m.is_capture()) {
+                        self.sorter.add_killer(m, 0);
+                        self.sorter.add_history(m, depth);
+                    };
+
+                    tt_entry.update_data(TTFlag::Lower, best_move, beta);
+                    self.tt.insert(tt_entry);
+                    
+                    return (beta, best_move);
+                }
+
+                // in root, we insert partial results for the other threads to use
+                tt_entry.update_data(TTFlag::Upper, best_move, alpha);
+                self.tt.insert(tt_entry);
             }
         };
 
@@ -309,63 +309,62 @@ impl <'a> Search<'a>{
         let mut moves_checked: u32 = 0;
         let mut best_move: Move = NULL_MOVE;
         let mut tt_bound: TTFlag = TTFlag::Upper;
-        let moves: Vec<Move> = self.sorter.sort_moves(board.generate_moves(self.tables), ply);
 
-        for m in moves {
-            // only consider legal moves
-            if let Some(new) = board.make_move(m, self.tables) {
-                moves_checked += 1;
+        let mut move_list: MoveList = board.generate_moves(self.tables);
+        self.sorter.sort_moves(&mut move_list, ply);
 
-                self.history.push(new.hash);
-                if moves_checked == 1 {
-                    // full depth search on first move
-                    eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
-                    best_move = m; // always init at least one best move
+        for m in move_list {
+            let new = board.make_move(m);
+            moves_checked += 1;
+
+            self.history.push(new.hash);
+            if moves_checked == 1 {
+                // full depth search on first move
+                eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
+                best_move = m; // always init at least one best move
+            } else {
+                // reduce depth for all moves beyond first
+                if  moves_checked >= LMR_THRESHOLD  &&
+                    depth >= LMR_LOWER_LIMIT        &&
+                    !in_check                       &&
+                    !m.is_capture()                 &&
+                    !m.is_promotion()
+                {
+                    // LMR with a null window
+                    eval = -self.negamax(&new, -alpha - 1, -alpha, depth - 2, ply + 1);
                 } else {
-                    // reduce depth for all moves beyond first
-                    if  moves_checked >= LMR_THRESHOLD  &&
-                        depth >= LMR_LOWER_LIMIT        &&
-                        !in_check                       &&
-                        !m.is_capture()                 &&
-                        !m.is_promotion()
-                    {
-                        // LMR with a null window
-                        eval = -self.negamax(&new, -alpha - 1, -alpha, depth - 2, ply + 1);
-                    } else {
-                        eval = alpha + 1; // else force pvs
-                    }
-
-                    if eval > alpha {
-                        // normal PVS for any move beyond the first
-                        eval = -self.negamax(&new, -alpha - 1, -alpha, depth - 1, ply + 1);
-    
-                        // sneaky way to also dodge re-searching when the window is already null
-                        if eval > alpha && eval < beta {
-                            // PVS failed
-                            eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
-                        }
-                    }
-                };
-                self.history.pop();
-
-                if self.stop { return 0; }
-
-                if eval > alpha {               // possible pv node
-                    if eval >= beta {           // beta cutoff
-                        if !(m.is_capture()) {
-                            self.sorter.add_killer(m, ply);
-                            self.sorter.add_history(m, depth);
-                        };
-    
-                        alpha = beta; // save correct value in tt
-                        tt_bound = TTFlag::Lower;
-                        break;
-                    }
-
-                    alpha = eval;
-                    tt_bound = TTFlag::Exact;
+                    eval = alpha + 1; // else force pvs
                 }
 
+                if eval > alpha {
+                    // normal PVS for any move beyond the first
+                    eval = -self.negamax(&new, -alpha - 1, -alpha, depth - 1, ply + 1);
+
+                    // sneaky way to also dodge re-searching when the window is already null
+                    if eval > alpha && eval < beta {
+                        // PVS failed
+                        eval = -self.negamax(&new, -beta, -alpha, depth - 1, ply + 1);
+                    }
+                }
+            };
+            self.history.pop();
+
+            if self.stop { return 0; }
+
+            if eval > alpha {               // possible pv node
+                if eval >= beta {           // beta cutoff
+                    if !(m.is_capture()) {
+                        self.sorter.add_killer(m, ply);
+                        self.sorter.add_history(m, depth);
+                    };
+
+                    alpha = beta; // save correct value in tt
+                    tt_bound = TTFlag::Lower;
+                    break;
+                }
+
+                alpha = eval;
+                tt_bound = TTFlag::Exact;
             }
         };
     
@@ -418,15 +417,16 @@ impl <'a> Search<'a>{
         if eval < alpha - FUTILITY_MARGIN { return alpha; } // futility pruning
         alpha = max(eval, alpha);                           // stand pat is pv
     
-        let moves: Vec<Move> = self.sorter.sort_captures(board.generate_moves(self.tables));
-        for m in moves {
-            if let Some(new) = board.make_move(m, self.tables) {
-                eval = -self.quiescence(&new, -beta, -alpha, ply + 1);
-                
-                if eval > alpha {                       // possible pv node
-                    if eval >= beta { return beta; }    // beta cutoff
-                    alpha = eval;
-                }
+        let mut move_list: MoveList = board.generate_captures(self.tables);
+        self.sorter.sort_captures(&mut move_list);
+
+        for m in move_list {
+            let new = board.make_move(m);
+            eval = -self.quiescence(&new, -beta, -alpha, ply + 1);
+            
+            if eval > alpha {                       // possible pv node
+                if eval >= beta { return beta; }    // beta cutoff
+                alpha = eval;
             }
         }
 
@@ -462,17 +462,11 @@ impl <'a> Search<'a>{
             };  
 
             // move "sanity" check, since a hash collision is possible
-            let moves: Vec<Move> = board.generate_moves(self.tables).all_moves;
-            if moves.contains(&tt_move) {
-                match board.make_move(tt_move, self.tables) {
-                    Some(b) => {
-                        board = b;
-
-                        pv.push(tt_move);
-                    },
-
-                    None => break,
-                }
+            let move_list: MoveList = board.generate_moves(self.tables);
+            
+            if move_list.moves.contains(&tt_move) {
+                board = board.make_move(tt_move);
+                pv.push(tt_move);
             } else {
                 break;
             }

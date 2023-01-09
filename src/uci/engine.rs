@@ -113,15 +113,10 @@ impl UCIEngine {
 
                         match new {
                             Some(new_move) => {
-                                match self.board.make_move(new_move, &tables) {
-                                    Some(b) => {
-                                        self.board = b;
-                                        self.history.push(b.hash);
-                                    }
-                                    None => eprintln!("Move is not legal!"),
-                                }
+                                self.board = self.board.make_move(new_move);
+                                self.history.push(self.board.hash);
                             },
-                            None => eprintln!("Move is not pseudolegal!"),
+                            None => eprintln!("Move is not legal!"),
                         };
                     }
                 }

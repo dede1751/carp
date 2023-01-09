@@ -6,11 +6,44 @@ use std::{
 };
 
 use crate::{
-    square::*,
+    square::{ *, Square::* },
     piece::*,
     board::Board,
     tables::Tables,
 };
+
+/// Indexed by color and file. Target squares for pawn single pushes
+pub const PUSH: [[Square; SQUARE_COUNT]; 2] = [[
+    A8, A8, A8, A8, A8, A8, A8, A8,
+    A8, B8, C8, D8, E8, F8, G8, H8, 
+    A7, B7, C7, D7, E7, F7, G7, H7, 
+    A6, B6, C6, D6, E6, F6, G6, H6, 
+    A5, B5, C5, D5, E5, F5, G5, H5, 
+    A4, B4, C4, D4, E4, F4, G4, H4, 
+    A3, B3, C3, D3, E3, F3, G3, H3, 
+    A8, A8, A8, A8, A8, A8, A8, A8,], [
+        
+    A8, A8, A8, A8, A8, A8, A8, A8,
+    A6, B6, C6, D6, E6, F6, G6, H6, 
+    A5, B5, C5, D5, E5, F5, G5, H5, 
+    A4, B4, C4, D4, E4, F4, G4, H4, 
+    A3, B3, C3, D3, E3, F3, G3, H3, 
+    A2, B2, C2, D2, E2, F2, G2, H2, 
+    A1, B1, C1, D1, E1, F1, G1, H1, 
+    A8, A8, A8, A8, A8, A8, A8, A8,
+]];
+
+/// Indexed by color and file. Target squares for pawn double pushes
+pub const DOUBLE_PUSH: [[Square; FILE_COUNT]; 2] = [
+    [ A4, B4, C4, D4, E4, F4, G4, H4 ],
+    [ A5, B5, C5, D5, E5, F5, G5, H5 ]
+];
+
+/// Indexed by color, rank at which each side's pawns promote
+pub const PROMOTION_RANKS: [Rank; 2] = [Rank::Seventh, Rank::Second];
+
+/// Indexed by color, rank at which each side's pawns start
+pub const START_RANKS: [Rank; 2] = [Rank::Second, Rank::Seventh];
 
 /// Move -- Encodes move in a single 4B word
 /// Smaller encoding can be achieved using only 2B (6b src, 6b tgt, 3b promotion, 1b extra) but it
@@ -37,7 +70,7 @@ const PIECE      : u32 = 0x0000F000;
 const CAPTURE    : u32 = 0x000F0000;
 const PROMOTE    : u32 = 0x00F00000;
 const IS_CAP     : u32 = 0x01000000;
-const DOUBLE_PUSH: u32 = 0x02000000;
+const DOUBLE     : u32 = 0x02000000;
 const ENPASSANT  : u32 = 0x04000000;
 const CASTLE     : u32 = 0x08000000;
 
@@ -125,7 +158,7 @@ impl Move {
 
     /// Returns true if the move is a double pawn push
     pub const fn is_double_push(&self) -> bool {
-        self.0 & DOUBLE_PUSH != 0
+        self.0 & DOUBLE != 0
     }
 
     /// Returns true if the move is an enpassant capture
@@ -163,8 +196,7 @@ impl Move {
                 .filter(|m|
                     m.get_src() != src  && // different source square
                     m.get_tgt() == tgt  && // same target square
-                    m.get_piece() == p  && // same piece
-                    board.make_move(*m, tables).is_some()) // legality
+                    m.get_piece() == p)    // same piece
                 .map(|m| m.get_src().coords())
                 .unzip();
             
@@ -192,15 +224,10 @@ impl Move {
         }
 
         // check/checkmate
-        let new = board.make_move(*self, tables).unwrap();
-        if new.king_in_check(tables) { 
-            let checkmate: bool = new.generate_moves(tables)
-                .into_iter()
-                .filter(|&m| new.make_move(m, tables).is_some())
-                .count() == 0;
-            
-            if checkmate { move_str.push('#'); }
-            else { move_str.push('+'); }
+        let new = board.make_move(*self);
+        if new.king_in_check(tables) {             
+            if new.generate_moves(tables).len() == 0 { move_str.push('#'); } // checkmate
+            else { move_str.push('+'); } // check
         }
 
         move_str
