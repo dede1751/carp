@@ -98,7 +98,7 @@ impl Clock {
                 } else {
                     match binc {
                         Some(inc) => (btime, inc),
-                        None => (wtime, 0)
+                        None => (btime, 0)
                     }
                 };
 
