@@ -109,8 +109,6 @@ impl <'a> Search<'a>{
         }
     }
 
-    // position fen QR6/5ppk/3p3p/7q/4Nn2/5P2/P1r2P2/4RK2 w - - 0 1 moves e4f6 g7f6
-
     /// Iteratively searches the board at increasing depth
     pub fn iterative_search(&mut self, board: Board, print_info: bool) -> (Move, u8) {
         let mut best_move: Move = NULL_MOVE;
@@ -120,40 +118,31 @@ impl <'a> Search<'a>{
         let mut eval: Eval = 0;
         let mut depth: u8 = 1;
 
-        while !self.stop                        &&
-            self.clock.start_check(depth)       &&
-            !(is_mate(eval) || is_mated(eval))  &&
+        while !self.stop                    &&
+            self.clock.start_check(depth)   &&
+            !is_mate(eval.abs())            &&
             depth < MAX_DEPTH
         {
+            // aspiration loop (gradual reopening)
             (eval, temp_best) = self.search_root(&board, alpha, beta, depth);
 
-            if depth < ASPIRATION_THRESHOLD {
-                // don't apply aspiration windows to shallow searches (< 4 ply deep)
+            if eval <= alpha {
+                alpha = -MATE;
+            } else if eval >= beta {
+                beta = MATE;
+            } else {
+                // reduce window using previous eval (full window for shallow searches)
+                if depth >= ASPIRATION_THRESHOLD {
+                    alpha = eval - ASPIRATION_WINDOW;
+                    beta  = eval + ASPIRATION_WINDOW;
+                }
+
                 if !self.stop {
                     if print_info { self.print_info(board.clone(), eval, depth); }
                     best_move = temp_best;
                     depth += 1;
                 }
-
-            } else {
-                // aspiration loop (gradual reopening)
-                if eval <= alpha {
-                    alpha = -MATE;
-                } else if eval >= beta {
-                    beta = MATE;
-                } else {
-                    // reduce window using previous eval
-                    alpha = eval - ASPIRATION_WINDOW;
-                    beta  = eval + ASPIRATION_WINDOW;
-
-                    if !self.stop {
-                        if print_info { self.print_info(board.clone(), eval, depth); }
-                        best_move = temp_best;
-                        depth += 1;
-                    }
-                }
             }
-
         }
 
         (best_move, depth - 1)
@@ -305,7 +294,7 @@ impl <'a> Search<'a>{
 
         // Apply null move pruning
         let mut eval: Eval;
-        if depth > NMP_REDUCTION  && !pv_node && !in_check {
+        if depth > NMP_REDUCTION && !pv_node && !in_check && !board.only_king_pawns_left(){
             let nmp: Board = board.make_null_move();
             
             eval = -self.negamax(&nmp, -beta, -beta + 1, depth - 1 - NMP_REDUCTION, ply + 1);
@@ -444,7 +433,7 @@ impl <'a> Search<'a>{
 
     /// Rule-based draw detection
     fn is_draw(&self, board: &Board) -> bool {
-        board.halfmoves >= 100 || self.is_repetition(board) || insufficient_material(board)
+        board.halfmoves >= 100 || self.is_repetition(board) || board.insufficient_material()
     }
 
     /// Check for repetitions in hash history.

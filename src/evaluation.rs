@@ -54,8 +54,8 @@ const EG_DOUBLED: i32 = -10;
 const MG_ISOLATED: i32 = -5;
 const EG_ISOLATED: i32 = -10;
 const PASSER_BONUS: [[i32; RANK_COUNT]; 2] = [
-    [ 0, 150, 100, 75, 50, 30, 10, 0 ],
-    [ 0, 10, 30, 50, 75, 100, 150, 0 ] 
+    [ 0, 130, 90, 70, 50, 30, 10, 0 ],
+    [ 0, 10, 30, 50, 70, 90, 130, 0 ] 
 ];
 
 /// Rook/king file occupancy bonuses
@@ -70,11 +70,11 @@ const BISHOP_PAIR_BONUS: i32 = 30;
 
 /// Queen mobility values
 const QUEEN_MOBILITY_UNIT: i32 = 9;
-const MG_QUEEN_MOBILITY: i32 = 1;
+const MG_QUEEN_MOBILITY: i32 = -1;
 const EG_QUEEN_MOBILITY: i32 = 2;
 
 /// King safety value
-const KING_SHIELD_BONUS: i32 = 5;
+const KING_SHIELD_BONUS: i32 = 10;
 
 /// Game phase interpolation values
 const GAME_PHASE_INCREMENT: [i32; 12] = [ 0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
@@ -89,28 +89,6 @@ pub fn is_mate(eval: Eval) -> bool {
 
 pub fn is_mated(eval: Eval) -> bool {
     eval <= -LONGEST_MATE && eval > -MATE
-}
-
-/// Draw by insufficient material (strictly for when it is impossible to mate):
-/// 
-///     - King vs King
-///     - King vs King + Bishop
-///     - King vs King + Knight
-///     - King + Bishop vs King + Bishop
-pub fn insufficient_material(board: &Board) -> bool {
-    match board.occupancy.count_bits() {
-        2 => true,
-        3 => { // bishop or knight left
-            (board.pieces[Piece::WN as usize] | board.pieces[Piece::BN as usize]).count_bits() == 1 ||
-            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 1
-        }
-        4 => { // opposite color bishops
-            (board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]).count_bits() == 2 &&
-            ((board.pieces[Piece::WB as usize] | board.pieces[Piece::BB as usize]) & WHITE_SQUARES)
-                .count_bits() == 1
-        }
-        _ => false,
-    }
 }
 
 pub fn evaluate(board: &Board, tables: &Tables) -> Eval {

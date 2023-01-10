@@ -849,6 +849,43 @@ impl Board {
     }
 }
 
+/// Implement evaluation features
+impl Board {
+    /// Draw by insufficient material (strictly for when it is impossible to mate):
+    ///     - King vs King
+    ///     - King vs King + Bishop
+    ///     - King vs King + Knight
+    ///     - King + Bishop vs King + Bishop
+    pub fn insufficient_material(&self) -> bool {
+        match self.occupancy.count_bits() {
+            2 => true,
+            3 => { // bishop or knight left
+                (self.pieces[Piece::WN as usize] | self.pieces[Piece::BN as usize]).count_bits() == 1 ||
+                (self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize]).count_bits() == 1
+            }
+            4 => { // opposite color bishops
+                ( self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize]).count_bits() == 2 &&
+                ((self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize]) & WHITE_SQUARES)
+                    .count_bits() == 1
+            }
+            _ => false,
+        }
+    }
+
+    /// Only king and pawns are on the board. Used to rule out null move pruning
+    pub fn only_king_pawns_left(&self) -> bool {
+        self.pieces[Piece::WN as usize] == EMPTY_BB &&
+        self.pieces[Piece::BN as usize] == EMPTY_BB &&
+        self.pieces[Piece::WB as usize] == EMPTY_BB &&
+        self.pieces[Piece::BB as usize] == EMPTY_BB &&
+        self.pieces[Piece::WR as usize] == EMPTY_BB &&
+        self.pieces[Piece::BR as usize] == EMPTY_BB &&
+        self.pieces[Piece::WQ as usize] == EMPTY_BB &&
+        self.pieces[Piece::BQ as usize] == EMPTY_BB
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
