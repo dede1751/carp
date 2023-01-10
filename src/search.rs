@@ -109,6 +109,8 @@ impl <'a> Search<'a>{
         }
     }
 
+    // position fen QR6/5ppk/3p3p/7q/4Nn2/5P2/P1r2P2/4RK2 w - - 0 1 moves e4f6 g7f6
+
     /// Iteratively searches the board at increasing depth
     pub fn iterative_search(&mut self, board: Board, print_info: bool) -> (Move, u8) {
         let mut best_move: Move = NULL_MOVE;
@@ -127,9 +129,14 @@ impl <'a> Search<'a>{
 
             if depth < ASPIRATION_THRESHOLD {
                 // don't apply aspiration windows to shallow searches (< 4 ply deep)
-                depth += 1;
+                if !self.stop {
+                    if print_info { self.print_info(board.clone(), eval, depth); }
+                    best_move = temp_best;
+                    depth += 1;
+                }
+
             } else {
-                // aspiration loop
+                // aspiration loop (gradual reopening)
                 if eval <= alpha {
                     alpha = -MATE;
                 } else if eval >= beta {
@@ -138,14 +145,15 @@ impl <'a> Search<'a>{
                     // reduce window using previous eval
                     alpha = eval - ASPIRATION_WINDOW;
                     beta  = eval + ASPIRATION_WINDOW;
-                    depth += 1;
+
+                    if !self.stop {
+                        if print_info { self.print_info(board.clone(), eval, depth); }
+                        best_move = temp_best;
+                        depth += 1;
+                    }
                 }
             }
 
-            if !self.stop {
-                best_move = temp_best;
-                if print_info { self.print_info(board.clone(), eval, depth); }
-            }
         }
 
         (best_move, depth - 1)

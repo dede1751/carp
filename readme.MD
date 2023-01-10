@@ -1,4 +1,4 @@
-# Carp 1.1.0
+# Carp
 ![example workflow](https://github.com/dede1751/carp/actions/workflows/rust.yml/badge.svg)
 
 Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.

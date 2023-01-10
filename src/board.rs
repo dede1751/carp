@@ -1,4 +1,5 @@
 /// Implements board representation and move generation
+/// Any board without a king for each player (and with more than one for either) is UB!
 use std::fmt;
 
 use crate::{

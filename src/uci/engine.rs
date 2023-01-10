@@ -19,11 +19,11 @@ use super::{
 use crate::{
     board::Board,
     piece::Color,
-    moves::Move,
+    moves::*,
     tables::Tables,
     search::Search,
-    tt::{TT, DEFAULT_SIZE},
-    clock::{ Clock, TimeControl },
+    tt::*,
+    clock::*,
     zobrist::ZHash,
 };
 
@@ -121,6 +121,8 @@ impl UCIEngine {
                             None => eprintln!("Move is not legal!"),
                         };
                     }
+
+                    println!("{}", self.board);
                 }
 
                 UCICommand::Go(tc) => {
@@ -136,6 +138,13 @@ impl UCIEngine {
 
     fn parse_go(&self, tables: &Tables, tc: TimeControl) -> Move {
         self.stop.store(false, Ordering::Relaxed);
+
+        let move_list = self.board.generate_moves(tables);
+        let move_count = move_list.len();
+
+        // With 0 or 1 moves, don't bother searching
+        if move_count == 0 { return NULL_MOVE }
+        else if move_count == 1 { return move_list.moves[0]; }
 
         thread::scope(|scope|{
             let mut worker_handles = Vec::with_capacity(self.worker_count);
