@@ -66,6 +66,7 @@ const OPEN_BONUS: i32 = 15;
 const BISHOP_MOBILITY_UNIT: i32 = 4;
 const MG_BISHOP_MOBILITY: i32 = 5;
 const EG_BISHOP_MOBILITY: i32 = 5;
+const BISHOP_PAIR_BONUS: i32 = 30;
 
 /// Queen mobility values
 const QUEEN_MOBILITY_UNIT: i32 = 9;
@@ -166,7 +167,15 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
             }
 
             Piece::WB | Piece::BB => {
-                for square in board.pieces[p] {
+                let bb = board.pieces[p];
+
+                // bishop pair score
+                if bb.count_bits() >= 2 {
+                    mg[c] += BISHOP_PAIR_BONUS;
+                    eg[c] += BISHOP_PAIR_BONUS;
+                }
+
+                for square in bb {
                     let sq = square as usize;
                     let attack_count = tables
                         .get_bishop_attack(square, board.occupancy)

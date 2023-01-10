@@ -123,20 +123,22 @@ impl <'a> Search<'a>{
             !(is_mate(eval) || is_mated(eval))  &&
             depth < MAX_DEPTH
         {
+            (eval, temp_best) = self.search_root(&board, alpha, beta, depth);
+
             if depth < ASPIRATION_THRESHOLD {
                 // don't apply aspiration windows to shallow searches (< 4 ply deep)
-                (eval, temp_best) = self.search_root(&board, alpha, beta, depth);
+                depth += 1;
             } else {
-                // reduce window using previous eval
-                alpha = eval - ASPIRATION_WINDOW;
-                beta  = eval + ASPIRATION_WINDOW;
-                (eval, temp_best) = self.search_root(&board, alpha, beta, depth);
-
-                if (eval <= alpha || eval >= beta) && !self.stop {
-                    // reduced window search failed
+                // aspiration loop
+                if eval <= alpha {
                     alpha = -MATE;
+                } else if eval >= beta {
                     beta = MATE;
-                    (eval, temp_best) = self.search_root(&board, alpha, beta, depth);
+                } else {
+                    // reduce window using previous eval
+                    alpha = eval - ASPIRATION_WINDOW;
+                    beta  = eval + ASPIRATION_WINDOW;
+                    depth += 1;
                 }
             }
 
@@ -144,7 +146,6 @@ impl <'a> Search<'a>{
                 best_move = temp_best;
                 if print_info { self.print_info(board.clone(), eval, depth); }
             }
-            depth += 1;
         }
 
         (best_move, depth - 1)

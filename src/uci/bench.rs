@@ -277,8 +277,8 @@ mod tests {
     use super::*;
 
     const PERFT_SUITE: [(&str, &str, u64, u8); 14] = [
-        ("8/8/4k3/8/2p5/8/B2P2K1/8 w - - 0 1", "Illegal ep move #1", 1134888, 6),
-        ("3k4/3p4/8/K1P4r/8/8/8/8 b - - 0 1", "Illegal ep move #2", 1015133, 6),
+        ("8/8/4k3/8/2p5/8/B2P2K1/8 w - - 0 1", "Illegal ep move #1", 1015133, 6),
+        ("3k4/3p4/8/K1P4r/8/8/8/8 b - - 0 1", "Illegal ep move #2", 1134888, 6),
         ("8/8/1k6/2b5/2pP4/8/5K2/8 b - d3 0 1", "Ep capture checks opponent", 1440467, 6),
         ("5k2/8/8/8/8/8/8/4K2R w K - 0 1", "Short castling gives check", 661072, 6),
         ("3k4/8/8/8/8/8/8/R3K3 w Q - 0 1", "Long castling gives check", 803711, 6),
@@ -317,8 +317,7 @@ mod tests {
 
         for (fen, description, correct_count, depth) in PERFT_SUITE {
             let board: Board = Board::try_from(fen).unwrap();
-            println!("{}", description);
-            println!("{}", board);
+            println!("{}\n{}\n{}", fen, description, board);
 
             let nodes = perft(&board, &tables, depth);
             assert_eq!(nodes, correct_count);
