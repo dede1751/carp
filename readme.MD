@@ -4,6 +4,8 @@
 Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.
 The main goal of this project is to learn the basics of both Rust and Chess Programming.
 
+[Play against Carp on Lichess!](https://lichess.org/@/Carp_Bot)
+
 Main sources for this project are [CMK's Chess engine in C series](https://www.youtube.com/watch?v=QUNP-UjujBM&list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs), 
 [Jordanbray's move generator](https://github.com/jordanbray/chess), [Malu's Asymptote engine](https://github.com/malu/asymptote)
 and most importantly the [chess programming wiki](https://www.chessprogramming.org/Main_Page) and
