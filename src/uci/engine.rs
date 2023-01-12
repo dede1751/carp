@@ -1,29 +1,20 @@
 /// UCI Chess engine
-/// 
+///
 /// Sets up positions and dispatches searches. The search itself is responsible for the stop
 /// command, which is both used by the time control and the uci controller.
 /// Lazy SMP is implemented in the simplest way possible: threads share only the same TT, only
 /// the main thread controls the actual clock while the others use an infinite time control.
 /// All best moves are collected, and the deepest with most occurrences will be returned.
-use std::{ 
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    sync::{mpsc, Arc},
     thread,
-    sync::{ Arc, mpsc },
-    sync::atomic::{ AtomicBool, Ordering },
 };
 
-use super::{
-    UCICommand,
-    bench::*,
-};
+use super::{bench::*, UCICommand};
 
 use crate::{
-    board::Board,
-    piece::Color,
-    moves::*,
-    tables::Tables,
-    search::Search,
-    tt::*,
-    clock::*,
+    board::Board, clock::*, moves::*, piece::Color, search::Search, tables::Tables, tt::*,
     zobrist::ZHash,
 };
 
@@ -38,21 +29,18 @@ pub(super) struct UCIEngine {
 }
 
 impl UCIEngine {
-    pub fn new(
-        rx: mpsc::Receiver<UCICommand>,
-        stop: Arc<AtomicBool>,
-    ) -> UCIEngine {
-        UCIEngine{
+    pub fn new(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) -> UCIEngine {
+        UCIEngine {
             board: Board::default(),
             history: Vec::new(),
             tt: TT::default(),
             tt_size: DEFAULT_SIZE,
             controller_rx: rx,
             stop,
-            worker_count: 0
+            worker_count: 0,
         }
     }
-    
+
     /// Dispatch main engine thread.
     /// Handles the "active" uci commands forwarded by the controller and dispatches helpers.
     pub fn run(&mut self) {
@@ -65,28 +53,22 @@ impl UCIEngine {
                     self.tt = TT::new(self.tt_size);
                 }
 
-                UCICommand::Option(name, value) => {
-                    match &name[..] {
-                        "Hash" => {
-                            match value.parse() {
-                                Ok(size) => {
-                                    self.tt_size = size;
-                                    self.tt = TT::new(size);
-                                }
-                                Err(_) => eprintln!("Could not parse hash option value!")
-                            }
+                UCICommand::Option(name, value) => match &name[..] {
+                    "Hash" => match value.parse() {
+                        Ok(size) => {
+                            self.tt_size = size;
+                            self.tt = TT::new(size);
                         }
-                        "Threads" => {
-                            match value.parse::<usize>() {
-                                Ok(size) => {
-                                    self.worker_count = size;
-                                }
-                                Err(_) => eprintln!("Could not parse threads option value!")
-                            }
+                        Err(_) => eprintln!("Could not parse hash option value!"),
+                    },
+                    "Threads" => match value.parse::<usize>() {
+                        Ok(size) => {
+                            self.worker_count = size;
                         }
-                        _ => eprintln!("Unsupported option command!")
-                    }
-                }
+                        Err(_) => eprintln!("Could not parse threads option value!"),
+                    },
+                    _ => eprintln!("Unsupported option command!"),
+                },
 
                 UCICommand::Bench => {
                     let mut bencher = Bencher::new(&tables);
@@ -101,28 +83,27 @@ impl UCIEngine {
 
                 UCICommand::Perft(d) => {
                     perft(&self.board, &tables, d);
-                },
+                }
 
                 UCICommand::Position(board, moves) => {
                     self.history = vec![board.hash];
                     self.board = board;
 
                     for move_string in moves {
-                        let new = self.board
+                        let new = self
+                            .board
                             .generate_moves(&tables)
                             .into_iter()
-                            .find(|m| { move_string == m.to_string()});
+                            .find(|m| move_string == m.to_string());
 
                         match new {
                             Some(new_move) => {
                                 self.board = self.board.make_move(new_move);
                                 self.history.push(self.board.hash);
-                            },
+                            }
                             None => eprintln!("Move is not legal!"),
                         };
                     }
-
-                    println!("{}", self.board);
                 }
 
                 UCICommand::Go(tc) => {
@@ -143,10 +124,13 @@ impl UCIEngine {
         let move_count = move_list.len();
 
         // With 0 or 1 moves, don't bother searching
-        if move_count == 0 { return NULL_MOVE }
-        else if move_count == 1 { return move_list.moves[0]; }
+        if move_count == 0 {
+            return NULL_MOVE;
+        } else if move_count == 1 {
+            return move_list.moves[0];
+        }
 
-        thread::scope(|scope|{
+        thread::scope(|scope| {
             let mut worker_handles = Vec::with_capacity(self.worker_count);
             let mut results = Vec::with_capacity(self.worker_count);
 
@@ -155,35 +139,26 @@ impl UCIEngine {
                 self.history.clone(),
                 Clock::new(tc, self.stop.clone(), self.board.side == Color::White),
                 &self.tt,
-                tables
+                tables,
             );
 
             // Deploy all worker search threads.
             for _ in 1..self.worker_count {
                 let worker_board: Board = self.board.clone();
-    
+
                 let mut worker_search = Search::new(
                     self.history.clone(),
-                    Clock::new(
-                        TimeControl::Infinite,
-                        self.stop.clone(),
-                        true
-                    ),
+                    Clock::new(TimeControl::Infinite, self.stop.clone(), true),
                     &self.tt,
-                    tables
+                    tables,
                 );
 
-                worker_handles.push(
-                    scope.spawn(move || 
-                        worker_search.iterative_search(worker_board, false)
-                    )
-                );
-            };
+                worker_handles
+                    .push(scope.spawn(move || worker_search.iterative_search(worker_board, false)));
+            }
 
             // Deploy main search
-            results.push(
-                main_search.iterative_search(self.board.clone(), true)
-            );
+            results.push(main_search.iterative_search(self.board.clone(), true));
 
             for handle in worker_handles {
                 match handle.join() {
@@ -192,18 +167,19 @@ impl UCIEngine {
                 }
             }
 
-            results.sort_by(|(_, a), (_, b)| b.cmp(a) );
+            results.sort_by(|(_, a), (_, b)| b.cmp(a));
             let highest_depth = results[0].1;
 
-            results.into_iter()
-                .filter_map(|(m, d)| {
-                    if d == highest_depth { Some(m) }
-                    else { None }
-                })
-                .fold(std::collections::HashMap::<Move, u8>::new(), |mut map, x| {
-                    *map.entry(x).or_default() += 1;
-                    map
-                })
+            results
+                .into_iter()
+                .filter_map(|(m, d)| if d == highest_depth { Some(m) } else { None })
+                .fold(
+                    std::collections::HashMap::<Move, u8>::new(),
+                    |mut map, x| {
+                        *map.entry(x).or_default() += 1;
+                        map
+                    },
+                )
                 .into_iter()
                 .max_by_key(|(_, value)| *value)
                 .map(|(m, _)| m)

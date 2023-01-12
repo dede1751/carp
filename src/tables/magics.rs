@@ -1,11 +1,11 @@
 /// Magic numbers and helper functions
-/// 
+///
 /// Process for finding them is documented in https://www.chessprogramming.org/Looking_for_Magics
-
 use crate::bitboard::*;
 use crate::square::*;
 
 /// Relevant occupancy bits for each square for bishops and rooks
+#[rustfmt::skip]
 pub const BISHOP_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     6, 5, 5, 5, 5, 5, 5, 6,
     5, 5, 5, 5, 5, 5, 5, 5,
@@ -16,6 +16,8 @@ pub const BISHOP_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     5, 5, 5, 5, 5, 5, 5, 5,
     6, 5, 5, 5, 5, 5, 5, 6,
 ];
+
+#[rustfmt::skip]
 pub const ROOK_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     12, 11, 11, 11, 11, 11, 11, 12,
     11, 10, 10, 10, 10, 10, 10, 11,
@@ -28,6 +30,7 @@ pub const ROOK_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
 ];
 
 /// Default bishop/rook magics obtained from customize submodule
+#[rustfmt::skip]
 pub const DEFAULT_BISHOP_MAGICS: BB64 = [
     BitBoard(18018831494946945),    BitBoard(5683392850989056),      BitBoard(1154048864819347976),
     BitBoard(1130506259411456),     BitBoard(9295994850753466656),   BitBoard(722274213532008961),
@@ -53,6 +56,7 @@ pub const DEFAULT_BISHOP_MAGICS: BB64 = [
     BitBoard(1153488869854019624),
 ];
 
+#[rustfmt::skip]
 pub const DEFAULT_ROOK_MAGICS: BB64 = [
     BitBoard(9979994641325359136),  BitBoard(90072129987412032),    BitBoard(180170925814149121),
     BitBoard(72066458867205152),    BitBoard(144117387368072224),   BitBoard(216203568472981512),
@@ -80,69 +84,71 @@ pub const DEFAULT_ROOK_MAGICS: BB64 = [
 
 /// Mask relevant bishop occupancy bits
 pub fn bishop_occupancy(square: Square) -> BitBoard {
-    ALL_SQUARES.iter()
-               .filter(|&tgt| { 
-        let (tgt_file, tgt_rank) = tgt.coords();
-        let dist: (i8, i8) = square.dist(*tgt);
+    ALL_SQUARES
+        .iter()
+        .filter(|&tgt| {
+            let (tgt_file, tgt_rank) = tgt.coords();
+            let dist: (i8, i8) = square.dist(*tgt);
 
-        tgt_file != File::A     && tgt_file != File::H      &&
+            tgt_file != File::A     && tgt_file != File::H      &&
         tgt_rank != Rank::First && tgt_rank != Rank::Eight  && // not edges
         dist.0.abs() == dist.1.abs()                        && // diagonal
         *tgt != square
-    })
-               .fold(EMPTY_BB, |mask, square| { mask ^ square.to_board() })
+        })
+        .fold(EMPTY_BB, |mask, square| mask ^ square.to_board())
 }
 
 /// Mask relevant rook occupancy bits
 pub fn rook_occupancy(square: Square) -> BitBoard {
-    ALL_SQUARES.iter()
-               .filter(|&tgt| { 
-        let (tgt_file, tgt_rank) = tgt.coords();
-        let dist: (i8, i8) = square.dist(*tgt);
+    ALL_SQUARES
+        .iter()
+        .filter(|&tgt| {
+            let (tgt_file, tgt_rank) = tgt.coords();
+            let dist: (i8, i8) = square.dist(*tgt);
 
-        ((dist.0 == 0 && tgt_rank != Rank::First && tgt_rank != Rank::Eight ) || // same file
+            ((dist.0 == 0 && tgt_rank != Rank::First && tgt_rank != Rank::Eight ) || // same file
         (dist.1 == 0 && tgt_file != File::A && tgt_file != File::H )) &&         // same rank
         *tgt != square
-    })
-               .fold(EMPTY_BB, |mask, square| { mask ^ square.to_board() })
+        })
+        .fold(EMPTY_BB, |mask, square| mask ^ square.to_board())
 }
 
 /// Mask index only onto the set bits of the board.
-/// 
+///
 ///     index = 0                        -->  all occupancy bits will be unset
 ///     index = 2^mask.count_bits() - 1  -->  all occupancy bits will be set
-/// 
+///
 ///     Anything between has some bits set, some unset, and covers all possible combinations
 ///     of 0s and 1s on the set squares of mask
 pub fn set_occupancy(mask: BitBoard, index: usize) -> BitBoard {
     IntoIterator::into_iter(mask)
         .enumerate()
-        .filter(|(count, _)| { index & (1 << count) != 0 })
-        .fold(EMPTY_BB, |mask, (_, square)| { mask ^ square.to_board() })
+        .filter(|(count, _)| index & (1 << count) != 0)
+        .fold(EMPTY_BB, |mask, (_, square)| mask ^ square.to_board())
 }
 
 /// Get magic index for the tables given the blocker board and magic number
-/// 
+///
 ///     - Blockers must already be masked with the relevant occupancies of the square
 ///     - Bits are the relevant occupancy bits of the square
 #[inline]
-pub fn magic_map(blockers: BitBoard , magic: BitBoard, bits: u32) -> usize {
+pub fn magic_map(blockers: BitBoard, magic: BitBoard, bits: u32) -> usize {
     ((blockers * magic).0 >> (64 - bits)) as usize
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
-    fn bishop_occs(){
+    fn bishop_occs() {
         let bb1: BitBoard = bishop_occupancy(Square::A2);
         let bb2: BitBoard = bishop_occupancy(Square::D8);
         let bb3: BitBoard = bishop_occupancy(Square::H1);
         let bb4: BitBoard = bishop_occupancy(Square::E4);
 
         println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
-        
+
         assert_eq!(bb1, BitBoard(2216338399232));
         assert_eq!(bb2, BitBoard(1075975168));
         assert_eq!(bb3, BitBoard(18049651735527936));
@@ -150,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn rook_occs(){
+    fn rook_occs() {
         let bb1: BitBoard = rook_occupancy(Square::A8);
         let bb2: BitBoard = rook_occupancy(Square::B7);
         let bb3: BitBoard = rook_occupancy(Square::H2);

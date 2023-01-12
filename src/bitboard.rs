@@ -1,7 +1,6 @@
 /// Implements Bitboards along with all relevant bitwise operations
-
-use std::fmt;
 use crate::square::*;
+use std::fmt;
 
 /// Bitboard implemented as a simple tuple struct.
 /// Contents are public for convenience (direct initialization in various arrays/tests) but it
@@ -100,9 +99,9 @@ impl Iterator for BitBoard {
     fn next(&mut self) -> Option<Square> {
         if *self == EMPTY_BB {
             None
-        } else {        
+        } else {
             let index = self.ls1b(); // get lsb square
-            self.0 &= self.0 - 1;            // pops lsb
+            self.0 &= self.0 - 1; // pops lsb
             Some(index)
         }
     }
@@ -110,7 +109,7 @@ impl Iterator for BitBoard {
 
 impl BitBoard {
     pub fn new(bb: u64) -> BitBoard {
-        BitBoard{ 0: bb }
+        BitBoard { 0: bb }
     }
 
     /// Check whether given square is set on the board

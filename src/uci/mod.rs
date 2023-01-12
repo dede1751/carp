@@ -1,28 +1,25 @@
 /// UCI integration
-mod engine;
 mod bench;
+mod engine;
 
 use engine::UCIEngine;
 
-use std::{ 
+use std::{
     io,
-    io::BufRead, 
+    io::BufRead,
+    sync::atomic::{AtomicBool, Ordering},
+    sync::{mpsc, Arc},
     thread,
-    sync::{ Arc, mpsc },
-    sync::atomic::{ AtomicBool, Ordering },
 };
 
-use crate::{
-    board::Board,
-    clock::TimeControl,
-};
+use crate::{board::Board, clock::TimeControl};
 
-const ENGINE_ID: &str = 
-"id name Carp 1.1.0
+const ENGINE_ID: &str = "
+id name Carp 1.1.0
 id author Andrea Sgobbi";
 
-const ENGINE_OPTIONS:&str = 
-"option name Hash type spin default 256 min 1 max 65536
+const ENGINE_OPTIONS: &str = "
+option name Hash type spin default 256 min 1 max 65536
 option name Threads type spin default 1 min 1 max 512";
 
 /// UCI controller responsible to read input and command the main engine thread
@@ -41,9 +38,7 @@ impl UCIController {
 
         UCIController {
             stop: stop.clone(),
-            _engine_thread: thread::spawn(move || {
-                UCIEngine::new(rx, stop).run()
-            }),
+            _engine_thread: thread::spawn(move || UCIEngine::new(rx, stop).run()),
             thread_tx: tx,
         }
     }
@@ -55,10 +50,7 @@ impl UCIController {
 
         let stream = io::stdin().lock();
 
-        for line in stream
-                        .lines()
-                        .map(|l| l.expect("Parsing error!"))
-        {
+        for line in stream.lines().map(|l| l.expect("Parsing error!")) {
             match UCICommand::try_from(line.as_ref()) {
                 Ok(command) => {
                     match command {
@@ -66,15 +58,15 @@ impl UCIController {
                             println!("{}", ENGINE_ID);
                             println!("{}", ENGINE_OPTIONS);
                             println!("uciok");
-                        },
+                        }
                         UCICommand::IsReady => {
                             println!("readyok");
-                        },
+                        }
                         UCICommand::Stop => self.stop.store(true, Ordering::SeqCst), // strict ordering
                         UCICommand::Quit => return,
                         _ => self.thread_tx.send(command).unwrap(),
                     }
-                },
+                }
                 Err(e) => eprintln!("{}", e),
             };
         }
@@ -115,41 +107,34 @@ impl TryFrom<&str> for UCICommand {
                     Some("value") => tokens.next().ok_or("No option value!")?.to_owned(),
                     _ => return Err("Invalid option command"),
                 };
-                
+
                 Ok(Self::Option(opt_name, opt_value))
             }
             Some("bench") => Ok(Self::Bench),
-            Some("perft") => {
-                match tokens.next().ok_or("No option value!")?.parse() {
-                    Ok(d) => Ok(Self::Perft(d)),
-                    _ => return Err("Could not parse depth!")
-                }
-            }
+            Some("perft") => match tokens.next().ok_or("No option value!")?.parse() {
+                Ok(d) => Ok(Self::Perft(d)),
+                _ => return Err("Could not parse depth!"),
+            },
             Some("position") => {
                 let board = match tokens.next() {
                     Some("startpos") => Board::default(),
                     Some("fen") => {
-                        let fen = &tokens
-                        .clone()
-                        .take(6)
-                        .collect::<Vec<&str>>()
-                        .join(" ")
-                        [..];
-                        
-                        for _ in 0..6 { tokens.next(); } // advance iterator
-                        
+                        let fen = &tokens.clone().take(6).collect::<Vec<&str>>().join(" ")[..];
+
+                        for _ in 0..6 {
+                            tokens.next();
+                        } // advance iterator
+
                         Board::try_from(fen)?
-                    },
+                    }
                     _ => return Err("Invalid position command"),
                 };
-                
+
                 let mut moves = Vec::new();
                 if let Some("moves") = tokens.next() {
-                    moves = tokens
-                    .map(String::from)
-                    .collect();
+                    moves = tokens.map(String::from).collect();
                 }
-                
+
                 Ok(Self::Position(board, moves))
             }
             Some("go") => Ok(Self::Go(TimeControl::try_from(tokens)?)),

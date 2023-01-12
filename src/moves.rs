@@ -1,18 +1,15 @@
 /// Implements move encoding and MoveList struct
-
-use std::{
-    fmt,
-    collections::HashSet
-};
+use std::{collections::HashSet, fmt};
 
 use crate::{
-    square::{ *, Square::* },
-    piece::*,
     board::Board,
+    piece::*,
+    square::{Square::*, *},
     tables::Tables,
 };
 
 /// Indexed by color and file. Target squares for pawn single pushes
+#[rustfmt::skip]
 pub const PUSH: [[Square; SQUARE_COUNT]; 2] = [[
     A8, A8, A8, A8, A8, A8, A8, A8,
     A8, B8, C8, D8, E8, F8, G8, H8, 
@@ -34,6 +31,7 @@ pub const PUSH: [[Square; SQUARE_COUNT]; 2] = [[
 ]];
 
 /// Indexed by color and file. Target squares for pawn double pushes
+#[rustfmt::skip]
 pub const DOUBLE_PUSH: [[Square; FILE_COUNT]; 2] = [
     [ A4, B4, C4, D4, E4, F4, G4, H4 ],
     [ A5, B5, C5, D5, E5, F5, G5, H5 ]
@@ -48,7 +46,7 @@ pub const START_RANKS: [Rank; 2] = [Rank::Second, Rank::Seventh];
 /// Move -- Encodes move in a single 4B word
 /// Smaller encoding can be achieved using only 2B (6b src, 6b tgt, 3b promotion, 1b extra) but it
 /// makes the rest of the engine much less ergonomic. We only use the least significant 28 bits
-/// 
+///
 ///     0000 0000 0000 0000 0000 0011 1111    source             0x00003F     0
 ///     0000 0000 0000 0000 1111 1100 0000    target             0x000FC0     6
 ///     0000 0000 0000 1111 0000 0000 0000    piece              0x00F000    12
@@ -59,20 +57,20 @@ pub const START_RANKS: [Rank; 2] = [Rank::Second, Rank::Seventh];
 ///     0100 0000 0000 0000 0000 0000 0000    enpassant flag     0x400000    26
 ///     1000 0000 0000 0000 0000 0000 0000    castling flag      0x800000    27
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
-pub struct Move (pub u32);
+pub struct Move(pub u32);
 
 pub const NULL_MOVE: Move = Move(0);
 
 // bit masks for the various parts of the move
-const SRC        : u32 = 0x0000003F;
-const TGT        : u32 = 0x00000FC0;
-const PIECE      : u32 = 0x0000F000;
-const CAPTURE    : u32 = 0x000F0000;
-const PROMOTE    : u32 = 0x00F00000;
-const IS_CAP     : u32 = 0x01000000;
-const DOUBLE     : u32 = 0x02000000;
-const ENPASSANT  : u32 = 0x04000000;
-const CASTLE     : u32 = 0x08000000;
+const SRC: u32 = 0x0000003F;
+const TGT: u32 = 0x00000FC0;
+const PIECE: u32 = 0x0000F000;
+const CAPTURE: u32 = 0x000F0000;
+const PROMOTE: u32 = 0x00F00000;
+const IS_CAP: u32 = 0x01000000;
+const DOUBLE: u32 = 0x02000000;
+const ENPASSANT: u32 = 0x04000000;
+const CASTLE: u32 = 0x08000000;
 
 /// Prints move in uci format
 impl fmt::Display for Move {
@@ -80,16 +78,21 @@ impl fmt::Display for Move {
         let s = format!("{}{}", self.get_src(), self.get_tgt());
 
         if self.get_promotion() != Piece::WP {
-            write!(f, "{}{}", s, self.get_promotion().to_char().to_ascii_lowercase())
+            write!(
+                f,
+                "{}{}",
+                s,
+                self.get_promotion().to_char().to_ascii_lowercase()
+            )
         } else {
-            write!(f,"{}", s)
+            write!(f, "{}", s)
         }
     }
 }
 
 impl Move {
     /// Init move through bitwise or of the various values shifted to correct place
-    /// 
+    ///
     /// When not promoting, pass WP
     /// Flags are u32 boolean values (must be 0 or 1)
     pub const fn encode(
@@ -101,18 +104,18 @@ impl Move {
         is_capture: u32,
         double_push: u32,
         en_passant: u32,
-        castle: u32
+        castle: u32,
     ) -> Move {
         Move(
-            (src as u32)            |
-            (tgt as u32) << 6       |
-            (piece as u32) << 12    |
-            (capture as u32) << 16  |
-            (promote as u32) << 20  |
-            is_capture << 24        |
-            double_push << 25       |
-            en_passant << 26        |
-            castle << 27
+            (src as u32)
+                | (tgt as u32) << 6
+                | (piece as u32) << 12
+                | (capture as u32) << 16
+                | (promote as u32) << 20
+                | is_capture << 24
+                | double_push << 25
+                | en_passant << 26
+                | castle << 27,
         )
     }
 
@@ -171,8 +174,11 @@ impl Move {
         if self.is_castle() {
             let file = self.get_tgt().file();
 
-            if file == File::G { return String::from("O-O"); }
-            else { return String::from("O-O-O"); }
+            if file == File::G {
+                return String::from("O-O");
+            } else {
+                return String::from("O-O-O");
+            }
         }
 
         let mut move_str = String::new();
@@ -186,15 +192,17 @@ impl Move {
             move_str.push(p.to_char().to_ascii_uppercase());
 
             // get all ambiguous (file, rank) source squares
-            let (files, ranks): (HashSet<File>, HashSet<Rank>) = board.generate_moves(tables)
+            let (files, ranks): (HashSet<File>, HashSet<Rank>) = board
+                .generate_moves(tables)
                 .into_iter()
-                .filter(|m|
+                .filter(|m| {
                     m.get_src() != src  && // different source square
                     m.get_tgt() == tgt  && // same target square
-                    m.get_piece() == p)    // same piece
+                    m.get_piece() == p
+                }) // same piece
                 .map(|m| m.get_src().coords())
                 .unzip();
-            
+
             // if a move is unambiguous, files and ranks will be empty
             if files.len() != 0 && ranks.len() != 0 {
                 if !files.contains(&src.file()) {
@@ -208,10 +216,12 @@ impl Move {
         }
 
         if self.is_capture() {
-            if is_pawn { move_str.push(src.file().to_char()) } // pawn captures always specify file
+            if is_pawn {
+                move_str.push(src.file().to_char())
+            } // pawn captures always specify file
             move_str.push('x')
         }
-        move_str.push_str(&tgt.to_string());        // destination
+        move_str.push_str(&tgt.to_string()); // destination
 
         // add promotion
         if self.is_promotion() {
@@ -220,15 +230,19 @@ impl Move {
 
         // check/checkmate
         let new = board.make_move(*self);
-        if new.king_in_check(tables) {             
-            if new.generate_moves(tables).len() == 0 { move_str.push('#'); } // checkmate
-            else { move_str.push('+'); } // check
+        if new.king_in_check(tables) {
+            if new.generate_moves(tables).len() == 0 {
+                move_str.push('#');
+            }
+            // checkmate
+            else {
+                move_str.push('+');
+            } // check
         }
 
         move_str
     }
 }
-
 
 #[cfg(test)]
 mod tests {

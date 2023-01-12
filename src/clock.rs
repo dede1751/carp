@@ -1,13 +1,11 @@
 /// Handles time management for iterative deepening
 /// Time control implementation closely follows Weiawaga
-use std::str::{
-    FromStr, SplitWhitespace
-};
+use std::str::{FromStr, SplitWhitespace};
 
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 use std::{
+    sync::atomic::{AtomicBool, Ordering},
     sync::Arc,
-    sync::atomic::{ AtomicBool, Ordering }
 };
 
 #[derive(Clone, Debug)]
@@ -22,7 +20,7 @@ pub enum TimeControl {
         winc: Option<u64>,
         binc: Option<u64>,
         movestogo: Option<u64>,
-    }
+    },
 }
 
 fn parse_value<T: FromStr>(tokens: &mut SplitWhitespace) -> Result<T, &'static str> {
@@ -44,7 +42,8 @@ impl TryFrom<SplitWhitespace<'_>> for TimeControl {
         let mut binc: Option<u64> = None;
         let mut movestogo: Option<u64> = None;
 
-        while let Some(token) = tokens.next() { // needed to be able to pass tokens to parse_value
+        while let Some(token) = tokens.next() {
+            // needed to be able to pass tokens to parse_value
             match token {
                 "infinite" => return Ok(TimeControl::Infinite),
                 "depth" => return Ok(TimeControl::FixedDepth(parse_value(&mut tokens)?)),
@@ -55,7 +54,7 @@ impl TryFrom<SplitWhitespace<'_>> for TimeControl {
                 "winc" => winc = Some(parse_value(&mut tokens)?),
                 "binc" => binc = Some(parse_value(&mut tokens)?),
                 "movestogo" => movestogo = Some(parse_value(&mut tokens)?),
-                _ => return Err("Incorrect time control!")
+                _ => return Err("Incorrect time control!"),
             }
         }
 
@@ -67,7 +66,7 @@ impl TryFrom<SplitWhitespace<'_>> for TimeControl {
                 btime: btime.unwrap(),
                 winc,
                 binc,
-                movestogo
+                movestogo,
             })
         }
     }
@@ -89,16 +88,22 @@ impl Clock {
     pub fn new(time_control: TimeControl, stop: Arc<AtomicBool>, white_to_move: bool) -> Clock {
         let end_time: Duration = match time_control {
             TimeControl::FixedTime(time) => Duration::from_millis(time),
-            TimeControl::Variable { wtime, btime, winc, binc,movestogo} => {
+            TimeControl::Variable {
+                wtime,
+                btime,
+                winc,
+                binc,
+                movestogo,
+            } => {
                 let (time, increment) = if white_to_move {
                     match winc {
                         Some(inc) => (wtime, inc),
-                        None => (wtime, 0)
+                        None => (wtime, 0),
                     }
                 } else {
                     match binc {
                         Some(inc) => (btime, inc),
-                        None => (btime, 0)
+                        None => (btime, 0),
                     }
                 };
 
@@ -113,7 +118,7 @@ impl Clock {
             time_control,
             start_time: Instant::now(),
             end_time,
-            check_count: 0
+            check_count: 0,
         }
     }
 

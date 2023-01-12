@@ -1,9 +1,8 @@
 /// Slow attack generation to initialize attack tables
-
 use crate::{
-    bitboard::{ BitBoard, EMPTY_BB },
-    square::*,
+    bitboard::{BitBoard, EMPTY_BB},
     piece::Color,
+    square::*,
 };
 
 /// Generate bitboard for pawn attacks from square
@@ -14,12 +13,20 @@ pub fn mask_pawn_attacks(square: Square, color: Color) -> BitBoard {
 
     match color {
         Color::White => {
-            if file != File::A { attacks |= bitboard >> BitBoard(9) }
-            if file != File::H { attacks |= bitboard >> BitBoard(7) }
-        },
+            if file != File::A {
+                attacks |= bitboard >> BitBoard(9)
+            }
+            if file != File::H {
+                attacks |= bitboard >> BitBoard(7)
+            }
+        }
         Color::Black => {
-            if file != File::H { attacks |= bitboard << BitBoard(9) }
-            if file != File::A { attacks |= bitboard << BitBoard(7) }
+            if file != File::H {
+                attacks |= bitboard << BitBoard(9)
+            }
+            if file != File::A {
+                attacks |= bitboard << BitBoard(7)
+            }
         }
     }
 
@@ -28,41 +35,44 @@ pub fn mask_pawn_attacks(square: Square, color: Color) -> BitBoard {
 
 /// Generate bitboard for knight attacks from square
 pub fn mask_knight_attacks(square: Square) -> BitBoard {
-    ALL_SQUARES.iter()
-               .filter(|&tgt| { 
-        let dist: (i8, i8) = square.dist(*tgt);
+    ALL_SQUARES
+        .iter()
+        .filter(|&tgt| {
+            let dist: (i8, i8) = square.dist(*tgt);
 
-        (dist.0.abs() == 1 && dist.1.abs() == 2) | (dist.0.abs() == 2 && dist.1.abs() == 1)
-    })
-               .fold(EMPTY_BB, |mask, square| { mask ^ square.to_board() })
+            (dist.0.abs() == 1 && dist.1.abs() == 2) | (dist.0.abs() == 2 && dist.1.abs() == 1)
+        })
+        .fold(EMPTY_BB, |mask, square| mask ^ square.to_board())
 }
 
 /// Generate bitboard for king attacks from square
 pub fn mask_king_attacks(square: Square) -> BitBoard {
-    ALL_SQUARES.iter()
-               .filter(|&tgt| { 
-        let dist: (i8, i8) = square.dist(*tgt);
+    ALL_SQUARES
+        .iter()
+        .filter(|&tgt| {
+            let dist: (i8, i8) = square.dist(*tgt);
 
-        (dist.0.abs() == 1 && ((dist.1.abs() == 0) | (dist.1.abs() == 1))) |
-        (dist.1.abs() == 1 && ((dist.0.abs() == 0) | (dist.0.abs() == 1)))
-    })
-               .fold(EMPTY_BB, |mask, square| { mask ^ square.to_board() })
+            (dist.0.abs() == 1 && ((dist.1.abs() == 0) | (dist.1.abs() == 1)))
+                | (dist.1.abs() == 1 && ((dist.0.abs() == 0) | (dist.0.abs() == 1)))
+        })
+        .fold(EMPTY_BB, |mask, square| mask ^ square.to_board())
 }
-
 
 /// Generate bishop attacks on the fly
 pub fn mask_bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     let mut attacks = EMPTY_BB;
     let (file, rank) = (square.file(), square.rank());
-    
+
     // top right diagonal
     let (mut f, mut r) = (file, rank);
-    while f != File::H  && r != Rank::Eight {
+    while f != File::H && r != Rank::Eight {
         (f, r) = (f.right(), r.up());
         let s = Square::from_coords(f, r);
-        
+
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
 
     // bottom left diagonal
@@ -70,9 +80,11 @@ pub fn mask_bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     while f != File::A && r != Rank::First {
         (f, r) = (f.left(), r.down());
         let s = Square::from_coords(f, r);
-        
+
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
 
     // top left diagonal
@@ -80,21 +92,25 @@ pub fn mask_bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     while f != File::A && r != Rank::Eight {
         (f, r) = (f.left(), r.up());
         let s = Square::from_coords(f, r);
-        
+
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
-    
+
     // bottom right diagonal
     (f, r) = (file, rank);
     while f != File::H && r != Rank::First {
         (f, r) = (f.right(), r.down());
         let s = Square::from_coords(f, r);
-        
+
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
-    
+
     attacks
 }
 
@@ -102,17 +118,19 @@ pub fn mask_bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
 pub fn mask_rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     let mut attacks = EMPTY_BB;
     let (file, rank) = (square.file(), square.rank());
-    let (mut f, mut r) = (file, rank);    
-    
+    let (mut f, mut r) = (file, rank);
+
     // right
     while f != File::H {
         f = f.right();
         let s = Square::from_coords(f, r);
-        
+
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
-    
+
     // left
     f = file;
     while f != File::A {
@@ -120,29 +138,35 @@ pub fn mask_rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
         let s = Square::from_coords(f, r);
 
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
-    
+
     // up
     f = file;
     while r != Rank::Eight {
         r = r.up();
         let s = Square::from_coords(f, r);
-        
+
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
-    
+
     // down
     r = rank;
     while r != Rank::First {
         r = r.down();
         let s = Square::from_coords(f, r);
-        
+
         attacks.set_bit(s);
-        if blockers & s.to_board() != EMPTY_BB { break; }
+        if blockers & s.to_board() != EMPTY_BB {
+            break;
+        }
     }
-    
+
     attacks
 }
 
@@ -181,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn king_attacks(){
+    fn king_attacks() {
         let bb1: BitBoard = mask_king_attacks(Square::A1);
         let bb2: BitBoard = mask_king_attacks(Square::E4);
         let bb3: BitBoard = mask_king_attacks(Square::H6);
@@ -196,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn bishop_attacks(){
+    fn bishop_attacks() {
         let bb1: BitBoard = mask_bishop_attacks(Square::E4, BitBoard(1161084283129857));
         let bb2: BitBoard = mask_bishop_attacks(Square::B7, BitBoard(35253091631104));
 
@@ -207,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn rook_attacks(){
+    fn rook_attacks() {
         let bb1: BitBoard = mask_rook_attacks(Square::A8, BitBoard(1099511627778));
         let bb2: BitBoard = mask_rook_attacks(Square::E4, BitBoard(76561335399223296));
 

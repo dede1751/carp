@@ -1,23 +1,21 @@
 /// Engine benchmarking
 use std::time::Instant;
 
-use crate::{
-    board::Board,
-    tables::Tables,
-    move_order::MoveList,
-    moves::*,
-};
+use crate::{board::Board, move_order::MoveList, moves::*, tables::Tables};
 
 /// Recursive move generation
 fn perft_driver(board: &Board, tables: &Tables, depth: u8) -> u64 {
-    if depth == 1 { return board.generate_moves(tables).len() as u64; }
-    else if depth == 0 { return 1; }
+    if depth == 1 {
+        return board.generate_moves(tables).len() as u64;
+    } else if depth == 0 {
+        return 1;
+    }
 
     let move_list: MoveList = board.generate_moves(tables);
     let mut nodes: u64 = 0;
     for m in move_list {
         let new_board = board.make_move(m);
-        
+
         nodes += perft_driver(&new_board, tables, depth - 1);
     }
 
@@ -25,7 +23,7 @@ fn perft_driver(board: &Board, tables: &Tables, depth: u8) -> u64 {
 }
 
 /// Cumulative (divide) perft
-pub fn perft(board: &Board, tables: &Tables, depth: u8) -> u64{
+pub fn perft(board: &Board, tables: &Tables, depth: u8) -> u64 {
     let move_list: MoveList = board.generate_moves(tables);
     let mut total_nodes = 0;
 
@@ -37,25 +35,34 @@ pub fn perft(board: &Board, tables: &Tables, depth: u8) -> u64{
         total_nodes += nodes;
         let duration = start.elapsed();
 
-        println!("{}{} -- {} nodes in {:?}", m.get_src(), m.get_tgt(), nodes, duration);
+        println!(
+            "{}{} -- {} nodes in {:?}",
+            m.get_src(),
+            m.get_tgt(),
+            nodes,
+            duration
+        );
     }
     let duration = start.elapsed();
 
     let perf: u128 = total_nodes as u128 / duration.as_micros();
-    println!("\n{} nodes in {:?} - {}Mnodes/s", total_nodes, duration, perf);
+    println!(
+        "\n{} nodes in {:?} - {}Mnodes/s",
+        total_nodes, duration, perf
+    );
 
     total_nodes
 }
 
 /// Benchmark engine using list of EPD
-/// 
+///
 /// Iterate over the bencher, search the position and check the results against best/avoid move
 pub struct Bencher<'a> {
     counter: usize,
     score: u32,
     best_move: bool,
     moves: Vec<Move>,
-    tables: &'a Tables
+    tables: &'a Tables,
 }
 
 /// Iterates over the test boards
@@ -95,15 +102,19 @@ impl<'a> Bencher<'a> {
     pub fn submit_move(&mut self, m: &Move) {
         println!("\nMove: {}", m);
 
-        if self.best_move { print!("Best moves: "); }
-        else { print!("Avoid moves: "); }
+        if self.best_move {
+            print!("Best moves: ");
+        } else {
+            print!("Avoid moves: ");
+        }
 
         for m in &self.moves {
             print!("{} ", m);
         }
-        
-        if  ( self.best_move &&  self.moves.contains(m))   ||
-            (!self.best_move && !self.moves.contains(m)) {
+
+        if (self.best_move && self.moves.contains(m))
+            || (!self.best_move && !self.moves.contains(m))
+        {
             self.score += 1;
             println!("\nCORRECT!");
         } else {
@@ -112,16 +123,16 @@ impl<'a> Bencher<'a> {
     }
 }
 
-
 /// Decodes EPD into board, description and suggested move
 fn read_epd(epd: &str, tables: &Tables) -> (Board, bool, Vec<Move>, String) {
-    let mut partial_fen: String = epd.clone()
+    let mut partial_fen: String = epd
+        .clone()
         .split_whitespace()
         .take(4)
         .collect::<Vec<&str>>()
         .join(" ");
-        
-    let mut epd_commands =  epd.trim_start_matches(&partial_fen).split(";");
+
+    let mut epd_commands = epd.trim_start_matches(&partial_fen).split(";");
     partial_fen.push_str(" 0 -");
 
     let board = Board::try_from(&partial_fen[..]).unwrap();
@@ -130,21 +141,28 @@ fn read_epd(epd: &str, tables: &Tables) -> (Board, bool, Vec<Move>, String) {
     let mut id = String::new();
 
     while let Some(command) = epd_commands.next() {
-        if command == "" { break; }
+        if command == "" {
+            break;
+        }
         let mut tokens = command.trim().split_whitespace();
 
         let opcode = tokens.next().unwrap();
         match opcode {
             "bm" | "am" => {
-                if opcode == "am" { best_move = false; }
-                                
+                if opcode == "am" {
+                    best_move = false;
+                }
+
                 for t in tokens {
                     let tgt_move = t.trim_end_matches(",");
-                    let m = board.generate_moves(tables)
+                    let m = board
+                        .generate_moves(tables)
                         .into_iter()
-                        .find(|m|
-                            tgt_move == m.to_algebraic(&board, tables)
-                                         .trim_end_matches(|x| x == '#' || x == '+'))
+                        .find(|m| {
+                            tgt_move
+                                == m.to_algebraic(&board, tables)
+                                    .trim_end_matches(|x| x == '#' || x == '+')
+                        })
                         .unwrap();
                     moves.push(m);
                 }
@@ -154,7 +172,7 @@ fn read_epd(epd: &str, tables: &Tables) -> (Board, bool, Vec<Move>, String) {
             _ => {}
         }
     }
-        
+
     (board, best_move, moves, id)
 }
 
@@ -276,6 +294,7 @@ pub const EIGENMANN_RAPID: [&str; 111] = [
 mod tests {
     use super::*;
 
+    #[rustfmt::skip]
     const PERFT_SUITE: [(&str, &str, u64, u8); 14] = [
         ("8/8/4k3/8/2p5/8/B2P2K1/8 w - - 0 1", "Illegal ep move #1", 1015133, 6),
         ("3k4/3p4/8/K1P4r/8/8/8/8 b - - 0 1", "Illegal ep move #2", 1134888, 6),
@@ -303,9 +322,9 @@ mod tests {
 
     #[test]
     fn perft_kiwipete_5() {
-        let board: Board = Board::try_from(
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-        ).unwrap();
+        let board: Board =
+            Board::try_from("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+                .unwrap();
         let nodes = perft(&board, &Tables::default(), 5);
 
         assert_eq!(nodes, 193690690);
@@ -322,6 +341,5 @@ mod tests {
             let nodes = perft(&board, &tables, depth);
             assert_eq!(nodes, correct_count);
         }
-
     }
 }

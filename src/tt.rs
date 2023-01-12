@@ -1,29 +1,28 @@
 /// Implements a transposition table to lookup previously searched nodes
-/// 
+///
 /// The transposition table uses internal atomic entries with lockless access as seen on
 /// https://www.chessprogramming.org/Shared_Hash_Table
-
 use std::{
-    mem::{ transmute, size_of },
-    sync::atomic::{ AtomicU64, Ordering }
+    mem::{size_of, transmute},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::{
-    moves::*,
-    evaluation::*,
-    zobrist::*,
-};
+use crate::{evaluation::*, moves::*, zobrist::*};
 
 /// TTFlag: determines the type of value stored in the field
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
-pub enum TTFlag { Lower, Upper, Exact }
+pub enum TTFlag {
+    Lower,
+    Upper,
+    Exact,
+}
 
 /// TTField: uncompressed external representation of tt entries
-/// 
+///
 /// Can compress to 128b by using only 3b for the flag and 29 for the move.
 /// Mate scores are normalized within the tt for retrieval at different plies:
-/// 
+///
 /// Tree --> Mate scores are relative to root-distance
 /// TT   --> Mate scores are relative to node-distance
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
@@ -33,28 +32,27 @@ pub struct TTField {
     best_move: Move, // 4B -- only the rightmost 28 bits are actually of note
     value: u16,      // 2B
     depth: u8,       // 1B
-    age: u8          // 1B
+    age: u8,         // 1B
 }
 
 // Masks for the second u64
-const DEPTH_OFFSET: u64 =  8;
-const EVAL_OFFSET : u64 = 16;
-const MOVE_OFFSET : u64 = 32;
-const FLAG_OFFSET : u64 = 61;
-const AGE_MASK  : u64 = 0x00000000000000FF; // first byte
+const DEPTH_OFFSET: u64 = 8;
+const EVAL_OFFSET: u64 = 16;
+const MOVE_OFFSET: u64 = 32;
+const FLAG_OFFSET: u64 = 61;
+const AGE_MASK: u64 = 0x00000000000000FF; // first byte
 const DEPTH_MASK: u64 = 0x000000000000FF00; // second byte
-const EVAL_MASK : u64 = 0x00000000FFFF0000; // third/fourth byte
-const MOVE_MASK : u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
+const EVAL_MASK: u64 = 0x00000000FFFF0000; // third/fourth byte
+const MOVE_MASK: u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
 
 /// Convert from external field to compressed internal
 impl Into<(u64, u64)> for TTField {
     fn into(self) -> (u64, u64) {
-        let data: u64 = 
-            self.age as u64                          |
-            (self.depth as u64) << DEPTH_OFFSET      |
-            (self.value as u64) << EVAL_OFFSET       |
-            (self.best_move.0 as u64) << MOVE_OFFSET |
-            (self.flag as u64) << FLAG_OFFSET;
+        let data: u64 = self.age as u64
+            | (self.depth as u64) << DEPTH_OFFSET
+            | (self.value as u64) << EVAL_OFFSET
+            | (self.best_move.0 as u64) << MOVE_OFFSET
+            | (self.flag as u64) << FLAG_OFFSET;
 
         (self.key ^ data, data)
     }
@@ -63,7 +61,7 @@ impl Into<(u64, u64)> for TTField {
 /// Convert from compressed internal to external
 impl From<(u64, u64)> for TTField {
     fn from((key, data): (u64, u64)) -> Self {
-        let age: u8 = (data & AGE_MASK) as u8; 
+        let age: u8 = (data & AGE_MASK) as u8;
         let depth: u8 = ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8;
         let value: u16 = ((data & EVAL_MASK) >> EVAL_OFFSET) as u16;
         let best_move: Move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u32);
@@ -75,7 +73,7 @@ impl From<(u64, u64)> for TTField {
             best_move,
             value,
             depth,
-            age
+            age,
         }
     }
 }
@@ -161,7 +159,7 @@ impl TTField {
 
 /// Actual TTField, compressed down to 16B
 #[derive(Debug)]
-struct AtomicField (AtomicU64, AtomicU64);
+struct AtomicField(AtomicU64, AtomicU64);
 
 /// Default empty field
 impl Default for AtomicField {
@@ -221,13 +219,15 @@ impl TT {
         let bitmask: u64 = actual_size as u64 - 1;
 
         let mut table: Vec<AtomicField> = Vec::with_capacity(actual_size);
-        for _ in 0..actual_size { table.push(AtomicField::default()) }
+        for _ in 0..actual_size {
+            table.push(AtomicField::default())
+        }
 
         TT { table, bitmask }
     }
 
     /// Probe tt for entry
-    /// 
+    ///
     /// UB: since bitmask and tables cannot be externally modified, it is impossible for get
     ///     unchecked to fail.
     pub fn probe(&self, hash: ZHash) -> Option<TTField> {
@@ -236,16 +236,17 @@ impl TT {
     }
 
     /// Insert entry in appropriate tt field.
-    /// 
+    ///
     /// Uses highest depth + aging for replacement, but takes special care of different flag types
-    /// to maintain the pv within the transposition table: 
+    /// to maintain the pv within the transposition table:
     ///     - highest priority is given to entry age
     ///     - second highest is given to Exact entries: they only get replaced by better exact ones
     ///     - inexact entries get overwritten by exact entries or entries at the same depth. this
     ///       is because in the search_root function we may replace the same entry many times.
-    /// 
+    ///
     /// Conditions are explained here:
     /// https://stackoverflow.com/questions/37782131/chess-extracting-the-principal-variation-from-the-transposition-table
+    #[rustfmt::skip]
     pub fn insert(&self, new: TTField) {
         let tt_index: usize = (new.key & self.bitmask) as usize;
         let old_slot: &AtomicField = unsafe { self.table.get_unchecked(tt_index) };
@@ -267,7 +268,7 @@ mod tests {
     #[test]
     fn test_tt_init() {
         let tt: TT = TT::new(1); // 1 MiB table -> 2^20 / 2^4 = 2^16 slot
-        
+
         assert_eq!(16, size_of::<AtomicField>());
         assert_eq!(65536, tt.table.len());
     }
@@ -275,11 +276,11 @@ mod tests {
     #[test]
     fn test_tt_insert() {
         let tt: TT = TT::default();
-        
+
         let field1: TTField = TTField::new(
             ZHash(tt.bitmask), TTFlag::Exact, Move(25625038), -100, 1, 0, 0,
         );
-        
+
         let field2: TTField = TTField::new(
             ZHash(tt.bitmask), TTFlag::Exact, Move(25625038), -100, 2, 0, 0,
         );
@@ -312,7 +313,7 @@ mod tests {
         tt.insert(field1); // insert field 1
         tt.insert(field2); // insert field 2 in same slot as field 1, replacing it
         let new = tt.probe(h1); // check that probing h1 does not match
-        
+
         assert!(new.is_none());
     }
 }

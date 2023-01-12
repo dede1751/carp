@@ -1,22 +1,15 @@
 /// Implements all the structures defining a square on the board:
-/// 
+///
 /// Square: enum of the 64 squares with standard notation, from A8 to H1
 /// File  : A B C D E F G H
 /// Rank  : 8 7 6 5 4 3 2 1  (enum indexed backwards)
+use std::{fmt, mem::transmute};
 
-use std::{
-    mem::transmute,
-    fmt
-};
-
-use crate::{
-    bitboard::BitBoard,
-    from
-};
-
+use crate::{bitboard::BitBoard, from};
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
+#[rustfmt::skip]
 pub enum Square {
     A8, B8, C8, D8, E8, F8, G8, H8, 
     A7, B7, C7, D7, E7, F7, G7, H7, 
@@ -30,6 +23,8 @@ pub enum Square {
 use Square::*;
 
 pub const SQUARE_COUNT: usize = 64;
+
+#[rustfmt::skip]
 pub const ALL_SQUARES: [Square; SQUARE_COUNT] = [
     A8, B8, C8, D8, E8, F8, G8, H8, 
     A7, B7, C7, D7, E7, F7, G7, H7, 
@@ -41,6 +36,7 @@ pub const ALL_SQUARES: [Square; SQUARE_COUNT] = [
     A1, B1, C1, D1, E1, F1, G1, H1,
 ];
 
+#[rustfmt::skip]
 const SQUARE_STR: [&str; SQUARE_COUNT] = [
     "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8", 
     "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7", 
@@ -59,8 +55,8 @@ pub const BLACK_SQUARES: BitBoard = BitBoard(6172840429334713770);
 /// Print fen formatted square.
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s: String = String::from(SQUARE_STR[*self as usize]);  
-        write!(f,"{}", s)
+        let s: String = String::from(SQUARE_STR[*self as usize]);
+        write!(f, "{}", s)
     }
 }
 
@@ -72,12 +68,12 @@ impl TryFrom<&str> for Square {
         if value.len() != 2 {
             return Err("Invalid square!");
         };
-        
+
         let index = SQUARE_STR
             .iter()
-            .position(|&tgt| { tgt == value })
+            .position(|&tgt| tgt == value)
             .ok_or("Invalid square!")?;
-    
+
         Ok(Square::from(index))
     }
 }
@@ -96,9 +92,9 @@ impl Square {
     pub const fn from_coords(file: File, rank: Rank) -> Square {
         from!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file
     }
-    
+
     /// Flips square vertically
-    pub const fn flipv(self) -> Square{
+    pub const fn flipv(self) -> Square {
         from!(self as u8 ^ 56, 63)
     }
 
@@ -152,19 +148,19 @@ impl Square {
 /// Board file enum
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
+#[rustfmt::skip]
 pub enum File {
     A, B, C, D, E, F, G, H,
 }
 use File::*;
 
 pub const FILE_COUNT: usize = 8;
+
+#[rustfmt::skip]
 pub const ALL_FILES: [File; FILE_COUNT] = [
     A, B, C, D, E, F, G, H,
 ];
-
-const FILE_CHAR: [char; FILE_COUNT] = [
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'
-];
+const FILE_CHAR: [char; FILE_COUNT] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
 impl File {
     /// Gets file to the right, wraps H->A
@@ -187,19 +183,19 @@ impl File {
 /// Since boards are numbered A8 -> H1, ranks are backwards
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
+#[rustfmt::skip]
 pub enum Rank {
     Eight, Seventh, Sixth, Fifth, Fourth, Third, Second, First,
 }
 use Rank::*;
 
 pub const RANK_COUNT: usize = 8;
+
+#[rustfmt::skip]
 pub const ALL_RANKS: [Rank; RANK_COUNT] = [
     Eight, Seventh, Sixth, Fifth, Fourth, Third, Second, First,
 ];
-
-const RANK_CHAR: [char; RANK_COUNT] = [
-    '8', '7', '6', '5', '4', '3', '2', '1'
-];
+const RANK_CHAR: [char; RANK_COUNT] = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
 impl Rank {
     // Gets rank below, wraps First->Eight

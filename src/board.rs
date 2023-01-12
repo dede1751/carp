@@ -3,13 +3,7 @@
 use std::fmt;
 
 use crate::{
-    bitboard::*,
-    square::*,
-    piece::*, 
-    castle::*, 
-    moves::*,
-    move_order::MoveList,
-    tables::*,
+    bitboard::*, castle::*, move_order::MoveList, moves::*, piece::*, square::*, tables::*,
     zobrist::*,
 };
 
@@ -33,15 +27,16 @@ pub struct Board {
 /// Pretty print board state
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut board_str: String = String::from("\n Board:\n\n\t┏━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┓");
+        let mut board_str: String =
+            String::from("\n Board:\n\n\t┏━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┓");
 
         for rank in ALL_RANKS {
             board_str.push_str(format!("\n      {} ┃ ", 8 - rank as usize).as_str());
-            
+
             for file in ALL_FILES {
                 let square: Square = Square::from_coords(file, rank);
                 let mut empty: bool = true;
-                
+
                 for piece in ALL_PIECES {
                     let board: BitBoard = self.pieces[piece as usize];
                     if board.get_bit(square) {
@@ -51,13 +46,18 @@ impl fmt::Display for Board {
                         break;
                     }
                 }
-                if empty { board_str.push_str("  ┃"); }
+                if empty {
+                    board_str.push_str("  ┃");
+                }
                 board_str.push(' ');
             }
-            if rank != Rank::First { board_str.push_str("\n\t┣━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━┫"); }
+            if rank != Rank::First {
+                board_str.push_str("\n\t┣━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━╋━━━┫");
+            }
         }
-        board_str.push_str("\n\t┗━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┛\n\t  A   B   C   D   E   F   G   H\n");
-    
+        board_str
+            .push_str("\n\t┗━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┛\n\t  A   B   C   D   E   F   G   H\n");
+
         let en_passant_str = match self.en_passant {
             Some(square) => format!("{}", square),
             None => String::from("-"),
@@ -65,15 +65,13 @@ impl fmt::Display for Board {
 
         write!(
             f,
-"{board_str}
+            "{board_str}
  Side to move      : {}
  Castling Rights   : {}
  En Passant Square : {en_passant_str}
  Halfmoves         : {}
  ",
-            self.side,
-            self.castling_rights,
-            self.halfmoves,
+            self.side, self.castling_rights, self.halfmoves,
         )
     }
 }
@@ -87,11 +85,11 @@ impl TryFrom<&str> for Board {
         if fen.len() != FEN_LENGTH {
             return Err("Invalid fen!");
         }
-        
+
         let mut board: Board = Board::new();
         let board_str: &str = fen[0];
         let mut token_count = 0; // used for checking that number of tokens is correct
-        
+
         let (mut file, mut rank) = (File::A, Rank::Eight);
         for token in board_str.chars() {
             match token {
@@ -102,13 +100,13 @@ impl TryFrom<&str> for Board {
 
                     rank = rank.down();
                     token_count = 0;
-                },
+                }
                 '1'..='8' => {
-                    for _ in '1'..=token { 
+                    for _ in '1'..=token {
                         file = file.right();
                         token_count += 1;
                     }
-                },
+                }
                 _ => {
                     let piece = Piece::try_from(token)?;
                     board.set_piece(piece, Square::from_coords(file, rank));
@@ -119,7 +117,7 @@ impl TryFrom<&str> for Board {
             }
         }
 
-        if token_count != 8 { 
+        if token_count != 8 {
             return Err("Invalid fen!");
         }
 
@@ -129,7 +127,7 @@ impl TryFrom<&str> for Board {
                 board.hash.toggle_side();
             }
             "b" => board.side = Color::Black,
-             _  => return Err("Invalid fen!"),
+            _ => return Err("Invalid fen!"),
         }
 
         let rights = CastlingRights::try_from(fen[2])?;
@@ -138,12 +136,12 @@ impl TryFrom<&str> for Board {
 
         match fen[3] {
             "-" => board.en_passant = None,
-             _  => {
+            _ => {
                 let ep_square = Square::try_from(fen[3])?;
 
                 board.en_passant = Some(ep_square);
                 board.hash.toggle_ep(ep_square);
-             }
+            }
         }
 
         match fen[4].parse::<usize>() {
@@ -185,7 +183,6 @@ impl_piece_lookups! {
     queen, own_queens, opp_queens,
     king, own_king, opp_king
 }
-
 
 /// Implement side occupancy and diagonal/hv slider lookups
 impl Board {
@@ -240,30 +237,30 @@ impl Board {
         let (src, tgt): (Square, Square) = (m.get_src(), m.get_tgt());
         let piece: Piece = m.get_piece();
         let promotion: Piece = m.get_promotion();
-        
+
         new.halfmoves += 1; // increment halfmove clock
 
         // always remove piece from source square
         new.remove_piece(piece, src);
-        if piece == Piece::WP || piece == Piece::BP { new.halfmoves = 0 } // halfmove clock reset
+        if piece == Piece::WP || piece == Piece::BP {
+            new.halfmoves = 0
+        } // halfmove clock reset
 
         // handle captures, enpassant or castling moves
         if m.is_enpassant() {
             let ep_target = PUSH[!self.side as usize][tgt as usize];
 
             new.remove_piece(m.get_capture(), ep_target);
-
         } else if m.is_capture() {
             new.remove_piece(m.get_capture(), tgt);
-            new.halfmoves = 0;     // halfmove clock reset
-
+            new.halfmoves = 0; // halfmove clock reset
         } else if m.is_castle() {
             let rook = self.side.rook();
             let (rook_src, rook_tgt) = ROOK_CASTLING_MOVE[tgt as usize];
-            
+
             new.remove_piece(rook, rook_src);
             new.set_piece(rook, rook_tgt);
-        } 
+        }
 
         // if promoting, set promotion piece, else set same piece (also change occupancies)
         if m.is_promotion() {
@@ -271,7 +268,7 @@ impl Board {
         } else {
             new.set_piece(piece, tgt);
         }
-        
+
         // remove old en passant square
         if let Some(square) = new.en_passant {
             new.en_passant = None;
@@ -288,14 +285,14 @@ impl Board {
 
         // handle changing castling rights
         let new_rights = self.castling_rights.update(src, tgt);
-        
+
         new.castling_rights = new_rights;
         new.hash.swap_castle(self.castling_rights, new_rights);
 
         // handle swapping side
         new.side = !self.side;
         new.hash.toggle_side();
-    
+
         new
     }
 
@@ -318,7 +315,7 @@ impl Board {
 /// Implement board move generation
 impl Board {
     /// Checks whether the current side's king is in check
-    /// 
+    ///
     /// Works on the basic idea that, if a certain square is attacked, if we put the attacking piece
     /// on the attacked square it will attack its old square. Hence we generate attacks on the
     /// target square for each piece, and check whether they land on any of the pieces stored
@@ -330,7 +327,8 @@ impl Board {
         self.opp_knights() & tables.get_knight_attack(square)          != EMPTY_BB || // knights
         self.opp_queen_bishop() & tables.get_bishop_attack(square, self.occupancy) != EMPTY_BB || // bishops + queens
         self.opp_queen_rook()   & tables.get_rook_attack(square, self.occupancy)   != EMPTY_BB || // rooks + queens
-        self.opp_king() & tables.get_king_attack(square)               != EMPTY_BB    // kings
+        self.opp_king() & tables.get_king_attack(square)               != EMPTY_BB
+        // kings
     }
 
     /// Gets bitboard with all enemy pieces directly attacking the king (same logic as king_in_check)
@@ -341,43 +339,48 @@ impl Board {
         self.opp_knights() & tables.get_knight_attack(square)                      | // knights
         self.opp_queen_bishop() & tables.get_bishop_attack(square, self.occupancy) | // bishops + queens
         self.opp_queen_rook()   & tables.get_rook_attack(square, self.occupancy)   | // rooks + queens
-        self.opp_king() & tables.get_king_attack(square)                             // kings
+        self.opp_king() & tables.get_king_attack(square) // kings
     }
 
     /// Gets bitboard with all attacked squares by the opponent to see where the king can move
-    /// 
+    ///
     /// We pretend the king is not on the board so that sliders also attack behind the king, since
     /// otherwise that square would be considered not attacked
     fn map_king_threats(&self, tables: &Tables) -> BitBoard {
         let king_square = self.own_king().ls1b();
         let mut occupancies = self.occupancy;
         occupancies.pop_bit(king_square);
-        
-        self.opp_pawns().into_iter()
+
+        self.opp_pawns()
+            .into_iter()
             .map(|sq| tables.get_pawn_attack(sq, !self.side))
-            .fold(EMPTY_BB, |acc, x| acc | x)           |
-
-        self.opp_knights().into_iter()
-            .map(|sq| tables.get_knight_attack(sq))
-            .fold(EMPTY_BB, |acc, x| acc | x)           |
-
-        self.opp_queen_bishop().into_iter()
-            .map(|sq| tables.get_bishop_attack(sq, occupancies))
-            .fold(EMPTY_BB, |acc, x| acc | x)           |
-
-        self.opp_queen_rook().into_iter()
-            .map(|sq| tables.get_rook_attack(sq, occupancies))
-            .fold(EMPTY_BB, |acc, x| acc | x)           |
-
-        self.opp_king().into_iter()
-            .map(|sq| tables.get_king_attack(sq))
-            .fold(EMPTY_BB, |acc, x| acc | x) 
+            .fold(EMPTY_BB, |acc, x| acc | x)
+            | self
+                .opp_knights()
+                .into_iter()
+                .map(|sq| tables.get_knight_attack(sq))
+                .fold(EMPTY_BB, |acc, x| acc | x)
+            | self
+                .opp_queen_bishop()
+                .into_iter()
+                .map(|sq| tables.get_bishop_attack(sq, occupancies))
+                .fold(EMPTY_BB, |acc, x| acc | x)
+            | self
+                .opp_queen_rook()
+                .into_iter()
+                .map(|sq| tables.get_rook_attack(sq, occupancies))
+                .fold(EMPTY_BB, |acc, x| acc | x)
+            | self
+                .opp_king()
+                .into_iter()
+                .map(|sq| tables.get_king_attack(sq))
+                .fold(EMPTY_BB, |acc, x| acc | x)
     }
 
     /// Generates the diagonal and vertical pin masks
-    /// 
+    ///
     /// Returns: (pinned pieces bb, diagonal pin bb, vertical pin bb)
-    /// 
+    ///
     /// Pin masks are defined as the squares between a pinning enemy piece and one's own king.
     /// Any pinned piece can safely move along these squares (simply & moves with pinmask).
     /// For simplicity, pin masks also indirectly include the check mask (this has no actual
@@ -386,26 +389,32 @@ impl Board {
         let king_square = self.own_king().ls1b();
 
         // get all own pieces on diagonal/hv rays from the king
-        let possible_diag_pins = tables.get_bishop_attack(king_square, self.occupancy) & self.own_occupancy();
-        let possible_hv_pins = tables.get_rook_attack(king_square, self.occupancy) & self.own_occupancy();
+        let possible_diag_pins =
+            tables.get_bishop_attack(king_square, self.occupancy) & self.own_occupancy();
+        let possible_hv_pins =
+            tables.get_rook_attack(king_square, self.occupancy) & self.own_occupancy();
 
         // remove the possible pinned pieces
         let remove_diag_blockers = self.occupancy & !possible_diag_pins;
         let remove_hv_blockers = self.occupancy & !possible_hv_pins;
 
         // get all pinning pieces (pieces that see the king with pinned pieces removed)
-        let diag_attackers = tables.get_bishop_attack(king_square, remove_diag_blockers) & self.opp_queen_bishop();
-        let hv_attackers = tables.get_rook_attack(king_square, remove_hv_blockers) & self.opp_queen_rook();
-        
+        let diag_attackers =
+            tables.get_bishop_attack(king_square, remove_diag_blockers) & self.opp_queen_bishop();
+        let hv_attackers =
+            tables.get_rook_attack(king_square, remove_hv_blockers) & self.opp_queen_rook();
+
         // pin masks are between the attacker and the king square (attacker included)
-        let diag_pins = diag_attackers.into_iter()
+        let diag_pins = diag_attackers
+            .into_iter()
             .map(|sq| (BETWEEN[sq as usize][king_square as usize] | sq.to_board()))
             .fold(EMPTY_BB, |acc, x| acc | x);
-        
-        let hv_pins = hv_attackers.into_iter()
+
+        let hv_pins = hv_attackers
+            .into_iter()
             .map(|sq| (BETWEEN[sq as usize][king_square as usize] | sq.to_board()))
             .fold(EMPTY_BB, |acc, x| acc | x);
-        
+
         // pinned pieces are own pieces along any pin mask
         let pinned = (diag_pins | hv_pins) & self.own_occupancy();
 
@@ -415,8 +424,9 @@ impl Board {
     /// Looks for which piece was captured on tgt square
     /// Panics if no piece is set on the tgt square. Only call if it's sure to be a capture.
     fn get_captured_piece(&self, tgt: Square) -> Piece {
-        (PIECES[!self.side as usize]).into_iter()
-            .find(|&p| { self.pieces[p as usize].get_bit(tgt) })
+        (PIECES[!self.side as usize])
+            .into_iter()
+            .find(|&p| self.pieces[p as usize].get_bit(tgt))
             .unwrap() // possible panic
     }
 
@@ -434,7 +444,13 @@ impl Board {
     }
 
     /// Converts attack bitboard to target squares and adds all of them as captures to the movelist
-    fn add_captures(&self, piece: Piece, source: Square, attacks: BitBoard, move_list: &mut MoveList) {
+    fn add_captures(
+        &self,
+        piece: Piece,
+        source: Square,
+        attacks: BitBoard,
+        move_list: &mut MoveList,
+    ) {
         for target in attacks {
             let captured_piece = self.get_captured_piece(target);
 
@@ -448,7 +464,7 @@ impl Board {
         let attacks = tables
             .get_king_attack(king_square) & // king moves
             !self.own_occupancy()         & // don't capture own pieces
-            !threats;                       // avoid threats
+            !threats; // avoid threats
 
         self.add_moves(self.side.king(), king_square, attacks, move_list);
     }
@@ -459,7 +475,7 @@ impl Board {
         let attacks = tables
             .get_king_attack(king_square) & // king moves
             self.opp_occupancy()          & // only consider captures
-            !threats;                       // avoid threats
+            !threats; // avoid threats
 
         self.add_captures(self.side.king(), king_square, attacks, move_list);
     }
@@ -469,15 +485,15 @@ impl Board {
         let side: usize = self.side as usize;
         let source = CASTLE_SQUARES[side];
 
-        if  self.castling_rights.has_kingside(self.side)                            &&
-            (threats | self.occupancy) & KINGSIDE_OCCUPANCIES[side] == EMPTY_BB
+        if self.castling_rights.has_kingside(self.side)
+            && (threats | self.occupancy) & KINGSIDE_OCCUPANCIES[side] == EMPTY_BB
         {
             move_list.add_quiet(source, KINGSIDE_TARGETS[side], self.side.king(), 1);
         }
 
-        if  self.castling_rights.has_queenside(self.side)                           &&
-            self.occupancy & QUEENSIDE_OCCUPANCIES[side] == EMPTY_BB                &&
-            threats & QUEENSIDE_THREATS[side] == EMPTY_BB
+        if self.castling_rights.has_queenside(self.side)
+            && self.occupancy & QUEENSIDE_OCCUPANCIES[side] == EMPTY_BB
+            && threats & QUEENSIDE_THREATS[side] == EMPTY_BB
         {
             move_list.add_quiet(source, QUEENSIDE_TARGETS[side], self.side.king(), 1);
         }
@@ -489,16 +505,18 @@ impl Board {
         blocker_mask: BitBoard,
         diag_pins: BitBoard,
         hv_pins: BitBoard,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let side = self.side as usize;
         let pawn_bb = self.own_pawns() & !diag_pins; // diag pinned pawns cannot move
-        
+
         for source in pawn_bb {
             let target: Square = PUSH[side][source as usize];
 
             // horizontally pinned pawns cannot move
-            if  hv_pins.get_bit(source) && !hv_pins.get_bit(target) { continue; }
+            if hv_pins.get_bit(source) && !hv_pins.get_bit(target) {
+                continue;
+            }
 
             if !(self.occupancy.get_bit(target)) {
                 // normal pawn push
@@ -526,17 +544,19 @@ impl Board {
         diag_pins: BitBoard,
         hv_pins: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let pawn_bb = self.own_pawns() & !hv_pins; // hv pinned pawns cannot capture
         let check_mask = capture_mask | blocker_mask;
 
         for source in pawn_bb {
             let mut attacks: BitBoard = tables.get_pawn_attack(source, self.side);
-            
+
             // if pinned, only capture along diag pin ray (also goes for enpassant)
-            if diag_pins.get_bit(source) { attacks &= diag_pins }
-            
+            if diag_pins.get_bit(source) {
+                attacks &= diag_pins
+            }
+
             let captures: BitBoard = attacks & check_mask & self.opp_occupancy();
 
             // normal/enpassant capture
@@ -551,25 +571,25 @@ impl Board {
 
                 // Attack must land on ep square, and either capture the checking piece or
                 // block the check
-                if attacks & ep_square.to_board() != EMPTY_BB &&
-                    (capture_mask.get_bit(ep_target) || blocker_mask.get_bit(ep_square))                      
+                if attacks & ep_square.to_board() != EMPTY_BB
+                    && (capture_mask.get_bit(ep_target) || blocker_mask.get_bit(ep_square))
                 {
                     // En Passant discovered check!
                     let ep_rank = RANK_MASKS[ep_target as usize];
 
-                    if  ep_rank & self.own_king()       != EMPTY_BB &&
-                        ep_rank & self.opp_queen_rook() != EMPTY_BB
+                    if ep_rank & self.own_king() != EMPTY_BB
+                        && ep_rank & self.opp_queen_rook() != EMPTY_BB
                     {
                         // remove the two pawns
-                        let occupancy = self.occupancy &
-                            !source.to_board()                   &
-                            !ep_target.to_board();
-                        
+                        let occupancy = self.occupancy & !source.to_board() & !ep_target.to_board();
+
                         let king_square = self.own_king().ls1b();
                         let king_ray = tables.get_rook_attack(king_square, occupancy) & ep_rank;
 
                         // king sees enemy queen or rook directly
-                        if king_ray & self.opp_queen_rook() != EMPTY_BB { continue; }
+                        if king_ray & self.opp_queen_rook() != EMPTY_BB {
+                            continue;
+                        }
                     }
 
                     move_list.add_enpassant(source, ep_square, self.side);
@@ -584,14 +604,14 @@ impl Board {
         check_mask: BitBoard,
         pinned: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let knight_bb = self.own_knights() & !pinned; // pinned knights can never move
 
         for source in knight_bb {
             let attacks = tables.get_knight_attack(source) & // knight moves
                 check_mask                                           & // cut moves that don't cover check
-                !self.own_occupancy();                                 // cut moves capturing own pieces
+                !self.own_occupancy(); // cut moves capturing own pieces
 
             self.add_moves(self.side.knight(), source, attacks, move_list);
         }
@@ -603,14 +623,14 @@ impl Board {
         check_mask: BitBoard,
         pinned: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let knight_bb = self.own_knights() & !pinned; // pinned knights can never move
 
         for source in knight_bb {
             let attacks = tables.get_knight_attack(source) & // knight moves
                 check_mask                                           & // cut moves that don't cover check
-                self.opp_occupancy();                                  // only consider captures
+                self.opp_occupancy(); // only consider captures
 
             self.add_captures(self.side.knight(), source, attacks, move_list);
         }
@@ -623,7 +643,7 @@ impl Board {
         diag_pins: BitBoard,
         hv_pins: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let bishop_bb = self.own_bishops() & !hv_pins; // hv pinned bishops can't move
 
@@ -631,10 +651,12 @@ impl Board {
             let mut attacks = tables
                 .get_bishop_attack(source, self.occupancy)  & // bishop moves
                 check_mask                                  & // cut moves that don't cover check
-                !self.own_occupancy();                        // cut moves capturing own pieces
-            
+                !self.own_occupancy(); // cut moves capturing own pieces
+
             // if pinned, only move along the diagonal pin ray
-            if diag_pins.get_bit(source) { attacks &= diag_pins }
+            if diag_pins.get_bit(source) {
+                attacks &= diag_pins
+            }
 
             self.add_moves(self.side.bishop(), source, attacks, move_list);
         }
@@ -647,7 +669,7 @@ impl Board {
         diag_pins: BitBoard,
         hv_pins: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let bishop_bb = self.own_bishops() & !hv_pins; // hv pinned bishops can't move
 
@@ -655,10 +677,12 @@ impl Board {
             let mut attacks = tables
                 .get_bishop_attack(source, self.occupancy)  & // bishop moves
                 check_mask                                  & // cut moves that don't cover check
-                self.opp_occupancy();                         // only consider captures
-            
+                self.opp_occupancy(); // only consider captures
+
             // if pinned, only move along the diagonal pin ray
-            if diag_pins.get_bit(source) { attacks &= diag_pins }
+            if diag_pins.get_bit(source) {
+                attacks &= diag_pins
+            }
 
             self.add_captures(self.side.bishop(), source, attacks, move_list);
         }
@@ -671,7 +695,7 @@ impl Board {
         diag_pins: BitBoard,
         hv_pins: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let rook_bb = self.own_rooks() & !diag_pins; // diag pinned rooks can't move
 
@@ -679,10 +703,12 @@ impl Board {
             let mut attacks = tables
                 .get_rook_attack(source, self.occupancy) & // rook moves
                 check_mask                               & // cut moves that don't cover check
-                !self.own_occupancy();                     // cut moves capturing own pieces
-        
+                !self.own_occupancy(); // cut moves capturing own pieces
+
             // if pinned, only move along hv pin ray
-            if hv_pins.get_bit(source) { attacks &= hv_pins }
+            if hv_pins.get_bit(source) {
+                attacks &= hv_pins
+            }
 
             self.add_moves(self.side.rook(), source, attacks, move_list);
         }
@@ -695,7 +721,7 @@ impl Board {
         diag_pins: BitBoard,
         hv_pins: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let rook_bb = self.own_rooks() & !diag_pins; // diag pinned rooks can't move
 
@@ -703,10 +729,12 @@ impl Board {
             let mut attacks = tables
                 .get_rook_attack(source, self.occupancy) & // rook moves
                 check_mask                               & // cut moves that don't cover check
-                self.opp_occupancy();                      // only consider captures
-        
+                self.opp_occupancy(); // only consider captures
+
             // if pinned, only move along hv pin ray
-            if hv_pins.get_bit(source) { attacks &= hv_pins }
+            if hv_pins.get_bit(source) {
+                attacks &= hv_pins
+            }
 
             self.add_captures(self.side.rook(), source, attacks, move_list);
         }
@@ -719,7 +747,7 @@ impl Board {
         diag_pins: BitBoard,
         hv_pins: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let queen_bb = self.own_queens();
 
@@ -729,7 +757,7 @@ impl Board {
                 tables.get_bishop_attack(source, self.occupancy) & diag_pins
             } else if hv_pins.get_bit(source) {
                 // hv pin, only move like a rook
-                tables.get_rook_attack(source, self.occupancy)   & hv_pins
+                tables.get_rook_attack(source, self.occupancy) & hv_pins
             } else {
                 // unpinned, move normally
                 tables.get_queen_attack(source, self.occupancy)
@@ -747,7 +775,7 @@ impl Board {
         diag_pins: BitBoard,
         hv_pins: BitBoard,
         tables: &Tables,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         let queen_bb = self.own_queens();
 
@@ -757,7 +785,7 @@ impl Board {
                 tables.get_bishop_attack(source, self.occupancy) & diag_pins
             } else if hv_pins.get_bit(source) {
                 // hv pin, only move like a rook
-                tables.get_rook_attack(source, self.occupancy)   & hv_pins
+                tables.get_rook_attack(source, self.occupancy) & hv_pins
             } else {
                 // unpinned, move normally
                 tables.get_queen_attack(source, self.occupancy)
@@ -788,13 +816,15 @@ impl Board {
         self.generate_king_moves(threats, tables, &mut move_list);
 
         // with double checks, only king moves are legal
-        if attacker_count > 1 { return move_list; }
+        if attacker_count > 1 {
+            return move_list;
+        }
 
         // generate castling moves when not in check
         if self.castling_rights != NO_RIGHTS && attacker_count == 0 {
             self.generate_castling_moves(threats, &mut move_list);
         }
-        
+
         // generate all the legal moves for pinned pieces
         let (pinned, diag, hv) = self.map_pins(tables);
 
@@ -831,8 +861,10 @@ impl Board {
         self.generate_king_captures(threats, tables, &mut move_list);
 
         // with double checks, only king moves are legal
-        if attacker_count > 1 { return move_list; }
-        
+        if attacker_count > 1 {
+            return move_list;
+        }
+
         // generate all the legal moves for pinned pieces
         let (pinned, diag, hv) = self.map_pins(tables);
 
@@ -859,14 +891,22 @@ impl Board {
     pub fn insufficient_material(&self) -> bool {
         match self.occupancy.count_bits() {
             2 => true,
-            3 => { // bishop or knight left
-                (self.pieces[Piece::WN as usize] | self.pieces[Piece::BN as usize]).count_bits() == 1 ||
-                (self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize]).count_bits() == 1
+            3 => {
+                // bishop or knight left
+                (self.pieces[Piece::WN as usize] | self.pieces[Piece::BN as usize]).count_bits()
+                    == 1
+                    || (self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize])
+                        .count_bits()
+                        == 1
             }
-            4 => { // opposite color bishops
-                ( self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize]).count_bits() == 2 &&
-                ((self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize]) & WHITE_SQUARES)
-                    .count_bits() == 1
+            4 => {
+                // opposite color bishops
+                (self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize]).count_bits()
+                    == 2
+                    && ((self.pieces[Piece::WB as usize] | self.pieces[Piece::BB as usize])
+                        & WHITE_SQUARES)
+                        .count_bits()
+                        == 1
             }
             _ => false,
         }
@@ -874,17 +914,16 @@ impl Board {
 
     /// Only king and pawns are on the board. Used to rule out null move pruning
     pub fn only_king_pawns_left(&self) -> bool {
-        self.pieces[Piece::WN as usize] == EMPTY_BB &&
-        self.pieces[Piece::BN as usize] == EMPTY_BB &&
-        self.pieces[Piece::WB as usize] == EMPTY_BB &&
-        self.pieces[Piece::BB as usize] == EMPTY_BB &&
-        self.pieces[Piece::WR as usize] == EMPTY_BB &&
-        self.pieces[Piece::BR as usize] == EMPTY_BB &&
-        self.pieces[Piece::WQ as usize] == EMPTY_BB &&
-        self.pieces[Piece::BQ as usize] == EMPTY_BB
+        self.pieces[Piece::WN as usize] == EMPTY_BB
+            && self.pieces[Piece::BN as usize] == EMPTY_BB
+            && self.pieces[Piece::WB as usize] == EMPTY_BB
+            && self.pieces[Piece::BB as usize] == EMPTY_BB
+            && self.pieces[Piece::WR as usize] == EMPTY_BB
+            && self.pieces[Piece::BR as usize] == EMPTY_BB
+            && self.pieces[Piece::WQ as usize] == EMPTY_BB
+            && self.pieces[Piece::BQ as usize] == EMPTY_BB
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -892,14 +931,14 @@ mod tests {
 
     #[test]
     fn test_invalid_fen() {
-        let invalid_pieces = Board::try_from(
-            "rnbqkbnr/pp2ppppp/7/2p5/4P3/5N2/PPPP1P/RNBQKB1R b - - 1 2");
-        let invalid_side = Board::try_from(
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1");
-        let invalid_castle = Board::try_from(
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kqKQ - 0 1");
-        let invalid_ep_square = Board::try_from(
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ a9 0 1");
+        let invalid_pieces =
+            Board::try_from("rnbqkbnr/pp2ppppp/7/2p5/4P3/5N2/PPPP1P/RNBQKB1R b - - 1 2");
+        let invalid_side =
+            Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1");
+        let invalid_castle =
+            Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kqKQ - 0 1");
+        let invalid_ep_square =
+            Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ a9 0 1");
 
         assert!(invalid_pieces.is_err());
         assert!(invalid_side.is_err());
@@ -910,9 +949,7 @@ mod tests {
     #[test]
     fn test_pin_mask() {
         let tables: Tables = Tables::default();
-        let board: Board = Board::try_from(
-            "R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1"
-        ).unwrap();
+        let board: Board = Board::try_from("R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1").unwrap();
         println!("{}", board);
 
         let (pinned, diag, hv) = board.map_pins(&tables);

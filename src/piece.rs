@@ -1,15 +1,17 @@
-/// Structures to represent a piece along with its color 
-
-use std::ops::Not;
-use std::mem::transmute;
+/// Structures to represent a piece along with its color
 use std::fmt;
+use std::mem::transmute;
+use std::ops::Not;
 
 use crate::from;
 
 /// Piece/Player color enum
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
-pub enum Color { White, Black }
+pub enum Color {
+    White,
+    Black,
+}
 use Color::*;
 
 impl Not for Color {
@@ -47,10 +49,14 @@ impl_conversions! {
 /// Pretty print color to string
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            White => "White",
-            Black => "Black",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                White => "White",
+                Black => "Black",
+            }
+        )
     }
 }
 
@@ -58,32 +64,42 @@ impl fmt::Display for Color {
 /// Pieces alternate between Black and White so that the least significant bit is the color
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
-pub enum Piece { WP, BP, WN, BN, WB, BB, WR, BR, WQ, BQ, WK, BK }
+#[rustfmt::skip]
+pub enum Piece {
+    WP, BP, WN, BN, WB, BB, WR, BR, WQ, BQ, WK, BK
+}
 use Piece::*;
 
 pub const PIECE_COUNT: usize = 12;
+
+#[rustfmt::skip]
 pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
     WP, BP, WN, BN, WB, BB,
     WR, BR, WQ, BQ, WK, BK,
 ];
 
 /// All pieces indexed by color
+#[rustfmt::skip]
 pub const PIECES: [[Piece; 6]; 2] = [
     [ WP, WN, WB, WR, WQ, WK ],
     [ BP, BN, BB, BR, BQ, BK ]
 ];
 
 /// All possible promotions, ordered by "usefulness"
+#[rustfmt::skip]
 pub const PROMOTIONS: [[Piece; 4]; 2] = [
     [ WQ, WN, WR, WB ],
     [ BQ, BN, BR, BB ]
 ];
 
 // used for printing/reading pieces
+#[rustfmt::skip]
 const PIECE_CHAR: [char; PIECE_COUNT] = [
     'P', 'p', 'N', 'n', 'B', 'b',
     'R', 'r', 'Q', 'q', 'K', 'k',
 ];
+
+#[rustfmt::skip]
 const PIECE_UNICODE: [char; PIECE_COUNT] = [
     '♟', '♙', '♞', '♘', '♝', '♗',
     '♜', '♖', '♛', '♕', '♚', '♔',
@@ -104,14 +120,14 @@ impl TryFrom<char> for Piece {
         Ok(Self::from(
             PIECE_CHAR
                 .iter()
-                .position(|&x| x == value )
-                .ok_or("Invalid piece!")?
+                .position(|&x| x == value)
+                .ok_or("Invalid piece!")?,
         ))
     }
 }
 
 /// Create piece from usize index
-/// 
+///
 /// UB:
 /// If 12 <= index mod 16 <=15 this will try to transmute to a non-existent piece
 /// Simply use indices that make sense
