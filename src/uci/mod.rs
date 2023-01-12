@@ -45,8 +45,7 @@ impl UCIController {
 
     /// Start UCI I/O loop
     pub fn run(&self) {
-        println!("{}", ENGINE_ID);
-        println!("{}", ENGINE_OPTIONS);
+        println!("Carp 1.1 by Andrea Sgobbi");
 
         let stream = io::stdin().lock();
 
