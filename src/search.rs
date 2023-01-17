@@ -449,10 +449,12 @@ impl<'a> Search<'a> {
     /// Check for repetitions in hash history.
     /// We stop at the first occurrence of the position and consider that a draw.
     fn is_repetition(&self, board: &Board) -> bool {
+        let rollback = min(board.halfmoves, board.plies_from_null);
+
         self.history
             .iter()
             .rev() // step through history in reverse
-            .take(board.halfmoves + 1) // only check the last "halfmove" elements
+            .take(rollback + 1) // only check elements in the rollback
             .skip(2) // first element is board itself, second is opponent. skip
             .step_by(2) // don't check opponent moves
             .any(|&x| x == board.hash) // stop at first occurrence
@@ -496,7 +498,7 @@ impl<'a> Search<'a> {
             print!("cp {} ", eval);
         }
 
-        print!("depth {} nodes {} pv ", depth, self.nodes / 1000);
+        print!("depth {} nodes {} pv ", depth, self.nodes);
 
         let pv = self.recover_pv(board, depth);
         for m in &pv {

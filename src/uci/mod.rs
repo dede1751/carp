@@ -15,7 +15,7 @@ use std::{
 use crate::{board::Board, clock::TimeControl};
 
 const ENGINE_ID: &str = "
-id name Carp 1.1.0
+id name Carp 1.1
 id author Andrea Sgobbi";
 
 const ENGINE_OPTIONS: &str = "

@@ -21,6 +21,7 @@ pub struct Board {
     pub castling_rights: CastlingRights,
     pub en_passant: Option<Square>,
     pub halfmoves: usize,
+    pub plies_from_null: usize,
     pub hash: ZHash,
 }
 
@@ -211,6 +212,7 @@ impl Board {
             castling_rights: NO_RIGHTS,
             en_passant: None,
             halfmoves: 0,
+            plies_from_null: 0,
             hash: NULL_HASH,
         }
     }
@@ -238,7 +240,9 @@ impl Board {
         let piece: Piece = m.get_piece();
         let promotion: Piece = m.get_promotion();
 
-        new.halfmoves += 1; // increment halfmove clock
+        // increment the two ply clocks
+        new.halfmoves += 1;
+        new.plies_from_null += 1;
 
         // always remove piece from source square
         new.remove_piece(piece, src);
@@ -299,6 +303,9 @@ impl Board {
     /// Pass turn to opponent, used for Null Move Pruning in the search
     pub fn make_null_move(&self) -> Board {
         let mut b = self.clone();
+
+        // reset ply clock
+        b.plies_from_null = 0;
 
         b.side = !self.side;
         b.hash.toggle_side();

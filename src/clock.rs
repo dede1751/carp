@@ -107,8 +107,8 @@ impl Clock {
                     }
                 };
 
-                // divide current time by movestogo, if not provided default to 40.
-                Duration::from_millis(time / movestogo.unwrap_or(40) + increment)
+                // divide current time by movestogo, if not provided default to 35.
+                Duration::from_millis(time / movestogo.unwrap_or(35) + increment)
             }
             _ => Duration::ZERO,
         };
