@@ -1,6 +1,5 @@
 /// Structures to represent a piece along with its color
 use std::fmt;
-use std::mem::transmute;
 use std::ops::Not;
 
 use crate::from;
@@ -18,7 +17,6 @@ impl Not for Color {
     type Output = Color;
 
     // get opposite color
-    #[inline]
     fn not(self) -> Color {
         from!(self as u8 ^ 1, 1)
     }
@@ -29,7 +27,6 @@ macro_rules! impl_conversions {
     ($($piece:ident, $val:literal),*) => {
         $(
             impl Color {
-                #[inline]
                 pub const fn $piece(self) -> Piece {
                     from!($val + self as u8, 15)
                 }
@@ -37,6 +34,7 @@ macro_rules! impl_conversions {
         )*
     };
 }
+
 impl_conversions! {
     pawn,   0x00u8,
     knight, 0x02u8,
@@ -71,6 +69,20 @@ pub enum Piece {
 use Piece::*;
 
 pub const PIECE_COUNT: usize = 12;
+
+/// Piece index constants
+pub const WPAWN: usize = 0;
+pub const BPAWN: usize = 1;
+pub const WKNIGHT: usize = 2;
+pub const BKNIGHT: usize = 3;
+pub const WBISHOP: usize = 4;
+pub const BBISHOP: usize = 5;
+pub const WROOK: usize = 6;
+pub const BROOK: usize = 7;
+pub const WQUEEN: usize = 8;
+pub const BQUEEN: usize = 9;
+pub const WKING: usize = 10;
+pub const BKING: usize = 11;
 
 #[rustfmt::skip]
 pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
@@ -133,7 +145,7 @@ impl TryFrom<char> for Piece {
 /// Simply use indices that make sense
 impl From<usize> for Piece {
     fn from(index: usize) -> Self {
-        unsafe { transmute((index as u8) & 15) }
+        from!(index as u8, 15)
     }
 }
 

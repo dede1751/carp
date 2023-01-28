@@ -3,7 +3,7 @@
 /// Square: enum of the 64 squares with standard notation, from A8 to H1
 /// File  : A B C D E F G H
 /// Rank  : 8 7 6 5 4 3 2 1  (enum indexed backwards)
-use std::{fmt, mem::transmute};
+use std::fmt;
 
 use crate::{bitboard::BitBoard, from};
 
@@ -81,9 +81,8 @@ impl TryFrom<&str> for Square {
 /// Makes a Square from first 6 bits of index.
 /// Cannot incur in UB since squares are exactly 64
 impl From<usize> for Square {
-    #[inline]
     fn from(index: usize) -> Self {
-        unsafe { transmute((index as u8) & 63) }
+        from!(index as u8, 63)
     }
 }
 

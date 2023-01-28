@@ -11,7 +11,7 @@ use std::{
 #[derive(Clone, Debug)]
 pub enum TimeControl {
     Infinite,
-    FixedDepth(u8),
+    FixedDepth(usize),
     FixedNodes(u64),
     FixedTime(u64),
     Variable {
@@ -123,7 +123,7 @@ impl Clock {
     }
 
     /// Checks whether to deepen the search (true -> continue deepening)
-    pub fn start_check(&mut self, depth: u8) -> bool {
+    pub fn start_check(&mut self, depth: usize) -> bool {
         if self.stop.load(Ordering::SeqCst) {
             return false;
         }

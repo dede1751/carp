@@ -4,7 +4,7 @@
 Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.
 The main goal of this project is to learn the basics of both Rust and Chess Programming.
 
-[Play against Carp on Lichess!](https://lichess.org/@/Carp_Bot)
+[Play against Carp on Lichess! (looking to get a raspi for stable hosting)](https://lichess.org/@/Carp_Bot)
 
 Main sources for this project are [CMK's Chess engine in C series](https://www.youtube.com/watch?v=QUNP-UjujBM&list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs), 
 [Jordanbray's move generator](https://github.com/jordanbray/chess), [Malu's Asymptote engine](https://github.com/malu/asymptote)
@@ -18,7 +18,7 @@ Standard perft is available as a UCI command, alongside benchmarking using the E
 set.
 
 Move generation is fully legal, inspired by [this article](https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator)
-and perft(7) on startpos will achieve ~115 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
+and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
 As it stands, on my local (rather weak) machine, Carp will usually search to depths 11-13 in fast
 time controls during the middle game.
@@ -34,7 +34,7 @@ human player should be able to hold out and enjoy a good game.
 * Plain magic bitboards for move precalculation
 * Fully legal move generation
 * Tapered Evaluation from PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
-* MVV-LVA + Killer/History move ordering
+* MVV-LVA + Static Exchange Evaluation + Killer/History move ordering
 * Fail-Hard Negamax + Quiescence
 * Multithreading with Lazy-SMP
 * Iterative Deepening with Aspiration Windows
@@ -48,5 +48,5 @@ human player should be able to hold out and enjoy a good game.
 Of course it is still lacking many optimizations, most notably:
 
 * Opening book/Endgame tablebase (although UCI let's you do this in the gui)
-* Various other heuristics (razoring, see, search extensions...)
+* Various other heuristics (razoring, search extensions...)
 * Further improvement to evaluation

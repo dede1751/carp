@@ -1,4 +1,3 @@
-//#![allow(dead_code)]
 /// Carp chess engine by Andrea Sgobbi
 ///
 /// This is a didactic chess engine for both approaching chess programming and learning to code
@@ -10,7 +9,8 @@ pub mod square;
 
 pub mod board;
 pub mod castle;
-pub mod move_order;
+pub mod move_list;
+pub mod position;
 pub mod zobrist;
 
 pub mod clock;
@@ -35,10 +35,11 @@ use crate::uci::UCIController;
 #[macro_export]
 macro_rules! from {
     ($x:expr, $mask:expr) => {
-        unsafe { transmute($x & $mask) }
+        unsafe { std::mem::transmute($x & $mask) }
     };
 }
 
 fn main() {
+    tables::init_all_tables();
     UCIController::new().run();
 }

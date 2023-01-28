@@ -1,4 +1,4 @@
-/// Implements Bitboards along with all relevant bitwise operations
+use crate::from;
 use crate::square::*;
 use std::fmt;
 
@@ -13,7 +13,7 @@ pub type BB64 = [BitBoard; SQUARE_COUNT];
 pub const EMPTY_BB: BitBoard = BitBoard(0);
 pub const EMPTY_BB64: BB64 = [EMPTY_BB; SQUARE_COUNT];
 
-// idea for ops implementation is from https://github.com/analog-hors/tantabus
+/// Idea for ops implementation is from https://github.com/analog-hors/tantabus
 /// Implement math standard operations
 macro_rules! impl_math_ops {
     ($($trait:ident::$fn:ident),*) => {
@@ -100,43 +100,42 @@ impl Iterator for BitBoard {
         if *self == EMPTY_BB {
             None
         } else {
-            let index = self.ls1b(); // get lsb square
+            let sq = self.lsb();
             self.0 &= self.0 - 1; // pops lsb
-            Some(index)
+
+            Some(sq)
         }
     }
 }
 
 impl BitBoard {
-    pub fn new(bb: u64) -> BitBoard {
+    pub const fn new(bb: u64) -> BitBoard {
         BitBoard { 0: bb }
     }
 
     /// Check whether given square is set on the board
-    pub fn get_bit(self, square: Square) -> bool {
+    pub const fn get_bit(self, square: Square) -> bool {
         self.0 & (1u64 << square as usize) != 0
     }
 
     /// Sets given square on the board
-    pub fn set_bit(&mut self, square: Square) {
-        self.0 |= 1u64 << square as usize;
+    pub const fn set_bit(self, square: Square) -> BitBoard {
+        BitBoard(self.0 | 1u64 << square as usize)
     }
 
     /// Pops given square off the board
-    pub fn pop_bit(&mut self, square: Square) {
-        if self.get_bit(square) {
-            self.0 ^= 1u64 << square as usize;
-        }
+    pub const fn pop_bit(self, square: Square) -> BitBoard {
+        BitBoard(self.0 & !(1u64 << square as usize))
     }
 
     /// Returns popcnt
-    /// Using RUSTFLAGS='target-cpu=native' we enforce llvm to use the popcntl simd instruction
-    pub fn count_bits(self) -> u32 {
+    /// Using RUSTFLAGS='target-cpu=native' we enforce the popcnt feature
+    pub const fn count_bits(self) -> u32 {
         self.0.count_ones()
     }
 
-    /// Pops first set square from board (least significant 1 bit)
-    pub fn ls1b(self) -> Square {
-        Square::from(self.0.trailing_zeros() as usize)
+    /// Returns first set square from board (least significant 1 bit)
+    pub const fn lsb(self) -> Square {
+        from!(self.0.trailing_zeros() as u8, 63)
     }
 }

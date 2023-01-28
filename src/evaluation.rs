@@ -89,7 +89,8 @@ pub fn is_mated(eval: Eval) -> bool {
     eval <= -LONGEST_MATE && eval > -MATE
 }
 
-pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
+/// Handcrafted simple eval based on psts
+pub fn evaluate(board: &Board) -> Eval {
     let mut mg: [i32; 2] = [0; 2];
     let mut eg: [i32; 2] = [0; 2];
     let mut game_phase: i32 = 0;
@@ -153,9 +154,7 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
 
                 for square in bb {
                     let sq = square as usize;
-                    let attack_count = tables
-                        .get_bishop_attack(square, board.occupancy)
-                        .count_bits() as i32;
+                    let attack_count = bishop_attacks(square, board.occupancy).count_bits() as i32;
 
                     // mobility score
                     mg[c] += (attack_count - BISHOP_MOBILITY_UNIT) * MG_BISHOP_MOBILITY;
@@ -200,9 +199,7 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
             Piece::WQ | Piece::BQ => {
                 for square in board.pieces[p] {
                     let sq = square as usize;
-                    let attack_count = tables
-                        .get_queen_attack(square, board.occupancy)
-                        .count_bits() as i32;
+                    let attack_count = queen_attacks(square, board.occupancy).count_bits() as i32;
 
                     // mobility score
                     mg[c] += (attack_count - QUEEN_MOBILITY_UNIT) * MG_QUEEN_MOBILITY;
@@ -238,8 +235,8 @@ pub fn evaluate(board: &Board, tables: &Tables) -> Eval {
                     }
 
                     // king shield score (only over pawns)
-                    let shield_count = (tables.get_king_attack(square) & board.pieces[own_pawn])
-                        .count_bits() as i32;
+                    let shield_count =
+                        (king_attacks(square) & board.pieces[own_pawn]).count_bits() as i32;
 
                     mg[c] += shield_count * KING_SHIELD_BONUS;
                     eg[c] += shield_count * KING_SHIELD_BONUS;
@@ -270,10 +267,10 @@ mod tests {
 
     #[test]
     fn test_clamp() {
-        let t = Tables::default();
+        init_all_tables();
         let b: Board =
             Board::try_from("QQQQQQQQ/RNBKQBNR/QQQQQQQQ/QQQQQQQQ/8/8/8/8 b - - 0 -").unwrap();
-        let eval = evaluate(&b, &t);
+        let eval = evaluate(&b);
 
         // eval does not become a mate score
         assert!(eval > -LONGEST_MATE);

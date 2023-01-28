@@ -1,11 +1,10 @@
 /// Implements move encoding and MoveList struct
-use std::{collections::HashSet, fmt};
+use std::fmt;
 
 use crate::{
-    board::Board,
+    from,
     piece::*,
     square::{Square::*, *},
-    tables::Tables,
 };
 
 /// Indexed by color and file. Target squares for pawn single pushes
@@ -120,28 +119,28 @@ impl Move {
     }
 
     /// Returns the move source square
-    pub fn get_src(&self) -> Square {
-        Square::from((self.0 & SRC) as usize)
+    pub const fn get_src(&self) -> Square {
+        from!((self.0 & SRC) as u8, 63)
     }
 
     /// Returns the move target square
-    pub fn get_tgt(&self) -> Square {
-        Square::from(((self.0 & TGT) >> 6) as usize)
+    pub const fn get_tgt(&self) -> Square {
+        from!(((self.0 & TGT) >> 6) as u8, 63)
     }
 
     /// Returns the moving piece
-    pub fn get_piece(&self) -> Piece {
-        Piece::from(((self.0 & PIECE) >> 12) as usize)
+    pub const fn get_piece(&self) -> Piece {
+        from!(((self.0 & PIECE) >> 12) as u8, 63)
     }
 
     /// Returns the piece the pawn is promoting to
-    pub fn get_capture(&self) -> Piece {
-        Piece::from(((self.0 & CAPTURE) >> 16) as usize)
+    pub const fn get_capture(&self) -> Piece {
+        from!(((self.0 & CAPTURE) >> 16) as u8, 63)
     }
 
     /// Returns the piece the pawn is promoting to
-    pub fn get_promotion(&self) -> Piece {
-        Piece::from(((self.0 & PROMOTE) >> 20) as usize)
+    pub const fn get_promotion(&self) -> Piece {
+        from!(((self.0 & PROMOTE) >> 20) as u8, 63)
     }
 
     /// Returns true if the move is a promotion
@@ -168,80 +167,6 @@ impl Move {
     pub const fn is_castle(&self) -> bool {
         self.0 & CASTLE != 0
     }
-
-    /// Writes move in standard algebraic notation
-    pub fn to_algebraic(&self, board: &Board, tables: &Tables) -> String {
-        if self.is_castle() {
-            let file = self.get_tgt().file();
-
-            if file == File::G {
-                return String::from("O-O");
-            } else {
-                return String::from("O-O-O");
-            }
-        }
-
-        let mut move_str = String::new();
-        let src = self.get_src();
-        let tgt = self.get_tgt();
-        let p = self.get_piece();
-        let is_pawn = p == Piece::WP || p == Piece::BP;
-
-        // disambiguate non-pawn pieces
-        if !is_pawn {
-            move_str.push(p.to_char().to_ascii_uppercase());
-
-            // get all ambiguous (file, rank) source squares
-            let (files, ranks): (HashSet<File>, HashSet<Rank>) = board
-                .generate_moves(tables)
-                .into_iter()
-                .filter(|m| {
-                    m.get_src() != src  && // different source square
-                    m.get_tgt() == tgt  && // same target square
-                    m.get_piece() == p
-                }) // same piece
-                .map(|m| m.get_src().coords())
-                .unzip();
-
-            // if a move is unambiguous, files and ranks will be empty
-            if files.len() != 0 && ranks.len() != 0 {
-                if !files.contains(&src.file()) {
-                    move_str.push(src.file().to_char())
-                } else if !ranks.contains(&src.rank()) {
-                    move_str.push(src.rank().to_char())
-                } else {
-                    move_str.push_str(&src.to_string());
-                }
-            }
-        }
-
-        if self.is_capture() {
-            if is_pawn {
-                move_str.push(src.file().to_char())
-            } // pawn captures always specify file
-            move_str.push('x')
-        }
-        move_str.push_str(&tgt.to_string()); // destination
-
-        // add promotion
-        if self.is_promotion() {
-            move_str.push(self.get_promotion().to_char())
-        }
-
-        // check/checkmate
-        let new = board.make_move(*self);
-        if new.king_in_check(tables) {
-            if new.generate_moves(tables).len() == 0 {
-                move_str.push('#');
-            }
-            // checkmate
-            else {
-                move_str.push('+');
-            } // check
-        }
-
-        move_str
-    }
 }
 
 #[cfg(test)]
@@ -249,9 +174,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_move_constructor(){
-        let m1: Move = Move::encode(Square::E2, Square::E4, Piece::WP, Piece::WP, Piece::WP, 0, 1, 0, 0);
-        let m2: Move = Move::encode(Square::H7, Square::G8, Piece::WP, Piece::BR, Piece::WQ, 1, 0, 0, 0);
+    fn test_move_constructor() {
+        let m1 = Move::encode(
+            Square::E2,
+            Square::E4,
+            Piece::WP,
+            Piece::WP,
+            Piece::WP,
+            0,
+            1,
+            0,
+            0,
+        );
+        let m2 = Move::encode(
+            Square::H7,
+            Square::G8,
+            Piece::WP,
+            Piece::BR,
+            Piece::WQ,
+            1,
+            0,
+            0,
+            0,
+        );
 
         assert!(m1.is_double_push());
         assert_eq!(m1.get_src(), Square::E2);

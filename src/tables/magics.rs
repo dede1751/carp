@@ -1,8 +1,7 @@
 /// Magic numbers and helper functions
-///
 /// Process for finding them is documented in https://www.chessprogramming.org/Looking_for_Magics
-use crate::bitboard::*;
-use crate::square::*;
+use super::attacks::*;
+use crate::{bitboard::*, square::*};
 
 /// Relevant occupancy bits for each square for bishops and rooks
 #[rustfmt::skip]
@@ -29,30 +28,30 @@ pub const ROOK_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     12, 11, 11, 11, 11, 11, 11, 12,
 ];
 
-/// Default bishop/rook magics obtained from customize submodule
+/// Default bishop/rook magic numbers
 #[rustfmt::skip]
 pub const DEFAULT_BISHOP_MAGICS: BB64 = [
-    BitBoard(18018831494946945),    BitBoard(5683392850989056),      BitBoard(1154048864819347976),
-    BitBoard(1130506259411456),     BitBoard(9295994850753466656),   BitBoard(722274213532008961),
-    BitBoard(144679242373791746),   BitBoard(2819852240160768),      BitBoard(72066458926448704),
-    BitBoard(79238992794112),       BitBoard(1134698215018542),      BitBoard(44092287352833),
-    BitBoard(13836474536570134528), BitBoard(35768558952715),        BitBoard(9223409424612344080),
-    BitBoard(612885924355252480),   BitBoard(5208413037808118789),   BitBoard(1155245891784015936),
-    BitBoard(2252075903829120),     BitBoard(9225624940543279114),   BitBoard(1189513612367104000),
-    BitBoard(9512306104749523472),  BitBoard(576742365927198723),    BitBoard(4539885961085440),
-    BitBoard(2308103606194341892),  BitBoard(13862397412175380998),  BitBoard(333415950299702305),
-    BitBoard(90076392745664544),    BitBoard(2306410358388064771),   BitBoard(288378294993293312),
-    BitBoard(74345757197010958),    BitBoard(2306408175647080720),   BitBoard(73201120490840092),
-    BitBoard(9800396855820955656),  BitBoard(11529779164388327745),  BitBoard(577166640917512320),
-    BitBoard(9800397946725861384),  BitBoard(14060563500683528704),  BitBoard(40675471674966276),
-    BitBoard(649081871889609226),   BitBoard(144695739342752131),    BitBoard(1154065580883052548),
-    BitBoard(1152939184974204944),  BitBoard(8079468246723600416),   BitBoard(144124160329646145),
-    BitBoard(8163913195585792),     BitBoard(585477299839697040),    BitBoard(596735817053896832),
-    BitBoard(1126621814723152),     BitBoard(226064005973413888),    BitBoard(4611796245609973762),
-    BitBoard(2305851806414143616),  BitBoard(225338878252549120),    BitBoard(6920132705669689392),
-    BitBoard(1612323861716860928),  BitBoard(2410131644024840),      BitBoard(149467612894740997),
-    BitBoard(72057946359738912),    BitBoard(3307863148545),         BitBoard(9288682823518209),
-    BitBoard(8725210120),           BitBoard(9259423391126393344),   BitBoard(13835137325615579664),
+    BitBoard(18018831494946945),    BitBoard(5683392850989056),     BitBoard(1154048864819347976),
+    BitBoard(1130506259411456),     BitBoard(9295994850753466656),  BitBoard(722274213532008961),
+    BitBoard(144679242373791746),   BitBoard(2819852240160768),     BitBoard(72066458926448704),
+    BitBoard(79238992794112),       BitBoard(1134698215018542),     BitBoard(44092287352833),
+    BitBoard(13836474536570134528), BitBoard(35768558952715),       BitBoard(9223409424612344080),
+    BitBoard(612885924355252480),   BitBoard(5208413037808118789),  BitBoard(1155245891784015936),
+    BitBoard(2252075903829120),     BitBoard(9225624940543279114),  BitBoard(1189513612367104000),
+    BitBoard(9512306104749523472),  BitBoard(576742365927198723),   BitBoard(4539885961085440),
+    BitBoard(2308103606194341892),  BitBoard(13862397412175380998), BitBoard(333415950299702305),
+    BitBoard(90076392745664544),    BitBoard(2306410358388064771),  BitBoard(288378294993293312),
+    BitBoard(74345757197010958),    BitBoard(2306408175647080720),  BitBoard(73201120490840092),
+    BitBoard(9800396855820955656),  BitBoard(11529779164388327745), BitBoard(577166640917512320),
+    BitBoard(9800397946725861384),  BitBoard(14060563500683528704), BitBoard(40675471674966276),
+    BitBoard(649081871889609226),   BitBoard(144695739342752131),   BitBoard(1154065580883052548),
+    BitBoard(1152939184974204944),  BitBoard(8079468246723600416),  BitBoard(144124160329646145),
+    BitBoard(8163913195585792),     BitBoard(585477299839697040),   BitBoard(596735817053896832),
+    BitBoard(1126621814723152),     BitBoard(226064005973413888),   BitBoard(4611796245609973762),
+    BitBoard(2305851806414143616),  BitBoard(225338878252549120),   BitBoard(6920132705669689392),
+    BitBoard(1612323861716860928),  BitBoard(2410131644024840),     BitBoard(149467612894740997),
+    BitBoard(72057946359738912),    BitBoard(3307863148545),        BitBoard(9288682823518209),
+    BitBoard(8725210120),           BitBoard(9259423391126393344),  BitBoard(13835137325615579664),
     BitBoard(1153488869854019624),
 ];
 
@@ -82,91 +81,71 @@ pub const DEFAULT_ROOK_MAGICS: BB64 = [
     BitBoard(9223382004467269670),
 ];
 
-/// Mask relevant bishop occupancy bits
-pub fn bishop_occupancy(square: Square) -> BitBoard {
-    ALL_SQUARES
-        .iter()
-        .filter(|&tgt| {
-            let (tgt_file, tgt_rank) = tgt.coords();
-            let dist: (i8, i8) = square.dist(*tgt);
+/// All attacks are stored in the same buffer, each square for bishop/rook gets its slice of this
+static mut ATTACKS: [BitBoard; 107648] = [EMPTY_BB; 107648];
 
-            tgt_file != File::A     && tgt_file != File::H      &&
-        tgt_rank != Rank::First && tgt_rank != Rank::Eight  && // not edges
-        dist.0.abs() == dist.1.abs()                        && // diagonal
-        *tgt != square
-        })
-        .fold(EMPTY_BB, |mask, square| mask ^ square.to_board())
+/// Magics are lazily initialized at startup
+pub struct Magics {
+    magics: BB64,
+    occupancy: BB64,
+    occupancy_bits: [u32; SQUARE_COUNT],
+    attacks_offset: usize,
+    attacks: [&'static [BitBoard]; SQUARE_COUNT],
+    occupancy_gen: fn(Square) -> BitBoard,
+    attack_gen: fn(Square, BitBoard) -> BitBoard,
 }
 
-/// Mask relevant rook occupancy bits
-pub fn rook_occupancy(square: Square) -> BitBoard {
-    ALL_SQUARES
-        .iter()
-        .filter(|&tgt| {
-            let (tgt_file, tgt_rank) = tgt.coords();
-            let dist: (i8, i8) = square.dist(*tgt);
+pub static mut BISHOP_MAGICS: Magics = Magics {
+    magics: DEFAULT_BISHOP_MAGICS,
+    occupancy: EMPTY_BB64,
+    occupancy_bits: BISHOP_OCCUPANCY_BITS,
+    attacks_offset: 0,
+    attacks: [&[]; SQUARE_COUNT],
+    occupancy_gen: bishop_occupancy,
+    attack_gen: mask_bishop_attacks,
+};
 
-            ((dist.0 == 0 && tgt_rank != Rank::First && tgt_rank != Rank::Eight ) || // same file
-        (dist.1 == 0 && tgt_file != File::A && tgt_file != File::H )) &&         // same rank
-        *tgt != square
-        })
-        .fold(EMPTY_BB, |mask, square| mask ^ square.to_board())
-}
+pub static mut ROOK_MAGICS: Magics = Magics {
+    magics: DEFAULT_ROOK_MAGICS,
+    occupancy: EMPTY_BB64,
+    occupancy_bits: ROOK_OCCUPANCY_BITS,
+    attacks_offset: 5248,
+    attacks: [&[]; SQUARE_COUNT],
+    occupancy_gen: rook_occupancy,
+    attack_gen: mask_rook_attacks,
+};
 
-/// Mask index only onto the set bits of the board.
-///
-///     index = 0                        -->  all occupancy bits will be unset
-///     index = 2^mask.count_bits() - 1  -->  all occupancy bits will be set
-///
-///     Anything between has some bits set, some unset, and covers all possible combinations
-///     of 0s and 1s on the set squares of mask
-pub fn set_occupancy(mask: BitBoard, index: usize) -> BitBoard {
-    IntoIterator::into_iter(mask)
-        .enumerate()
-        .filter(|(count, _)| index & (1 << count) != 0)
-        .fold(EMPTY_BB, |mask, (_, square)| mask ^ square.to_board())
-}
+impl Magics {
+    pub fn init(&mut self) {
+        let mut base = self.attacks_offset;
 
-/// Get magic index for the tables given the blocker board and magic number
-///
-///     - Blockers must already be masked with the relevant occupancies of the square
-///     - Bits are the relevant occupancy bits of the square
-#[inline]
-pub fn magic_map(blockers: BitBoard, magic: BitBoard, bits: u32) -> usize {
-    ((blockers * magic).0 >> (64 - bits)) as usize
-}
+        for square in ALL_SQUARES {
+            let size = 1 << self.occupancy_bits[square as usize];
+            let mask = (self.occupancy_gen)(square);
+            self.occupancy[square as usize] = mask;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+            for idx in 0..size {
+                let blockers = set_occupancy(mask, idx);
+                let index = self.magic_map(square, blockers);
 
-    #[test]
-    fn bishop_occs() {
-        let bb1: BitBoard = bishop_occupancy(Square::A2);
-        let bb2: BitBoard = bishop_occupancy(Square::D8);
-        let bb3: BitBoard = bishop_occupancy(Square::H1);
-        let bb4: BitBoard = bishop_occupancy(Square::E4);
+                unsafe { ATTACKS[base + index] = (self.attack_gen)(square, blockers) }
+            }
 
-        println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
-
-        assert_eq!(bb1, BitBoard(2216338399232));
-        assert_eq!(bb2, BitBoard(1075975168));
-        assert_eq!(bb3, BitBoard(18049651735527936));
-        assert_eq!(bb4, BitBoard(19184279556981248));
+            unsafe { self.attacks[square as usize] = &ATTACKS[base..base + size] }
+            base += size;
+        }
     }
 
-    #[test]
-    fn rook_occs() {
-        let bb1: BitBoard = rook_occupancy(Square::A8);
-        let bb2: BitBoard = rook_occupancy(Square::B7);
-        let bb3: BitBoard = rook_occupancy(Square::H2);
-        let bb4: BitBoard = rook_occupancy(Square::E4);
+    /// Get magic index for the tables given the blocker board and source square
+    fn magic_map(&self, square: Square, blockers: BitBoard) -> usize {
+        let sq = square as usize;
+        let map = (blockers & self.occupancy[sq]) * self.magics[sq];
 
-        println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
+        (map.0 as usize) >> (64 - self.occupancy_bits[sq])
+    }
 
-        assert_eq!(bb1, BitBoard(282578800148862));
-        assert_eq!(bb2, BitBoard(565157600328704));
-        assert_eq!(bb3, BitBoard(35607136465616896));
-        assert_eq!(bb4, BitBoard(4521664529305600));
+    /// Get slider attack from square with given blockers
+    pub fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
+        self.attacks[square as usize][self.magic_map(square, blockers)]
     }
 }
