@@ -323,7 +323,9 @@ impl<'a> Search<'a> {
         }
         alpha = max(eval, alpha); // stand pat is pv
 
-        for (m, _) in self.position.generate_captures() {
+        for (m, s) in self.position.generate_captures() {
+            if s == 0 { break; } // we reached negative see, it's probably not worth searching
+
             self.position.make_move(m);
             eval = -self.quiescence(-beta, -alpha);
             self.position.undo_move();
