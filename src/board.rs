@@ -1,7 +1,7 @@
+use std::time::Instant;
 /// Implements board representation and move generation
 /// Any board without a king for each player (and with more than one for either) is UB!
-use std::fmt;
-use std::time::Instant;
+use std::{fmt, str::FromStr};
 
 use crate::{
     bitboard::*, castle::*, move_list::MoveList, moves::*, piece::*, square::*, tables::*,
@@ -67,11 +67,11 @@ impl fmt::Display for Board {
 }
 
 /// Init board state from FEN string with complete error handling (no legality check)
-impl TryFrom<&str> for Board {
-    type Error = &'static str;
+impl FromStr for Board {
+    type Err = &'static str;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let fen: Vec<&str> = value.split_whitespace().take(6).collect();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let fen: Vec<&str> = s.split_whitespace().take(6).collect();
         if fen.len() != 6 {
             return Err("Invalid fen!");
         }
@@ -120,14 +120,14 @@ impl TryFrom<&str> for Board {
             _ => return Err("Invalid fen!"),
         }
 
-        let rights = CastlingRights::try_from(fen[2])?;
+        let rights: CastlingRights = fen[2].parse()?;
         board.castling_rights = rights;
         board.hash.toggle_castle(rights);
 
         match fen[3] {
             "-" => board.en_passant = None,
             _ => {
-                let ep_square = Square::try_from(fen[3])?;
+                let ep_square: Square = fen[3].parse()?;
 
                 board.en_passant = Some(ep_square);
                 board.hash.toggle_ep(ep_square);
@@ -146,7 +146,9 @@ impl TryFrom<&str> for Board {
 /// Default to starting position
 impl Default for Board {
     fn default() -> Self {
-        Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap()
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+            .parse()
+            .unwrap()
     }
 }
 
@@ -832,6 +834,14 @@ impl Board {
 
         move_list
     }
+
+    /// Finds move string in board
+    pub fn find_move(&self, move_str: &str) -> Option<Move> {
+        self.generate_moves()
+            .moves
+            .into_iter()
+            .find(|m| m.to_string() == move_str)
+    }
 }
 
 /// Perft
@@ -897,13 +907,13 @@ mod tests {
     #[test]
     fn test_invalid_fen() {
         let invalid_pieces =
-            Board::try_from("rnbqkbnr/pp2ppppp/7/2p5/4P3/5N2/PPPP1P/RNBQKB1R b - - 1 2");
+            "rnbqkbnr/pp2ppppp/7/2p5/4P3/5N2/PPPP1P/RNBQKB1R b - - 1 2".parse::<Board>();
         let invalid_side =
-            Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1");
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1".parse::<Board>();
         let invalid_castle =
-            Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kqKQ - 0 1");
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kqKQ - 0 1".parse::<Board>();
         let invalid_ep_square =
-            Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ a9 0 1");
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ a9 0 1".parse::<Board>();
 
         assert!(invalid_pieces.is_err());
         assert!(invalid_side.is_err());
@@ -913,7 +923,9 @@ mod tests {
 
     #[test]
     fn test_pin_mask() {
-        let board: Board = Board::try_from("R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1").unwrap();
+        let board: Board = "R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1"
+            .parse()
+            .unwrap();
         println!("{}", board);
 
         let (pinned, diag, hv) = board.map_pins();
@@ -930,17 +942,17 @@ mod tests {
     #[test]
     fn test_legal_pawn() {
         init_all_tables();
-        let b1: Board = Board::try_from("8/8/8/1k6/3Pp3/8/8/4KQ2 b - d3 0 1").unwrap();
+        let b1: Board = "8/8/8/1k6/3Pp3/8/8/4KQ2 b - d3 0 1".parse().unwrap();
         println!("{}", b1);
         let m1 = b1.generate_moves(); // enpassant blocks check
         assert_eq!(m1.len(), 6);
 
-        let b2: Board = Board::try_from("8/8/8/2k5/3Pp3/8/8/4K3 b - d3 0 1").unwrap();
+        let b2: Board = "8/8/8/2k5/3Pp3/8/8/4K3 b - d3 0 1".parse().unwrap();
         println!("{}", b2);
         let m2 = b2.generate_moves(); // enpassant captures checker
         assert_eq!(m2.len(), 9);
 
-        let b3: Board = Board::try_from("8/8/8/8/k2Pp2Q/8/8/3K4 b - d3 0 1").unwrap();
+        let b3: Board = "8/8/8/8/k2Pp2Q/8/8/3K4 b - d3 0 1".parse().unwrap();
         println!("{}", b3);
         let m3 = b3.generate_moves(); // enpassant would leave the king in check
         assert_eq!(m3.len(), 6);
@@ -976,9 +988,9 @@ mod tests {
     #[test]
     fn perft_kiwipete_5() {
         init_all_tables();
-        let board =
-            Board::try_from("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
-                .unwrap();
+        let board: Board = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+            .parse()
+            .unwrap();
         let nodes = board.perft(5);
 
         assert_eq!(nodes, 193690690);
@@ -988,7 +1000,7 @@ mod tests {
     fn perft_suite() {
         init_all_tables();
         for (fen, description, correct_count, depth) in PERFT_SUITE {
-            let board = Board::try_from(fen).unwrap();
+            let board: Board = fen.parse().unwrap();
             println!("{}\n{}\n{}", fen, description, board);
 
             let nodes = board.perft(depth);

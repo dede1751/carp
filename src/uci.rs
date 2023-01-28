@@ -2,6 +2,7 @@
 use std::{
     io,
     io::BufRead,
+    str::FromStr,
     sync::atomic::{AtomicBool, Ordering},
     sync::{mpsc, Arc},
     thread,
@@ -45,7 +46,7 @@ impl UCIController {
         let stream = io::stdin().lock();
 
         for line in stream.lines().map(|l| l.expect("Parsing error!")) {
-            match UCICommand::try_from(line.as_ref()) {
+            match line.parse::<UCICommand>() {
                 Ok(command) => {
                     match command {
                         UCICommand::Uci => {
@@ -82,11 +83,11 @@ enum UCICommand {
 }
 
 /// Parse string into uci command
-impl TryFrom<&str> for UCICommand {
-    type Error = &'static str;
+impl FromStr for UCICommand {
+    type Err = &'static str;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let mut tokens = value.split_whitespace();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut tokens = s.split_whitespace();
 
         match tokens.next() {
             Some("ucinewgame") => Ok(Self::UciNewGame),
@@ -108,12 +109,10 @@ impl TryFrom<&str> for UCICommand {
                 Ok(d) => Ok(Self::Perft(d)),
                 _ => return Err("Could not parse depth!"),
             },
-            Some("position") => {
-                let pos_str = tokens.collect::<Vec<&str>>().join(" ");
-
-                Ok(Self::Position(Position::try_from(&pos_str[..])?))
-            }
-            Some("go") => Ok(Self::Go(TimeControl::try_from(tokens)?)),
+            Some("position") => Ok(Self::Position(
+                tokens.collect::<Vec<&str>>().join(" ").parse()?,
+            )),
+            Some("go") => Ok(Self::Go(tokens.collect::<Vec<&str>>().join(" ").parse()?)),
             Some("stop") => Ok(Self::Stop),
             Some("quit") => Ok(Self::Quit),
             _ => Err("Error parsing command!"),
@@ -153,7 +152,7 @@ impl UCIEngine {
                 }
 
                 UCICommand::Option(name, value) => match &name[..] {
-                    "Hash" => match value.parse() {
+                    "Hash" => match value.parse::<usize>() {
                         Ok(size) => {
                             self.tt_size = size;
                             self.tt = TT::new(size);
@@ -236,9 +235,7 @@ impl UCIEngine {
                 }
             }
 
-            let highest_depth = results.iter()
-                .max_by_key(|(_, d)| d)
-                .unwrap().1;
+            let highest_depth = results.iter().max_by_key(|(_, d)| d).unwrap().1;
 
             results
                 .into_iter()
@@ -252,7 +249,8 @@ impl UCIEngine {
                 )
                 .into_iter()
                 .max_by_key(|(_, value)| *value)
-                .unwrap().0 // always at least one search, impossible panic
+                .unwrap()
+                .0 // always at least one search, impossible panic
         })
     }
 }

@@ -32,10 +32,11 @@ fn parse_value<T: FromStr>(tokens: &mut SplitWhitespace) -> Result<T, &'static s
 }
 
 /// Convert input to correct time control
-impl TryFrom<SplitWhitespace<'_>> for TimeControl {
-    type Error = &'static str;
+impl FromStr for TimeControl {
+    type Err = &'static str;
 
-    fn try_from(mut tokens: SplitWhitespace) -> Result<Self, Self::Error> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut tokens = s.split_whitespace();
         let mut wtime: Option<u64> = None;
         let mut btime: Option<u64> = None;
         let mut winc: Option<u64> = None;

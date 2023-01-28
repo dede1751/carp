@@ -114,7 +114,6 @@ impl MoveList {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

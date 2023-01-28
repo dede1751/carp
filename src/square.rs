@@ -3,7 +3,7 @@
 /// Square: enum of the 64 squares with standard notation, from A8 to H1
 /// File  : A B C D E F G H
 /// Rank  : 8 7 6 5 4 3 2 1  (enum indexed backwards)
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use crate::{bitboard::BitBoard, from};
 
@@ -61,17 +61,17 @@ impl fmt::Display for Square {
 }
 
 /// Parses fen formatted square (normal formatting).
-impl TryFrom<&str> for Square {
-    type Error = &'static str;
+impl FromStr for Square {
+    type Err = &'static str;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if value.len() != 2 {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() != 2 {
             return Err("Invalid square!");
         };
 
         let index = SQUARE_STR
             .iter()
-            .position(|&tgt| tgt == value)
+            .position(|&tgt| tgt == s)
             .ok_or("Invalid square!")?;
 
         Ok(Square::from(index))

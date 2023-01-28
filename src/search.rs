@@ -4,10 +4,10 @@ use std::cmp::{max, min};
 use crate::{clock::Clock, evaluation::*, moves::*, position::Position, tt::*};
 
 pub const MAX_DEPTH: usize = 128; // max depth to search at
-const LMR_THRESHOLD: u32 = 4;     // moves to execute before any reduction
+const LMR_THRESHOLD: u32 = 4; // moves to execute before any reduction
 const LMR_LOWER_LIMIT: usize = 3; // stop applying lmr near leaves
-const NMP_REDUCTION: usize = 2;   // null move pruning reduced depth
-const ASPIRATION_WINDOW: Eval = 50;    // aspiration window width
+const NMP_REDUCTION: usize = 2; // null move pruning reduced depth
+const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 const FUTILITY_MARGIN: Eval = 1100; // highest queen value possible
 
@@ -324,7 +324,9 @@ impl<'a> Search<'a> {
         alpha = max(eval, alpha); // stand pat is pv
 
         for (m, s) in self.position.generate_captures() {
-            if s == 0 { break; } // we reached negative see, it's probably not worth searching
+            if s == 0 {
+                break; // we reached negative see, it's probably not worth searching
+            }
 
             self.position.make_move(m);
             eval = -self.quiescence(-beta, -alpha);
@@ -404,7 +406,7 @@ mod performance_tests {
 
     fn search_driver(fen: &str, depth: usize) {
         init_all_tables();
-        let position = Position::try_from(fen).unwrap();
+        let position: Position = fen.parse().unwrap();
         let tt = TT::default();
         let clock = Clock::new(
             TimeControl::FixedDepth(depth),

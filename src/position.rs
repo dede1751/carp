@@ -1,10 +1,13 @@
 /// Position, represents a Board's evolution along the search tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    str::FromStr,
+};
 
 use crate::{
-    bitboard::*, board::*, evaluation::*, move_list::*, moves::*, piece::*, square::*, tables::*,
-    zobrist::*, search::MAX_DEPTH,
+    bitboard::*, board::*, evaluation::*, move_list::*, moves::*, piece::*, search::MAX_DEPTH,
+    square::*, tables::*, zobrist::*,
 };
 
 #[derive(Clone, Debug)]
@@ -19,13 +22,13 @@ pub struct Position {
     tt_move: Option<Move>,
 }
 
-impl TryFrom<&str> for Position {
-    type Error = &'static str;
+impl FromStr for Position {
+    type Err = &'static str;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let mut tokens = value.split_whitespace();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut tokens = s.split_whitespace();
 
-        let mut board = match tokens.next() {
+        let mut board: Board = match tokens.next() {
             Some("startpos") => Board::default(),
             Some("fen") => {
                 let fen = &tokens.clone().take(6).collect::<Vec<&str>>().join(" ")[..];
@@ -35,7 +38,7 @@ impl TryFrom<&str> for Position {
                     tokens.next();
                 }
 
-                Board::try_from(fen)?
+                fen.parse()?
             }
             _ => return Err("Invalid position"),
         };
@@ -44,17 +47,14 @@ impl TryFrom<&str> for Position {
         let mut history = Vec::new();
 
         if let Some("moves") = tokens.next() {
-            for move_string in tokens {
-                let new = board
-                    .generate_moves()
-                    .into_iter()
-                    .find(|(m, _)| move_string == m.to_string());
+            for move_str in tokens {
+                let new = board.find_move(move_str);
 
                 match new {
-                    Some((new_move, _)) => {
+                    Some(m) => {
                         history.push((board, ply_from_null));
 
-                        board = board.make_move(new_move);
+                        board = board.make_move(m);
                         ply_from_null += 1;
                     }
                     None => eprintln!("Move is not legal!"),
@@ -80,7 +80,9 @@ impl TryFrom<&str> for Position {
 /// Startpos
 impl Default for Position {
     fn default() -> Self {
-        Position::try_from("fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap()
+        "fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+            .parse()
+            .unwrap()
     }
 }
 
@@ -103,17 +105,6 @@ impl Position {
 
         self.score_moves(&mut move_list);
         move_list
-    }
-
-    /// Finds move string in position
-    pub fn find_move(&self, move_str: &str) -> Move {
-        *self
-            .board
-            .generate_moves()
-            .moves
-            .iter()
-            .find(|m| m.to_string() == move_str)
-            .unwrap()
     }
 
     /// Makes the given move
@@ -168,7 +159,7 @@ impl Position {
         b.opp_knights() & knight_attacks(square)                   != EMPTY_BB || // knights
         b.opp_queen_bishop() & bishop_attacks(square, b.occupancy) != EMPTY_BB || // bishops + queens
         b.opp_queen_rook()   & rook_attacks(square, b.occupancy)   != EMPTY_BB || // rooks + queens
-        b.opp_king() & king_attacks(square)                        != EMPTY_BB    // kings
+        b.opp_king() & king_attacks(square)                        != EMPTY_BB // kings
     }
 
     /// Returns current position's eval
@@ -446,8 +437,6 @@ impl Position {
         }
         swap_list[0]
     }
-
-
 }
 
 #[cfg(test)]
@@ -457,10 +446,12 @@ mod tests {
     #[test]
     fn test_see_helpers() {
         init_all_tables();
-        let b1 = "fen 1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1";
-        let b2 = "fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1";
-        let pos1 = Position::try_from(b1).unwrap();
-        let pos2 = Position::try_from(b2).unwrap();
+        let pos1: Position = "fen 1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
+            .parse()
+            .unwrap();
+        let pos2: Position = "fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
+            .parse()
+            .unwrap();
 
         let att1 = pos1.map_all_attackers(Square::E5);
         let att2 = pos2.map_all_attackers(Square::E5);
@@ -485,16 +476,17 @@ mod tests {
     #[test]
     fn test_see() {
         init_all_tables();
-        let b1 = "fen 1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1";
-        let b2 = "fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1";
-
-        let pos1 = Position::try_from(b1).unwrap();
-        let pos2 = Position::try_from(b2).unwrap();
+        let pos1: Position = "fen 1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
+            .parse()
+            .unwrap();
+        let pos2: Position = "fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
+            .parse()
+            .unwrap();
 
         println!("{}\n{}", pos1.board, pos2.board);
 
-        let m1 = pos1.find_move("e1e5");
-        let m2 = pos2.find_move("d3e5");
+        let m1 = pos1.board.find_move("e1e5").unwrap();
+        let m2 = pos2.board.find_move("d3e5").unwrap();
 
         assert_eq!(pos1.see(m1), 100);
         assert_eq!(pos2.see(m2), -200);
@@ -503,11 +495,10 @@ mod tests {
     #[test]
     fn test_sorter() {
         init_all_tables();
-        let pos = Position::try_from(
-            "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1",
-        )
-        .unwrap();
-
+        let pos: Position =
+            "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
+                .parse()
+                .unwrap();
         let move_list = pos.generate_moves();
 
         // Move list is ordered correctly

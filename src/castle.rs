@@ -1,5 +1,5 @@
 /// Implements castling related operations
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use crate::{
     bitboard::BitBoard,
@@ -108,17 +108,17 @@ impl fmt::Display for CastlingRights {
 }
 
 /// Parses fen castling string to return rights
-impl TryFrom<&str> for CastlingRights {
-    type Error = &'static str;
+impl FromStr for CastlingRights {
+    type Err = &'static str;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut rights = NO_RIGHTS;
 
-        if value == "-" {
+        if s == "-" {
             return Ok(NO_RIGHTS);
         }
 
-        for token in value.chars() {
+        for token in s.chars() {
             match token {
                 'K' => {
                     if rights.0 & (BK | BQ) != 0 {

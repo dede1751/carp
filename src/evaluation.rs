@@ -268,8 +268,9 @@ mod tests {
     #[test]
     fn test_clamp() {
         init_all_tables();
-        let b: Board =
-            Board::try_from("QQQQQQQQ/RNBKQBNR/QQQQQQQQ/QQQQQQQQ/8/8/8/8 b - - 0 -").unwrap();
+        let b: Board = "QQQQQQQQ/RNBKQBNR/QQQQQQQQ/QQQQQQQQ/8/8/8/8 b - - 0 -"
+            .parse()
+            .unwrap();
         let eval = evaluate(&b);
 
         // eval does not become a mate score

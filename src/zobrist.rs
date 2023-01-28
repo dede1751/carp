@@ -79,10 +79,10 @@ mod tests {
 
     #[test]
     pub fn test_hash_init() {
-        let b1 = Board::default();
-        let b2 =
-            Board::try_from("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
-                .unwrap();
+        let b1: Board = Board::default();
+        let b2: Board = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+            .parse()
+            .unwrap();
 
         assert_eq!(ZHash::new(&b1), ZHash(11231077536533049824)); // correct start hash
         assert_eq!(ZHash::new(&b2), b2.hash); // try_from() builds hash correctly
@@ -91,9 +91,9 @@ mod tests {
     #[test]
     pub fn test_hash_castle() {
         // testing white king castling kingside
-        let b1 =
-            Board::try_from("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
-                .unwrap();
+        let b1: Board = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+            .parse()
+            .unwrap();
         let m = Move::encode(
             Square::E1,
             Square::G1,
@@ -115,8 +115,8 @@ mod tests {
         z1.toggle_piece(Piece::WR, Square::H1);
         z1.toggle_piece(Piece::WR, Square::F1);
 
-        let old_rights = CastlingRights::try_from("KQkq").unwrap();
-        let new_rights = CastlingRights::try_from("kq").unwrap();
+        let old_rights: CastlingRights = "KQkq".parse().unwrap();
+        let new_rights: CastlingRights = "kq".parse().unwrap();
         z1.swap_castle(old_rights, new_rights);
         z1.toggle_side();
 
@@ -127,9 +127,9 @@ mod tests {
     #[test]
     pub fn test_hash_enpassant() {
         // testing white pawn capturing en passant
-        let b1 =
-            Board::try_from("rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1")
-                .unwrap();
+        let b1: Board = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
+            .parse()
+            .unwrap();
         let m = Move::encode(
             Square::F5,
             Square::E6,
@@ -158,10 +158,10 @@ mod tests {
     #[test]
     pub fn test_hash_null() {
         // testing null move
-        let mut pos = Position::try_from(
-            "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1",
-        )
-        .unwrap();
+        let mut pos: Position =
+            "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
+                .parse()
+                .unwrap();
         let mut z1 = pos.board.hash;
 
         z1.toggle_ep(Square::E6);

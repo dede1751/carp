@@ -124,7 +124,7 @@ impl fmt::Display for Piece {
     }
 }
 
-/// Reads piece from uci string
+/// Reads piece from uci char
 impl TryFrom<char> for Piece {
     type Error = &'static str;
 
