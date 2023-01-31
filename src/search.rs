@@ -1,4 +1,3 @@
-/// Search the move tree
 use std::cmp::{max, min};
 
 use crate::{clock::Clock, evaluation::*, moves::*, position::Position, tt::*};
@@ -11,11 +10,13 @@ const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 const FUTILITY_MARGIN: Eval = 1100; // highest queen value possible
 
+/// Search the move tree, starting at the given position
 pub struct Search<'a> {
     position: Position,
     clock: Clock,
     tt: &'a TT,
     nodes: u64,
+    seldepth: usize,
     stop: bool,
 }
 
@@ -26,11 +27,14 @@ impl<'a> Search<'a> {
             clock,
             tt,
             nodes: 0,
+            seldepth: 0,
             stop: false,
         }
     }
 
     /// Iteratively searches the board at increasing depth
+    /// After the shallower depths, we start doing reduced-window searches and eventually reopen
+    /// each "side" of the window in case of fail-high or fail-low
     pub fn iterative_search(&mut self, print_info: bool) -> (Move, usize) {
         let mut best_move = NULL_MOVE;
         let mut temp_best: Move;
@@ -44,7 +48,6 @@ impl<'a> Search<'a> {
             && !is_mate(eval.abs())
             && depth < MAX_DEPTH
         {
-            // aspiration loop (gradual reopening)
             (eval, temp_best) = self.search_root(alpha, beta, depth);
 
             if eval <= alpha {
@@ -52,7 +55,6 @@ impl<'a> Search<'a> {
             } else if eval >= beta {
                 beta = MATE;
             } else {
-                // reduce window using previous eval (full window for shallow searches)
                 if depth >= ASPIRATION_THRESHOLD {
                     alpha = eval - ASPIRATION_WINDOW;
                     beta = eval + ASPIRATION_WINDOW;
@@ -61,6 +63,7 @@ impl<'a> Search<'a> {
                 if !self.stop {
                     if print_info {
                         self.print_info(eval, depth);
+                        self.seldepth = 0;
                     }
                     best_move = temp_best;
                     depth += 1;
@@ -76,7 +79,6 @@ impl<'a> Search<'a> {
     // Will be useful in case of future implementations of various
     // root-only heuristics
     fn search_root(&mut self, mut alpha: Eval, beta: Eval, mut depth: usize) -> (Eval, Move) {
-        // Extend search depth when king is in check
         let in_check = self.position.king_in_check();
         if in_check {
             depth += 1;
@@ -88,24 +90,21 @@ impl<'a> Search<'a> {
             None => self.position.set_tt_move(None),
         };
 
-        // Main recursive search block
-        let mut moves_checked: u32 = 0;
         let mut eval: Eval;
         let mut best_move = NULL_MOVE;
         let mut tt_entry = TTField::new(&self.position, TTFlag::Upper, best_move, -MATE, depth);
 
-        for (m, _) in self.position.generate_moves() {
-            moves_checked += 1;
+        for (move_count, (m, _)) in self.position.generate_moves().enumerate() {
             self.position.make_move(m);
 
-            if moves_checked == 1 {
+            if move_count == 0 {
                 // full search on first move
                 eval = -self.negamax(-beta, -alpha, depth - 1);
                 best_move = m;
             } else {
-                // only pvs in root node
+                // use plain pvs without reductions in root
                 eval = -self.negamax(-alpha - 1, -alpha, depth - 1);
-                if eval > alpha && eval < beta {
+                if eval > alpha && eval < beta && !self.stop {
                     eval = -self.negamax(-beta, -alpha, depth - 1);
                 }
             };
@@ -116,12 +115,10 @@ impl<'a> Search<'a> {
             }
 
             if eval > alpha {
-                // possible pv node
                 best_move = m;
                 alpha = eval;
 
                 if eval >= beta {
-                    // beta cutoff
                     if !(m.is_capture()) {
                         self.position.update_sorter(m, depth);
                     };
@@ -139,7 +136,6 @@ impl<'a> Search<'a> {
         }
 
         if !self.stop {
-            // Insert value in tt
             tt_entry.update_data(TTFlag::Exact, best_move, alpha);
             self.tt.insert(tt_entry);
         }
@@ -147,35 +143,32 @@ impl<'a> Search<'a> {
         (alpha, best_move)
     }
 
-    /// Fail-Hard Negamax
+    /// Fail-Hard Negamax search
     fn negamax(&mut self, mut alpha: Eval, mut beta: Eval, mut depth: usize) -> Eval {
-        // Check if search should be continued
         if self.stop || !self.clock.mid_check(self.nodes) {
             self.stop = true;
             return 0;
         }
 
-        // Extend search depth when king is in check
-        let in_check = self.position.king_in_check();
         let pv_node = alpha != beta - 1; // False when searching with a null window
+        let in_check = self.position.king_in_check();
         if in_check {
             depth += 1;
         }
 
-        // Quiescence search to avoid horizon effect
         if depth == 0 {
             return self.quiescence(alpha, beta);
         }
+        self.nodes += 1;
 
-        // Mate distance pruning
+        // Mate distance pruning (it's a bit faster to do this before draw detection)
         alpha = max(-MATE + self.position.ply as Eval, alpha);
         beta = min(MATE - self.position.ply as Eval - 1, beta);
         if alpha >= beta {
             return alpha;
         }
 
-        // Stop searching if the position is a rule-based draw (repetition/50mr)
-        self.nodes += 1;
+        // Stop searching if the position is a rule-based draw
         if self.position.is_draw() {
             return 0;
         }
@@ -218,7 +211,6 @@ impl<'a> Search<'a> {
             }
         }
 
-        // Main recursive search block
         let mut moves_checked: u32 = 0;
         let mut best_move = NULL_MOVE;
         let mut tt_bound = TTFlag::Upper;
@@ -250,7 +242,7 @@ impl<'a> Search<'a> {
                     eval = -self.negamax(-alpha - 1, -alpha, depth - 1);
 
                     // sneaky way to also dodge re-searching when the window is already null
-                    if eval > alpha && eval < beta {
+                    if eval > alpha && eval < beta && !self.stop {
                         // PVS failed
                         eval = -self.negamax(-beta, -alpha, depth - 1);
                     }
@@ -264,14 +256,12 @@ impl<'a> Search<'a> {
             }
 
             if eval > alpha {
-                // possible pv node
                 if eval >= beta {
-                    // beta cutoff
                     if !(m.is_capture()) {
                         self.position.update_sorter(m, depth);
                     };
 
-                    alpha = beta; // save correct value in tt
+                    alpha = beta;
                     tt_bound = TTFlag::Lower;
                     break;
                 }
@@ -281,18 +271,16 @@ impl<'a> Search<'a> {
             }
         }
 
-        // check for mate scores
+        // Mate or stalemate. Don't save in the TT, this is very cheap to compute
         if moves_checked == 0 {
-            // no legal moves
             if in_check {
-                alpha = -MATE + self.position.ply as Eval; // checkmate
+                return -MATE + self.position.ply as Eval;
             } else {
-                alpha = 0; // stalemate
+                return 0;
             }
         };
 
         if !self.stop {
-            // Insert value in tt
             let tt_entry = TTField::new(&self.position, tt_bound, best_move, alpha, depth);
             self.tt.insert(tt_entry);
         }
@@ -302,21 +290,23 @@ impl<'a> Search<'a> {
 
     /// Quiescence search (only look at capture moves)
     fn quiescence(&mut self, mut alpha: Eval, beta: Eval) -> Eval {
-        // Check if search should be continued
         if self.stop || !self.clock.mid_check(self.nodes) {
             self.stop = true;
             return 0;
         }
 
         self.nodes += 1;
-        let mut eval = self.position.evaluate(); // try stand pat
+        self.seldepth = max(self.seldepth, self.position.ply);
+
+        // try stand pat
+        let eval = self.position.evaluate();
 
         if self.position.ply >= MAX_DEPTH {
             return eval;
         }
 
         if eval >= beta {
-            return beta; // beta cutoff
+            return beta;
         }
         if eval < alpha - FUTILITY_MARGIN {
             return alpha; // futility pruning
@@ -324,33 +314,30 @@ impl<'a> Search<'a> {
         alpha = max(eval, alpha); // stand pat is pv
 
         for (m, s) in self.position.generate_captures() {
-            if s == 0 {
+            if s < 0 {
                 break; // we reached negative see, it's probably not worth searching
             }
 
             self.position.make_move(m);
-            eval = -self.quiescence(-beta, -alpha);
+            let eval = -self.quiescence(-beta, -alpha);
             self.position.undo_move();
 
             if eval > alpha {
-                // possible pv node
                 if eval >= beta {
-                    // beta cutoff
                     return beta;
                 }
                 alpha = eval;
             }
         }
 
-        alpha // node fails low
+        alpha
     }
 
-    /// Recover pv from transposition table
+    /// Recover pv by traversing the tt from the root
     fn recover_pv(&self, depth: usize) -> Vec<Move> {
         let mut board = self.position.board.clone();
         let mut pv: Vec<Move> = Vec::new();
 
-        // traverse down the tree through the trasposition table
         for _ in 0..depth {
             let tt_move = match self.tt.probe(board.hash) {
                 Some(e) => e.get_move(),
@@ -372,19 +359,25 @@ impl<'a> Search<'a> {
 
     /// Print UCI score info
     fn print_info(&self, eval: Eval, depth: usize) {
-        print!("info score ");
-
-        if is_mate(eval) {
-            // mating
-            print!("mate {} ", (MATE - eval + 1) / 2);
+        let score = if is_mate(eval) {
+            format!("mate {} ", (MATE - eval + 1) / 2)
         } else if is_mated(eval) {
-            // mated
-            print!("mate {} ", -(eval + MATE) / 2);
+            format!("mate {} ", -(eval + MATE) / 2)
         } else {
-            print!("cp {} ", eval);
-        }
+            format!("cp {} ", eval)
+        };
 
-        print!("depth {} nodes {} pv ", depth, self.nodes);
+        let time = max(self.clock.elapsed().as_millis(), 1);
+
+        print!(
+            "info time {} score {} depth {} seldepth {} nodes {} nps {} pv ",
+            time,
+            score,
+            depth,
+            self.seldepth,
+            self.nodes,
+            (self.nodes as u128 * 1000) / time,
+        );
 
         let pv = self.recover_pv(depth);
         for m in &pv {

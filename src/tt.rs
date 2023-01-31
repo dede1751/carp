@@ -21,10 +21,8 @@ pub enum TTFlag {
 /// TTField: uncompressed external representation of tt entries
 ///
 /// Can compress to 128b by using only 3b for the flag and 29 for the move.
-/// Mate scores are normalized within the tt for retrieval at different plies:
-///
-/// Tree --> Mate scores are relative to root-distance
-/// TT   --> Mate scores are relative to node-distance
+/// Mate scores are normalized within the tt for retrieval at different plies: within the tree, we
+/// normalize them to the root-distance, while in the tt they are normalized to node-distance
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct TTField {
     key: u64,        // 8B
@@ -101,7 +99,6 @@ impl TTField {
         mut value: Eval,
         depth: usize,
     ) -> TTField {
-        // normalize mate scores
         if is_mate(value) {
             value += position.ply as Eval;
         } else if is_mated(value) {

@@ -123,6 +123,11 @@ impl Clock {
         }
     }
 
+    /// Returns time elapsed from clock start
+    pub fn elapsed(&self) -> Duration {
+        self.start_time.elapsed()
+    }
+
     /// Checks whether to deepen the search (true -> continue deepening)
     pub fn start_check(&mut self, depth: usize) -> bool {
         if self.stop.load(Ordering::SeqCst) {

@@ -18,7 +18,7 @@ const ENGINE_OPTIONS: &str = "
 option name Hash type spin default 256 min 1 max 65536 
 option name Threads type spin default 1 min 1 max 512";
 
-/// UCI controller responsible to read input and command the main engine thread
+/// UCI controller responsible of reading input and command the main engine thread
 /// uci implementation inspired by weiawaga/asymptote
 pub struct UCIController {
     stop: Arc<AtomicBool>,
@@ -193,7 +193,6 @@ impl UCIEngine {
         let move_list = self.position.board.generate_moves();
         let move_count = move_list.len();
 
-        // With 0 or 1 moves, don't bother searching
         if move_count == 0 {
             return NULL_MOVE;
         } else if move_count == 1 {
@@ -202,7 +201,7 @@ impl UCIEngine {
 
         thread::scope(|scope| {
             let mut worker_handles = Vec::with_capacity(self.worker_count);
-            let mut results = Vec::with_capacity(self.worker_count);
+            let mut results = Vec::with_capacity(self.worker_count + 1);
 
             // Start making main search with master clock
             let mut main_search = Search::new(
@@ -225,7 +224,7 @@ impl UCIEngine {
                 worker_handles.push(scope.spawn(move || worker_search.iterative_search(false)));
             }
 
-            // Deploy main search
+            // Deploy main search in this thread
             results.push(main_search.iterative_search(true));
 
             for handle in worker_handles {

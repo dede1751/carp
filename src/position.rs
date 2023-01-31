@@ -22,6 +22,7 @@ pub struct Position {
     tt_move: Option<Move>,
 }
 
+/// Get position from uci position string
 impl FromStr for Position {
     type Err = &'static str;
 
@@ -33,7 +34,6 @@ impl FromStr for Position {
             Some("fen") => {
                 let fen = &tokens.clone().take(6).collect::<Vec<&str>>().join(" ")[..];
 
-                // advance iterator
                 for _ in 0..6 {
                     tokens.next();
                 }
@@ -77,16 +77,15 @@ impl FromStr for Position {
     }
 }
 
-/// Startpos
+/// Default position is startpos
 impl Default for Position {
     fn default() -> Self {
-        "fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-            .parse()
-            .unwrap()
+        "startpos".parse().unwrap()
     }
 }
 
 impl Position {
+    /// Returns the current board's hash
     pub fn hash(&self) -> ZHash {
         self.board.hash
     }
@@ -117,17 +116,9 @@ impl Position {
         self.ply_from_null += 1;
     }
 
-    /// Passes turn to opponent
+    /// Passes turn to opponent (this resets the ply_from_null clock)
     pub fn make_null(&mut self) {
-        let mut new = self.board.clone();
-
-        new.side = !new.side;
-        new.hash.toggle_side();
-
-        if let Some(square) = new.en_passant {
-            new.en_passant = None;
-            new.hash.toggle_ep(square);
-        }
+        let new = self.board.make_null();
 
         self.history.push((self.board, self.ply_from_null));
         self.board = new;
@@ -146,25 +137,13 @@ impl Position {
     }
 
     /// Checks whether the current side's king is in check
-    ///
-    /// Works on the basic idea that, if a certain square is attacked, if we put the attacking piece
-    /// on the attacked square it will attack its old square. Hence we generate attacks on the
-    /// target square for each piece, and check whether they land on any of the pieces stored
-    /// in the board representation.
     pub fn king_in_check(&self) -> bool {
-        let b = self.board;
-        let square = b.own_king().lsb();
-
-        b.opp_pawns()   & pawn_attacks(square, b.side)             != EMPTY_BB || // pawns
-        b.opp_knights() & knight_attacks(square)                   != EMPTY_BB || // knights
-        b.opp_queen_bishop() & bishop_attacks(square, b.occupancy) != EMPTY_BB || // bishops + queens
-        b.opp_queen_rook()   & rook_attacks(square, b.occupancy)   != EMPTY_BB || // rooks + queens
-        b.opp_king() & king_attacks(square)                        != EMPTY_BB // kings
+        self.board.checkers != EMPTY_BB
     }
 
     /// Returns current position's eval
     pub fn evaluate(&self) -> Eval {
-        evaluate(&self.board)
+        eval(&self.board)
     }
 
     /// Checks if position is a rule-based draw
@@ -205,51 +184,50 @@ impl Position {
 
     /// Only king and pawns are on the board. Used to rule out null move pruning
     pub fn only_king_pawns_left(&self) -> bool {
-        self.board.occupancy & !self.board.kings() & !self.board.pawns() == EMPTY_BB
+        self.board.game_phase == 0
     }
 }
 
-/// Move Scoring
-///
-/// * TT moves when found are scored best.
-/// * Queen promotions go to the top of the list, all other promotions are considered last.
-/// * Good captures are evaluated with MVVLVA values [100, 605]
-/// * Bad captures are evaluated after killer and castling moves.
-/// * Quiet moves are evaluated in the following order:
-///   1) Killer moves are awarded the most points (3 for first and 2 for second)
-///   2) Castling always comes after killers and before all other quiets and bad captures
-///   3) Remaining quiets all have negative scores, obtained from the history score - 30000.
-const TT_SCORE: i16 = 2000;
+///     Move Scoring
+/// 200        -> TT Move
+/// 100        -> queen promotion
+///  10:65     -> good and equal captures according to MVV-LVA (includes all enpassant captures)
+///   2:3      -> second and first killer
+///   1        -> castling move
+///  -1:-8     -> bad captures according to the total exchange
+/// -10:-30000 -> quiet moves according to history score
+const MAX_KILLERS: usize = 2;
+const TT_SCORE: i16 = 200;
+const EP_SCORE: i16 = 10;
 const FIRST_KILLER_SCORE: i16 = 3;
 const SECOND_KILLER_SCORE: i16 = 2;
-const MAX_KILLERS: usize = 2;
 const CASTLE_SCORE: i16 = 1;
 const WORST: i16 = -30000;
 
+const HISTORY_OFFSET: i16 = 29990; // stop history moves spilling into bad captures
+
 const PROMOTION_SCORES: [i16; PIECE_COUNT] = [
-    0, 0, WORST, WORST, WORST, WORST, WORST, WORST, 1000, 1000, 0, 0,
+    0, 0, WORST, WORST, WORST, WORST, WORST, WORST, 100, 100, 0, 0,
 ];
 
-/// Static Exchange Evaluation
-const SEE_VALUES: [i16; PIECE_COUNT] = [
-    100, 100, 300, 300, 300, 300, 500, 500, 1000, 1000, 5000, 5000,
-];
+/// Static Exchange Evaluation piece scores
+const SEE_VALUES: [i16; PIECE_COUNT] = [1, 1, 3, 3, 3, 3, 5, 5, 9, 9, 20, 20];
 
 #[rustfmt::skip]
 const MVV_LVA: [[i16; PIECE_COUNT]; PIECE_COUNT] = [
-//     WP   BP   WN   BN   WB   BB   WR   BR   WQ   BQ   WK   BK 
-    [ 105, 105, 205, 205, 305, 305, 405, 405, 505, 505, 605, 605 ], // WP
-    [ 105, 105, 205, 205, 305, 305, 405, 405, 505, 505, 605, 605 ], // BP
-    [ 104, 104, 204, 204, 304, 304, 404, 404, 504, 504, 604, 604 ], // WN
-    [ 104, 104, 204, 204, 304, 304, 404, 404, 504, 504, 604, 604 ], // BN
-    [ 103, 103, 203, 203, 303, 303, 403, 403, 503, 503, 603, 603 ], // WB
-    [ 103, 103, 203, 203, 303, 303, 403, 403, 503, 503, 603, 603 ], // BB
-    [ 102, 102, 202, 202, 302, 302, 402, 402, 502, 502, 602, 602 ], // WR
-    [ 102, 102, 202, 202, 302, 302, 402, 402, 502, 502, 602, 602 ], // BR
-    [ 101, 101, 201, 201, 301, 301, 401, 401, 501, 501, 601, 601 ], // WQ
-    [ 101, 101, 201, 201, 301, 301, 401, 401, 501, 501, 601, 601 ], // BQ
-    [ 100, 100, 200, 200, 300, 300, 400, 400, 500, 500, 600, 600 ], // WK
-    [ 100, 100, 200, 200, 300, 300, 400, 400, 500, 500, 600, 600 ], // BK
+//    WP  BP  WN  BN  WB  BB  WR  BR  WQ  BQ  WK  BK 
+    [ 15, 15, 25, 25, 35, 35, 45, 45, 55, 55, 65, 65 ], // WP
+    [ 15, 15, 25, 25, 35, 35, 45, 45, 55, 55, 65, 65 ], // BP
+    [ 14, 14, 24, 24, 34, 34, 44, 44, 54, 54, 64, 64 ], // WN
+    [ 14, 14, 24, 24, 34, 34, 44, 44, 54, 54, 64, 64 ], // BN
+    [ 13, 13, 23, 23, 33, 33, 43, 43, 53, 53, 63, 63 ], // WB
+    [ 13, 13, 23, 23, 33, 33, 43, 43, 53, 53, 63, 63 ], // BB
+    [ 12, 12, 22, 22, 32, 32, 42, 42, 52, 52, 62, 62 ], // WR
+    [ 12, 12, 22, 22, 32, 32, 42, 42, 52, 52, 62, 62 ], // BR
+    [ 11, 11, 21, 21, 31, 31, 41, 41, 51, 51, 61, 61 ], // WQ
+    [ 11, 11, 21, 21, 31, 31, 41, 41, 51, 51, 61, 61 ], // BQ
+    [ 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60 ], // WK
+    [ 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60 ], // BK
 ];
 
 impl Position {
@@ -260,7 +238,6 @@ impl Position {
 
     /// Update killer and history values for sorting quiet moves
     pub fn update_sorter(&mut self, m: Move, depth: usize) {
-        // killer moves
         let first_killer = self.killer_moves[self.ply as usize][0];
 
         if first_killer != m {
@@ -268,13 +245,12 @@ impl Position {
             self.killer_moves[self.ply as usize][0] = m;
         }
 
-        // history moves
         let p = m.get_piece() as usize;
         let sq = m.get_tgt() as usize;
         self.history_moves[p][sq] += (depth * depth) as i16;
 
-        // reset history values when surpassing captures/promotions/killers
-        if self.history_moves[p][sq] >= -WORST {
+        // reset history values when surpassing bad captures
+        if self.history_moves[p][sq] >= HISTORY_OFFSET {
             for p in ALL_PIECES {
                 for sq in ALL_SQUARES {
                     self.history_moves[p as usize][sq as usize] >>= 1;
@@ -285,12 +261,18 @@ impl Position {
 
     /// Score individual captures.
     fn score_capture(&self, m: Move) -> i16 {
-        let promote_score = PROMOTION_SCORES[m.get_promotion() as usize];
-
-        if promote_score == 0 && self.see(m) >= 0 {
-            MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
+        if m.is_promotion() {
+            PROMOTION_SCORES[m.get_promotion() as usize]
+        } else if m.is_enpassant() {
+            EP_SCORE
         } else {
-            promote_score
+            let see_score = self.see(m);
+
+            if see_score >= 0 {
+                MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
+            } else {
+                see_score
+            }
         }
     }
 
@@ -306,10 +288,16 @@ impl Position {
         if m.is_promotion() {
             PROMOTION_SCORES[m.get_promotion() as usize]
         } else if m.is_capture() {
-            if self.see(m) >= 0 {
-                MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
+            if m.is_enpassant() {
+                EP_SCORE
             } else {
-                0
+                let see_score = self.see(m);
+
+                if see_score >= 0 {
+                    MVV_LVA[m.get_piece() as usize][m.get_capture() as usize]
+                } else {
+                    see_score
+                }
             }
         } else {
             if m.is_castle() {
@@ -319,7 +307,6 @@ impl Position {
             } else if m == self.killer_moves[self.ply][1] {
                 SECOND_KILLER_SCORE
             } else {
-                // add history score when it's not a castling or killer move
                 WORST + self.history_moves[m.get_piece() as usize][m.get_tgt() as usize]
             }
         }
@@ -352,12 +339,12 @@ impl Position {
     fn map_all_attackers(&self, square: Square) -> BitBoard {
         let b = self.board;
 
-        b.pieces[WPAWN] & pawn_attacks(square, Color::Black)             | // own pawns
-        b.pieces[BPAWN] & pawn_attacks(square, Color::White)             | // opp pawns
-        b.knights() & knight_attacks(square)                             | // knights
-        (b.bishops() | b.queens()) & bishop_attacks(square, b.occupancy) | // bishops + queens
-        (b.rooks()   | b.queens()) & rook_attacks(square, b.occupancy)   | // rooks + queens
-        b.kings() & king_attacks(square) // kings
+        b.pieces[WPAWN] & pawn_attacks(square, Color::Black)
+            | b.pieces[BPAWN] & pawn_attacks(square, Color::White)
+            | b.knights() & knight_attacks(square)
+            | (b.bishops() | b.queens()) & bishop_attacks(square, b.occupancy)
+            | (b.rooks() | b.queens()) & rook_attacks(square, b.occupancy)
+            | b.kings() & king_attacks(square)
     }
 
     /// Maps sliding attackers assuming the occupancy is that given by the occs bitboard
@@ -368,8 +355,8 @@ impl Position {
         let diagonal_sliders = (b.bishops() | b.queens()) & occs;
         let orthogonal_sliders = (b.rooks() | b.queens()) & occs;
 
-        diagonal_sliders & bishop_attacks(square, occs) | // bishops + queens
-        orthogonal_sliders & rook_attacks(square, occs) // rooks + queens
+        diagonal_sliders & bishop_attacks(square, occs)
+            | orthogonal_sliders & rook_attacks(square, occs)
     }
 
     /// Returns the least valuable of the attackers within the attacker map
@@ -386,19 +373,22 @@ impl Position {
     }
 
     /// Returns the static exchange evaluation of the given move in the position
+    /// Note that the see score is a much less usesful sorting metric compared to mvv-lva. We only
+    /// use it when a capture is losing material to quantify how much, not when it's winning.
     fn see(&self, m: Move) -> i16 {
         let mut swap_list: [i16; 32] = [0; 32];
         swap_list[0] = SEE_VALUES[m.get_capture() as usize];
 
         let mut swap_piece = m.get_piece();
         let mut src = m.get_src();
+        let tgt = m.get_tgt();
 
         let possible_xray =
             self.board.pawns() | self.board.bishops() | self.board.rooks() | self.board.queens();
 
         let mut side = !self.board.side;
         let mut occs = self.board.occupancy;
-        let mut attackers = self.map_all_attackers(m.get_tgt());
+        let mut attackers = self.map_all_attackers(tgt);
 
         let mut depth = 1;
         loop {
@@ -414,10 +404,9 @@ impl Position {
             attackers = attackers.pop_bit(src);
             occs = occs.pop_bit(src);
             if possible_xray.get_bit(src) {
-                attackers |= self.remap_xray(src, occs);
+                attackers |= self.remap_xray(tgt, occs);
             }
 
-            // get the next attacker
             match self.get_lva(attackers, side) {
                 Some((sq, p)) => {
                     src = sq;
@@ -482,14 +471,20 @@ mod tests {
         let pos2: Position = "fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
             .parse()
             .unwrap();
+        let pos3: Position =
+            "fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+                .parse()
+                .unwrap();
 
-        println!("{}\n{}", pos1.board, pos2.board);
+        println!("{}\n{}\n{}", pos1.board, pos2.board, pos3.board);
 
         let m1 = pos1.board.find_move("e1e5").unwrap();
         let m2 = pos2.board.find_move("d3e5").unwrap();
+        let m3 = pos3.board.find_move("g2h3").unwrap();
 
-        assert_eq!(pos1.see(m1), 100);
-        assert_eq!(pos2.see(m2), -200);
+        assert_eq!(pos1.see(m1), 1);
+        assert_eq!(pos2.see(m2), -2);
+        assert_eq!(pos3.see(m3), 1);
     }
 
     #[test]
@@ -501,7 +496,6 @@ mod tests {
                 .unwrap();
         let move_list = pos.generate_moves();
 
-        // Move list is ordered correctly
         let mut prev = -WORST;
         for (_, score) in move_list {
             assert!(prev >= score);

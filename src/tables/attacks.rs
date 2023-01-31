@@ -87,8 +87,9 @@ pub fn mask_bishop_attacks(src: Square, blockers: BitBoard) -> BitBoard {
     mask_predicate(|&tgt| {
         let dist = src.dist(tgt);
 
-        BETWEEN[src as usize][tgt as usize] & blockers == EMPTY_BB && // not blocked
-        dist.0.abs() == dist.1.abs() && src != tgt // bishop movement
+        BETWEEN[src as usize][tgt as usize] & blockers == EMPTY_BB
+            && dist.0.abs() == dist.1.abs()
+            && src != tgt
     })
 }
 
@@ -97,32 +98,36 @@ pub fn mask_rook_attacks(src: Square, blockers: BitBoard) -> BitBoard {
     mask_predicate(|&tgt| {
         let dist = src.dist(tgt);
 
-        BETWEEN[src as usize][tgt as usize] & blockers == EMPTY_BB && // not blocked
-        (dist.0 == 0 || dist.1 == 0) && src != tgt // rook movement
+        BETWEEN[src as usize][tgt as usize] & blockers == EMPTY_BB
+            && (dist.0 == 0 || dist.1 == 0)
+            && src != tgt
     })
 }
 
-/// Mask relevant bishop occupancy bits
+/// Mask relevant bishop occupancy bits (attacked bits excluding the final square in each ray)
 pub fn bishop_occupancy(src: Square) -> BitBoard {
     mask_predicate(|&tgt| {
         let (tgt_file, tgt_rank) = tgt.coords();
         let dist = src.dist(tgt);
 
-        tgt_file != File::A     && tgt_file != File::H     && // exclude edges
-        tgt_rank != Rank::First && tgt_rank != Rank::Eight &&
-        dist.0.abs() == dist.1.abs() && src != tgt // bishop movement
+        tgt_file != File::A
+            && tgt_file != File::H
+            && tgt_rank != Rank::First
+            && tgt_rank != Rank::Eight
+            && dist.0.abs() == dist.1.abs()
+            && src != tgt
     })
 }
 
-/// Mask relevant rook occupancy bits
+/// Mask relevant rook occupancy bits (attacked bits excluding the final square in each ray)
 pub fn rook_occupancy(src: Square) -> BitBoard {
     mask_predicate(|&tgt| {
         let (tgt_file, tgt_rank) = tgt.coords();
         let dist = src.dist(tgt);
 
-        ((dist.1 == 0 && tgt_file != File::A     && tgt_file != File::H)      ||
-            (dist.0 == 0 && tgt_rank != Rank::First && tgt_rank != Rank::Eight)) && // exclude edges
-        src != tgt
+        ((dist.1 == 0 && tgt_file != File::A && tgt_file != File::H)
+            || (dist.0 == 0 && tgt_rank != Rank::First && tgt_rank != Rank::Eight))
+            && src != tgt
     })
 }
 

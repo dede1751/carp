@@ -3,20 +3,20 @@
 /// This is a didactic chess engine for both approaching chess programming and learning to code
 /// in Rust.
 pub mod bitboard;
+pub mod move_list;
 pub mod moves;
 pub mod piece;
 pub mod square;
+pub mod tables;
 
 pub mod board;
 pub mod castle;
-pub mod move_list;
 pub mod position;
 pub mod zobrist;
 
 pub mod clock;
 pub mod evaluation;
 pub mod search;
-pub mod tables;
 pub mod tt;
 pub mod uci;
 

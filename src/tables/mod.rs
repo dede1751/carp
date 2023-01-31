@@ -1,11 +1,13 @@
 /// Module for initializing various global constants
 ///
 /// Carp uses plain magic bitboards found through random guessing for slider piece attack tables.
-/// Move tables are used for attacks only: quiet moves are calculated on the fly by the move
-/// generator.
+/// Magic generation code is in earlier commits, it's left out since there is no real use in
+/// changing them.
+/// Move tables are used for attacks only and exclude pawn quiet moves, which are calculated on
+/// the fly by the move generator.
 /// I spent a lot of time trying to get const evaluation for the tables to work, but it took far
-/// too long to compile and made the code extremely messy. In the end I chose the static mut way,
-/// which unfortunately comes with a lot of unsafe code.
+/// too long to compile and made the code extremely messy. Since I did not want to go the code
+/// generation route, I ported the static mut idea from Weiawaga.
 mod attacks;
 mod magics;
 

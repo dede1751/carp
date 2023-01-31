@@ -48,6 +48,35 @@ const SQUARE_STR: [&str; SQUARE_COUNT] = [
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", 
 ];
 
+/// Indexed by color and file. Target squares for pawn single pushes
+#[rustfmt::skip]
+pub const PUSH: [[Square; SQUARE_COUNT]; 2] = [[
+    A8, A8, A8, A8, A8, A8, A8, A8,
+    A8, B8, C8, D8, E8, F8, G8, H8, 
+    A7, B7, C7, D7, E7, F7, G7, H7, 
+    A6, B6, C6, D6, E6, F6, G6, H6, 
+    A5, B5, C5, D5, E5, F5, G5, H5, 
+    A4, B4, C4, D4, E4, F4, G4, H4, 
+    A3, B3, C3, D3, E3, F3, G3, H3, 
+    A8, A8, A8, A8, A8, A8, A8, A8,], [
+        
+    A8, A8, A8, A8, A8, A8, A8, A8,
+    A6, B6, C6, D6, E6, F6, G6, H6, 
+    A5, B5, C5, D5, E5, F5, G5, H5, 
+    A4, B4, C4, D4, E4, F4, G4, H4, 
+    A3, B3, C3, D3, E3, F3, G3, H3, 
+    A2, B2, C2, D2, E2, F2, G2, H2, 
+    A1, B1, C1, D1, E1, F1, G1, H1, 
+    A8, A8, A8, A8, A8, A8, A8, A8,
+]];
+
+/// Indexed by color and file. Target squares for pawn double pushes
+#[rustfmt::skip]
+pub const DOUBLE_PUSH: [[Square; FILE_COUNT]; 2] = [
+    [ A4, B4, C4, D4, E4, F4, G4, H4 ],
+    [ A5, B5, C5, D5, E5, F5, G5, H5 ]
+];
+
 /// Black/White square bitboards
 pub const WHITE_SQUARES: BitBoard = BitBoard(12273903644374837845);
 pub const BLACK_SQUARES: BitBoard = BitBoard(6172840429334713770);
@@ -90,11 +119,6 @@ impl Square {
     /// Get square from (rank, file) coordinates
     pub const fn from_coords(file: File, rank: Rank) -> Square {
         from!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file
-    }
-
-    /// Flips square vertically
-    pub const fn flipv(self) -> Square {
-        from!(self as u8 ^ 56, 63)
     }
 
     /// Converts square to bitboard
@@ -169,7 +193,7 @@ impl File {
 
     /// Gets file to the left, wraps A->H
     pub const fn left(self) -> File {
-        from!((self as u8).wrapping_sub(1), 7) // avoids of
+        from!((self as u8).wrapping_sub(1), 7)
     }
 
     /// Converts file to char
@@ -204,7 +228,7 @@ impl Rank {
 
     // Gets rank above, wraps Eight->First
     pub const fn up(self) -> Rank {
-        from!((self as u8).wrapping_sub(1), 7) // avoids of
+        from!((self as u8).wrapping_sub(1), 7)
     }
 
     // Converts rank to a char

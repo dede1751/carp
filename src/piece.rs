@@ -11,7 +11,6 @@ pub enum Color {
     White,
     Black,
 }
-use Color::*;
 
 impl Not for Color {
     type Output = Color;
@@ -51,8 +50,8 @@ impl fmt::Display for Color {
             f,
             "{}",
             match self {
-                White => "White",
-                Black => "Black",
+                Color::White => "White",
+                Color::Black => "Black",
             }
         )
     }
@@ -70,20 +69,21 @@ use Piece::*;
 
 pub const PIECE_COUNT: usize = 12;
 
-/// Piece index constants
-pub const WPAWN: usize = 0;
-pub const BPAWN: usize = 1;
-pub const WKNIGHT: usize = 2;
-pub const BKNIGHT: usize = 3;
-pub const WBISHOP: usize = 4;
-pub const BBISHOP: usize = 5;
-pub const WROOK: usize = 6;
-pub const BROOK: usize = 7;
-pub const WQUEEN: usize = 8;
-pub const BQUEEN: usize = 9;
-pub const WKING: usize = 10;
-pub const BKING: usize = 11;
+// Piece index constants
+pub const WPAWN: usize = WP as usize;
+pub const BPAWN: usize = BP as usize;
+pub const WKNIGHT: usize = WN as usize;
+pub const BKNIGHT: usize = BN as usize;
+pub const WBISHOP: usize = WB as usize;
+pub const BBISHOP: usize = BB as usize;
+pub const WROOK: usize = WR as usize;
+pub const BROOK: usize = BR as usize;
+pub const WQUEEN: usize = WQ as usize;
+pub const BQUEEN: usize = BQ as usize;
+pub const WKING: usize = WK as usize;
+pub const BKING: usize = BK as usize;
 
+/// All pieces indexed by binary representation
 #[rustfmt::skip]
 pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
     WP, BP, WN, BN, WB, BB,
@@ -139,7 +139,6 @@ impl TryFrom<char> for Piece {
 }
 
 /// Create piece from usize index
-///
 /// UB:
 /// If 12 <= index mod 16 <=15 this will try to transmute to a non-existent piece
 /// Simply use indices that make sense

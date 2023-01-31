@@ -11,6 +11,7 @@ pub struct BitBoard(pub u64);
 pub type BB64 = [BitBoard; SQUARE_COUNT];
 
 pub const EMPTY_BB: BitBoard = BitBoard(0);
+pub const FULL_BB: BitBoard = BitBoard(0xFFFFFFFFFFFFFFFF);
 pub const EMPTY_BB64: BB64 = [EMPTY_BB; SQUARE_COUNT];
 
 /// Idea for ops implementation is from https://github.com/analog-hors/tantabus
@@ -28,8 +29,6 @@ macro_rules! impl_math_ops {
 }
 
 impl_math_ops! {
-    Shl::shl,
-    Shr::shr,
     BitAnd::bitand,
     BitOr::bitor,
     BitXor::bitxor
@@ -62,7 +61,6 @@ impl_math_assign_ops! {
     BitXorAssign::bitxor_assign
 }
 
-// Impl Not
 impl std::ops::Not for BitBoard {
     type Output = BitBoard;
 
@@ -71,7 +69,6 @@ impl std::ops::Not for BitBoard {
     }
 }
 
-// Impl Display
 impl fmt::Display for BitBoard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = format!("\n      Bitboard: {}\n", self.0);
@@ -92,7 +89,7 @@ impl fmt::Display for BitBoard {
     }
 }
 
-/// Impl Iterator over the 1 bits of the board
+/// Iterator over the 1 bits of the board, pops the least significant bit each iteration
 impl Iterator for BitBoard {
     type Item = Square;
 
@@ -101,7 +98,7 @@ impl Iterator for BitBoard {
             None
         } else {
             let sq = self.lsb();
-            self.0 &= self.0 - 1; // pops lsb
+            self.0 &= self.0 - 1;
 
             Some(sq)
         }
@@ -109,10 +106,6 @@ impl Iterator for BitBoard {
 }
 
 impl BitBoard {
-    pub const fn new(bb: u64) -> BitBoard {
-        BitBoard { 0: bb }
-    }
-
     /// Check whether given square is set on the board
     pub const fn get_bit(self, square: Square) -> bool {
         self.0 & (1u64 << square as usize) != 0

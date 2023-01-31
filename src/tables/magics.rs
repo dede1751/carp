@@ -3,7 +3,7 @@
 use super::attacks::*;
 use crate::{bitboard::*, square::*};
 
-/// Relevant occupancy bits for each square for bishops and rooks
+/// Number of relevant occupancy bits for a bishop on each square
 #[rustfmt::skip]
 pub const BISHOP_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     6, 5, 5, 5, 5, 5, 5, 6,
@@ -16,6 +16,7 @@ pub const BISHOP_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     6, 5, 5, 5, 5, 5, 5, 6,
 ];
 
+/// Number of relevant occupancy bits for a rook on each square
 #[rustfmt::skip]
 pub const ROOK_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     12, 11, 11, 11, 11, 11, 11, 12,
@@ -28,7 +29,7 @@ pub const ROOK_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
     12, 11, 11, 11, 11, 11, 11, 12,
 ];
 
-/// Default bishop/rook magic numbers
+/// Default bishop magic numbers
 #[rustfmt::skip]
 pub const DEFAULT_BISHOP_MAGICS: BB64 = [
     BitBoard(18018831494946945),    BitBoard(5683392850989056),     BitBoard(1154048864819347976),
@@ -55,6 +56,7 @@ pub const DEFAULT_BISHOP_MAGICS: BB64 = [
     BitBoard(1153488869854019624),
 ];
 
+/// Default rook magic numbers
 #[rustfmt::skip]
 pub const DEFAULT_ROOK_MAGICS: BB64 = [
     BitBoard(9979994641325359136),  BitBoard(90072129987412032),    BitBoard(180170925814149121),

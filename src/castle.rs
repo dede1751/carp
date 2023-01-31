@@ -72,10 +72,10 @@ pub const ROOK_CASTLING_MOVE: [(Square, Square); SQUARE_COUNT] = [
     (A8, A8), (A8, A8), (A1, D1), (A8, A8), (A8, A8), (A8, A8), (H1, F1), (A8, A8),
 ];
 
-// bitboards for queenside castling relevant occupancies, 0 -> White, 1 -> Black
+/// Bitboards for queenside castling relevant occupancies, indexed by side
 pub const QUEENSIDE_OCCUPANCIES: [BitBoard; 2] = [BitBoard(1008806316530991104), BitBoard(14)];
 
-// for queenside, it's fine for B1/B8 to be attacked but it cannot be occupied
+// For queenside, it's fine for B1/B8 to be attacked but it cannot be occupied
 pub const QUEENSIDE_THREATS: [BitBoard; 2] = [BitBoard(864691128455135232), BitBoard(12)];
 
 // squares skipped by queenside castling move
