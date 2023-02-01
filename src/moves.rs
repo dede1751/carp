@@ -1,4 +1,3 @@
-/// Implements move encoding and MoveList struct
 use std::fmt;
 
 use crate::{from, piece::*, square::*};

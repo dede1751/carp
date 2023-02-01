@@ -1,17 +1,13 @@
-/// Implements Zobrist incremental hashing for board states
-///
-/// Zobrist keys are initialized randomly and saved in the constants module
-/// ZHash -- u64 hash type
-///
+use crate::{board::*, castle::*, piece::*, square::*, tables::*};
+
+/// Zobrist hash, an incremental hash for a board position using random keys (in constants mod)
+/// 
 /// Didactic note:
 /// Zobrist hashes for two identical positions are the same ONLY if obtained through any combination
 /// of toggles from the SAME state. Given position A and B, if they both lead to C through m1..mn,
 /// ZH(C(A)) == ZH(C(B))   <=>     ZH(B) is obtained from ZH(A) through some sequence of moves.
 ///
 /// Building ZH(A) and ZH(B) independently by summing material score WILL NOT produce the same hash
-use crate::{board::*, castle::*, piece::*, square::*, tables::*};
-
-/// Zobrist hash, an incremental hash for a board position
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct ZHash(pub u64);
 

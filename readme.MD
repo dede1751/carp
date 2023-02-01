@@ -14,16 +14,13 @@ and most importantly the [chess programming wiki](https://www.chessprogramming.o
 
 ## Performance
 
-Standard perft is available as a UCI command, alongside benchmarking using the Eigenmann Rapid test
-set.
-
 Move generation is fully legal, inspired by [this article](https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator)
 and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
-As it stands, on my local (rather weak) machine, Carp will usually search to depths 11-13 in fast
-time controls during the middle game.
-In standard arena games, with the improved evaluation, it seems to handily beat BBC, although
-further and more rigorous testing should be conduced.
+Version 1.2 adds much more aggressive pruning techniques, which have brought a noticeable speedup in
+time to depth and reduced the branching factor greatly. Now Carp can easily push to depths 16-17 in
+blitz midgames, hitting much softer depth walls. Since everything else is mostly the same, this will
+require a great deal of testing to determine whether the change improved the actual playing strength.
 
 The engine is quite fun to play against when limiting the depth to reasonable values, since
 it is relatively dumb positionally: provided it does not see some crazy computer tactic a good
@@ -34,16 +31,16 @@ human player should be able to hold out and enjoy a good game.
 * Plain magic bitboards for move precalculation
 * Fully legal move generation
 * Tapered Evaluation from PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
-* MVV-LVA + Static Exchange Evaluation + Killer/History move ordering
+* MVV-LVA with Static Exchange Evaluation + Killer/History quiet move ordering
 * Fail-Hard Negamax + Quiescence
 * Multithreading with Lazy-SMP
 * Iterative Deepening with Aspiration Windows
 * Lockless Transposition table with newest + highest depth replacement scheme
 * Principal Variation Search
 * Null Move Pruning
-* Late Move Reduction
+* Late Move Reductions
 * Mate Distance Pruning
-* Futility Pruning
+* Delta/SEE pruning in QS
 
 Of course it is still lacking many optimizations, most notably:
 

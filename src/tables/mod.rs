@@ -14,16 +14,75 @@ mod magics;
 #[rustfmt::skip]
 mod constants;
 
+use std::cmp::min;
+
 use attacks::*;
 pub use constants::*;
 use magics::*;
 
 use crate::{bitboard::*, piece::Color, square::*};
 
+/// Precalculated attack tables for leaper pieces
+struct Tables {
+    pub pawn_attacks: [BB64; 2],
+    pub knight_attacks: BB64,
+    pub king_attacks: BB64,
+}
+
+static mut TABLES: Tables = Tables {
+    pawn_attacks: [EMPTY_BB64; 2],
+    knight_attacks: EMPTY_BB64,
+    king_attacks: EMPTY_BB64,
+};
+
+/// Leaper attack table initialization
+impl Tables {
+    fn init(&mut self) {
+        for square in ALL_SQUARES {
+            if square.rank() != Rank::Eight {
+                self.pawn_attacks[0][square as usize] = mask_pawn_attacks(square, Color::White);
+            }
+            if square.rank() != Rank::First {
+                self.pawn_attacks[1][square as usize] = mask_pawn_attacks(square, Color::Black);
+            }
+
+            self.knight_attacks[square as usize] = mask_knight_attacks(square);
+            self.king_attacks[square as usize] = mask_king_attacks(square);
+        }
+    }
+}
+
+/// Precalculated lmr reduction table (values from Asymptote)
+/// Using ln(depth) * ln(move_count) we can have near-linear tree growth.
+struct LMRTable {
+    reductions: [[usize; 64]; 64],
+}
+
+static mut LMR_TABLE: LMRTable = LMRTable {
+    reductions: [[0; 64]; 64],
+};
+
+const LMR_BASE: f32 = 0.75; // increase to reduce every move more
+const LMR_FACTOR: f32 = 2.0; // increase to reduce more further in the movelist
+
+impl LMRTable {
+    fn init(&mut self) {
+        for depth in 1..64 {
+            for move_count in 1..64 {
+                let reduction =
+                    LMR_BASE + (depth as f32).ln() * (move_count as f32).ln() / LMR_FACTOR;
+
+                self.reductions[depth][move_count] = reduction as usize;
+            }
+        }
+    }
+}
+
 /// Initialize all attack tables
 pub fn init_all_tables() {
     unsafe {
         TABLES.init();
+        LMR_TABLE.init();
         BISHOP_MAGICS.init();
         ROOK_MAGICS.init();
     }
@@ -57,6 +116,11 @@ pub fn rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
 /// Gets queen attacks based on the blocker bitboard
 pub fn queen_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     rook_attacks(square, blockers) | bishop_attacks(square, blockers)
+}
+
+/// Gets the lmr reduction given depth and move count
+pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
+    unsafe { LMR_TABLE.reductions[min(depth, 63)][min(move_count, 63)] }
 }
 
 #[cfg(test)]

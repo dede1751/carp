@@ -1,13 +1,19 @@
 use std::cmp::{max, min};
 
-use crate::{clock::Clock, evaluation::*, moves::*, position::Position, tt::*};
+use crate::{clock::Clock, evaluation::*, moves::*, position::Position, tables::*, tt::*};
 
 pub const MAX_DEPTH: usize = 128; // max depth to search at
-const LMR_THRESHOLD: u32 = 4; // moves to execute before any reduction
-const LMR_LOWER_LIMIT: usize = 3; // stop applying lmr near leaves
-const NMP_REDUCTION: usize = 2; // null move pruning reduced depth
-const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
+
+const LMR_THRESHOLD: usize = 2; // moves to execute before any reduction
+const LMR_LOWER_LIMIT: usize = 2; // stop applying lmr near leaves
+
+const NMP_BASE_R: usize = 4; // null move pruning reduced depth
+const NMP_FACTOR: usize = 6; // increase to reduce more at higher depths
+const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
+
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
+const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
+
 const FUTILITY_MARGIN: Eval = 1100; // highest queen value possible
 
 /// Search the move tree, starting at the given position
@@ -199,10 +205,13 @@ impl<'a> Search<'a> {
         };
 
         // Apply null move pruning
-        let mut eval: Eval;
-        if depth > NMP_REDUCTION && !pv_node && !in_check && !self.position.only_king_pawns_left() {
+        // Null move reduction values from CounterGo
+        if depth > NMP_LOWER_LIMIT && !pv_node && !in_check && !self.position.only_king_pawns_left()
+        {
+            let reduction = min(NMP_BASE_R + depth / NMP_FACTOR, depth);
+
             self.position.make_null();
-            eval = -self.negamax(-beta, -beta + 1, depth - 1 - NMP_REDUCTION);
+            let eval = -self.negamax(-beta, -beta + 1, depth - reduction);
             self.position.undo_move();
 
             // cutoff above beta and not for mate scores!
@@ -211,39 +220,63 @@ impl<'a> Search<'a> {
             }
         }
 
-        let mut moves_checked: u32 = 0;
-        let mut best_move = NULL_MOVE;
-        let mut tt_bound = TTFlag::Upper;
+        let move_list = self.position.generate_moves();
 
-        for (m, _) in self.position.generate_moves() {
-            moves_checked += 1;
+        // Mate or stalemate. Don't save in the TT, simply return early
+        if move_list.len() == 0 {
+            if in_check {
+                return -MATE + self.position.ply as Eval;
+            } else {
+                return 0;
+            }
+        };
+
+        let mut eval: Eval;
+        let mut tt_field = TTField::new(&self.position, TTFlag::Upper, NULL_MOVE, alpha, depth);
+
+        for (move_count, (m, _)) in move_list.enumerate() {
             self.position.make_move(m);
 
-            if moves_checked == 1 {
+            if move_count == 0 {
                 // full depth search on first move
                 eval = -self.negamax(-beta, -alpha, depth - 1);
-                best_move = m; // always init at least one best move
+                tt_field.update_data(TTFlag::Upper, m, alpha); // always save at least one move
             } else {
                 // reduce depth for all moves beyond first
-                if moves_checked >= LMR_THRESHOLD
+                let reduced_depth = if move_count >= LMR_THRESHOLD
                     && depth >= LMR_LOWER_LIMIT
-                    && !in_check
                     && !m.is_capture()
                     && !m.is_promotion()
                 {
-                    // LMR with a null window
-                    eval = -self.negamax(-alpha - 1, -alpha, depth - 2);
+                    let mut lmr_reduction = lmr_reduction(depth, move_count);
+
+                    if in_check && lmr_reduction >= 1 {
+                        lmr_reduction -= 1;
+                    }
+
+                    if pv_node && lmr_reduction >= 1 {
+                        lmr_reduction -= 1;
+                    }
+
+                    if depth >= lmr_reduction + 1 {
+                        depth - lmr_reduction
+                    } else {
+                        1
+                    }
                 } else {
-                    eval = alpha + 1; // else force pvs
+                    depth
+                };
+
+                // do reduced depth pvs search, and eventually fall back to full window
+                eval = -self.negamax(-alpha - 1, -alpha, reduced_depth - 1);
+                if eval > alpha && pv_node && !self.stop {
+                    eval = -self.negamax(-beta, -alpha, reduced_depth - 1);
                 }
 
-                if eval > alpha {
-                    // normal PVS for any move beyond the first
+                // fall back to full depth if lmr failed
+                if reduced_depth < depth && eval > alpha && !self.stop {
                     eval = -self.negamax(-alpha - 1, -alpha, depth - 1);
-
-                    // sneaky way to also dodge re-searching when the window is already null
-                    if eval > alpha && eval < beta && !self.stop {
-                        // PVS failed
+                    if eval > alpha && pv_node && !self.stop {
                         eval = -self.negamax(-beta, -alpha, depth - 1);
                     }
                 }
@@ -262,27 +295,17 @@ impl<'a> Search<'a> {
                     };
 
                     alpha = beta;
-                    tt_bound = TTFlag::Lower;
+                    tt_field.update_data(TTFlag::Lower, m, beta);
                     break;
                 }
 
                 alpha = eval;
-                tt_bound = TTFlag::Exact;
+                tt_field.update_data(TTFlag::Exact, m, eval);
             }
         }
 
-        // Mate or stalemate. Don't save in the TT, this is very cheap to compute
-        if moves_checked == 0 {
-            if in_check {
-                return -MATE + self.position.ply as Eval;
-            } else {
-                return 0;
-            }
-        };
-
         if !self.stop {
-            let tt_entry = TTField::new(&self.position, tt_bound, best_move, alpha, depth);
-            self.tt.insert(tt_entry);
+            self.tt.insert(tt_field);
         }
 
         alpha

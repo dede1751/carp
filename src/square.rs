@@ -1,12 +1,8 @@
-/// Implements all the structures defining a square on the board:
-///
-/// Square: enum of the 64 squares with standard notation, from A8 to H1
-/// File  : A B C D E F G H
-/// Rank  : 8 7 6 5 4 3 2 1  (enum indexed backwards)
 use std::{fmt, str::FromStr};
 
 use crate::{bitboard::BitBoard, from};
 
+/// Board square enum, indexed from A8 = 0 to H1 = 63
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 #[rustfmt::skip]
@@ -168,7 +164,7 @@ impl Square {
     }
 }
 
-/// Board file enum
+/// Board file enum, indexed from A = 0 to H = 7
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 #[rustfmt::skip]
@@ -202,8 +198,7 @@ impl File {
     }
 }
 
-/// Board rank enum
-/// Since boards are numbered A8 -> H1, ranks are backwards
+/// Board rank enum, indexed from Eight = 0 to First = 7 (backwards)
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 #[rustfmt::skip]

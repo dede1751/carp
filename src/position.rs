@@ -1,5 +1,3 @@
-/// Position, represents a Board's evolution along the search tree.
-/// Also incorporates move ordering and various game rules (50mr, draw detection etc)
 use std::{
     cmp::{max, min},
     str::FromStr,
@@ -10,6 +8,8 @@ use crate::{
     square::*, tables::*, zobrist::*,
 };
 
+/// Position, represents a Board's evolution along the search tree.
+/// Also incorporates move ordering and various game rules (50mr, draw detection etc)
 #[derive(Clone, Debug)]
 pub struct Position {
     pub board: Board,

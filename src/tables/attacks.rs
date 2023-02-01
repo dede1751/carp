@@ -5,38 +5,8 @@ use crate::bitboard::*;
 use crate::piece::Color;
 use crate::square::*;
 
-/// Precalculated attack tables for leaper pieces
-pub struct Tables {
-    pub pawn_attacks: [BB64; 2],
-    pub knight_attacks: BB64,
-    pub king_attacks: BB64,
-}
-
-pub static mut TABLES: Tables = Tables {
-    pawn_attacks: [EMPTY_BB64; 2],
-    knight_attacks: EMPTY_BB64,
-    king_attacks: EMPTY_BB64,
-};
-
-/// Leaper attack table initialization
-impl Tables {
-    pub fn init(&mut self) {
-        for square in ALL_SQUARES {
-            if square.rank() != Rank::Eight {
-                self.pawn_attacks[0][square as usize] = mask_pawn_attacks(square, Color::White);
-            }
-            if square.rank() != Rank::First {
-                self.pawn_attacks[1][square as usize] = mask_pawn_attacks(square, Color::Black);
-            }
-
-            self.knight_attacks[square as usize] = mask_knight_attacks(square);
-            self.king_attacks[square as usize] = mask_king_attacks(square);
-        }
-    }
-}
-
 /// Generate bitboard for pawn attacks from square
-fn mask_pawn_attacks(src: Square, color: Color) -> BitBoard {
+pub fn mask_pawn_attacks(src: Square, color: Color) -> BitBoard {
     let mut attacks = EMPTY_BB;
     let file = src.file();
 

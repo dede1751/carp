@@ -1,4 +1,3 @@
-/// Structures to represent a piece along with its color
 use std::fmt;
 use std::ops::Not;
 

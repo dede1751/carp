@@ -1,4 +1,3 @@
-/// UCI integration
 use std::{
     io,
     io::BufRead,

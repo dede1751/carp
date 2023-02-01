@@ -1,6 +1,4 @@
 use std::time::Instant;
-/// Implements board representation and move generation
-/// Any board without a king for each player (and with more than one for either) is UB!
 use std::{fmt, str::FromStr};
 
 use crate::{
@@ -9,6 +7,7 @@ use crate::{
 };
 
 /// Piece-centric board representation
+/// Any board without a king for each player (and with more than one for either) is UB!
 #[derive(Copy, Clone, Debug)]
 pub struct Board {
     pub pieces: [BitBoard; PIECE_COUNT],

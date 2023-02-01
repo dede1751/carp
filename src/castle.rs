@@ -1,4 +1,3 @@
-/// Implements castling related operations
 use std::{fmt, str::FromStr};
 
 use crate::{

@@ -1,7 +1,3 @@
-/// Implements a transposition table to lookup previously searched nodes
-///
-/// The transposition table uses internal atomic entries with lockless access as seen on
-/// https://www.chessprogramming.org/Shared_Hash_Table
 use std::{
     mem::{size_of, transmute},
     sync::atomic::{AtomicU64, Ordering},
@@ -194,6 +190,7 @@ impl AtomicField {
 }
 
 /// Main transposition table with 16B atomic entries
+/// https://www.chessprogramming.org/Shared_Hash_Table
 pub struct TT {
     table: Vec<AtomicField>,
     bitmask: u64,
