@@ -19,8 +19,13 @@ and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedu
 
 Version 1.2 adds much more aggressive pruning techniques, which have brought a noticeable speedup in
 time to depth and reduced the branching factor greatly. Now Carp can easily push to depths 16-17 in
-blitz midgames, hitting much softer depth walls. Since everything else is mostly the same, this will
-require a great deal of testing to determine whether the change improved the actual playing strength.
+blitz midgames, hitting much softer depth walls.
+
+To benchmark the engine I've also added a test directory with a simple shell script running cutechess
+cli. The script allows to run gauntlet tests against engines in the test/engines folder or sprt tests
+against older versions of Carp. Engines must be manually added to the shell script.
+I still need to properly run the tests, but at first glance it seems that the new version has improved
+tremendously just by pruning much more aggressively.
 
 The engine is quite fun to play against when limiting the depth to reasonable values, since
 it is relatively dumb positionally: provided it does not see some crazy computer tactic a good
@@ -44,6 +49,7 @@ human player should be able to hold out and enjoy a good game.
 
 Of course it is still lacking many optimizations, most notably:
 
+* Pondering for Lichess bot games
 * Opening book/Endgame tablebase (although UCI let's you do this in the gui)
-* Various other heuristics (razoring, search extensions...)
+* Various other heuristics (rfp, lmp, razoring, search extensions...)
 * Further improvement to evaluation
