@@ -174,6 +174,15 @@ pub fn is_mated(eval: Eval) -> bool {
     eval <= -LONGEST_MATE && eval > -MATE
 }
 
+/// Returns the piece value according to the game phase (used for futility pruning in QS)
+pub fn eval_piece(board: &Board, piece: Piece) -> Eval {
+    let score = PIECE_VALUES[piece as usize / 2];
+    let game_phase = min(board.game_phase, 24);
+    let interpolation = (score.0 * game_phase + score.1 * (24 - game_phase)) / 24;
+
+    interpolation as Eval
+}
+
 /// Static position evaluation
 /// W is 0 for white and 1 for black (crate::piece::Color cast to usize)
 pub fn eval(board: &Board) -> Eval {

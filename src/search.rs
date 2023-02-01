@@ -14,7 +14,8 @@ const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
 
-const FUTILITY_MARGIN: Eval = 1100; // highest queen value possible
+const QS_DELTA_MARGIN: Eval = 1100; // highest queen value possible
+const QS_FUTILITY_MARGIN: Eval = 200; // overhead we allow for captures in qs
 
 /// Search the move tree, starting at the given position
 pub struct Search<'a> {
@@ -321,24 +322,37 @@ impl<'a> Search<'a> {
         self.nodes += 1;
         self.seldepth = max(self.seldepth, self.position.ply);
 
-        // try stand pat
-        let eval = self.position.evaluate();
+        let in_check = self.position.king_in_check();
 
-        if self.position.ply >= MAX_DEPTH {
-            return eval;
-        }
+        // when in check, avoid aggressive pruning
+        let mut stand_pat = 0;
+        if !in_check {
+            stand_pat = self.position.evaluate();
 
-        if eval >= beta {
-            return beta;
+            if self.position.ply >= MAX_DEPTH {
+                return stand_pat;
+            }
+
+            if stand_pat >= beta {
+                return beta;
+            }
+            if stand_pat < alpha - QS_DELTA_MARGIN {
+                return alpha; // delta pruning
+            }
+            alpha = max(stand_pat, alpha);
         }
-        if eval < alpha - FUTILITY_MARGIN {
-            return alpha; // futility pruning
-        }
-        alpha = max(eval, alpha); // stand pat is pv
 
         for (m, s) in self.position.generate_captures() {
-            if s < 0 {
-                break; // we reached negative see, it's probably not worth searching
+            if !in_check {
+                if s < 0 {
+                    break; // we reached negative see, it's probably not worth searching
+                }
+
+                // futility pruning
+                let move_value = stand_pat + eval_piece(&self.position.board, m.get_capture());
+                if !m.is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha {
+                    continue;
+                }
             }
 
             self.position.make_move(m);
