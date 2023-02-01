@@ -45,7 +45,7 @@ human player should be able to hold out and enjoy a good game.
 * Null Move Pruning
 * Late Move Reductions
 * Mate Distance Pruning
-* Delta/SEE pruning in QS
+* Delta/SEE/Futility pruning in QS
 
 Of course it is still lacking many optimizations, most notably:
 

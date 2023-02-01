@@ -1,7 +1,7 @@
 use crate::{board::*, castle::*, piece::*, square::*, tables::*};
 
 /// Zobrist hash, an incremental hash for a board position using random keys (in constants mod)
-/// 
+///
 /// Didactic note:
 /// Zobrist hashes for two identical positions are the same ONLY if obtained through any combination
 /// of toggles from the SAME state. Given position A and B, if they both lead to C through m1..mn,
