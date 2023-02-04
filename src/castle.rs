@@ -1,10 +1,8 @@
 use std::{fmt, str::FromStr};
 
-use crate::{
-    bitboard::BitBoard,
-    piece::Color,
-    square::{Square::*, *},
-};
+use crate::bitboard::*;
+use crate::piece::*;
+use crate::square::{Square::*, *};
 
 /// Castling rights struct
 /// Implemented through a flag bit vector. This allows for fast castle update without needing

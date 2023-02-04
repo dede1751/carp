@@ -1,4 +1,8 @@
-use crate::{board::*, castle::*, piece::*, square::*, tables::*};
+use crate::board::*;
+use crate::castle::*;
+use crate::piece::*;
+use crate::square::*;
+use crate::tables::*;
 
 /// Zobrist hash, an incremental hash for a board position using random keys (in constants mod)
 ///

@@ -36,7 +36,7 @@ human player should be able to hold out and enjoy a good game.
 * Plain magic bitboards for move precalculation
 * Fully legal move generation
 * Tapered Evaluation from PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
-* MVV-LVA with Static Exchange Evaluation + Killer/History quiet move ordering
+* MVV-LVA with Static Exchange Evaluation + Killer/History/CMH/FUH
 * Fail-Hard Negamax + Quiescence
 * Multithreading with Lazy-SMP
 * Iterative Deepening with Aspiration Windows
@@ -45,6 +45,7 @@ human player should be able to hold out and enjoy a good game.
 * Null Move Pruning
 * Late Move Reductions
 * Mate Distance Pruning
+* History Leaf Pruning
 * Delta/SEE/Futility pruning in QS
 
 Of course it is still lacking many optimizations, most notably:

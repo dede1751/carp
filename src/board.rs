@@ -1,10 +1,14 @@
 use std::time::Instant;
 use std::{fmt, str::FromStr};
 
-use crate::{
-    bitboard::*, castle::*, move_list::MoveList, moves::*, piece::*, square::*, tables::*,
-    zobrist::*,
-};
+use crate::bitboard::*;
+use crate::castle::*;
+use crate::move_list::*;
+use crate::moves::*;
+use crate::piece::*;
+use crate::square::*;
+use crate::tables::*;
+use crate::zobrist::*;
 
 /// Piece-centric board representation
 /// Any board without a king for each player (and with more than one for either) is UB!

@@ -1,4 +1,6 @@
-use crate::{moves::*, piece::*, square::*};
+use crate::moves::*;
+use crate::piece::*;
+use crate::square::*;
 
 /// Taken from Pleco, adapted to 32b moves.
 /// Assuming we have 8 cache lines, which should be 512B, we use up enough to fill a single
@@ -14,7 +16,7 @@ pub const MAX_MOVES: usize = 127;
 /// MoveList with MoveScores, assigned by the Position struct
 pub struct MoveList {
     pub moves: [Move; MAX_MOVES],
-    pub scores: [i16; MAX_MOVES],
+    pub scores: [i32; MAX_MOVES],
     index: usize,
     len: usize,
 }
@@ -24,7 +26,7 @@ pub struct MoveList {
 /// we use O(n^2) sorting but take advantage of early cutoffs which should't require a full list
 /// sort. On top of that, we are exploiting the cache friendliness of linear memory access.
 impl Iterator for MoveList {
-    type Item = (Move, i16);
+    type Item = (Move, i32);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index == self.len {

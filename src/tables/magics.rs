@@ -1,7 +1,8 @@
 /// Magic numbers and helper functions
 /// Process for finding them is documented in https://www.chessprogramming.org/Looking_for_Magics
 use super::attacks::*;
-use crate::{bitboard::*, square::*};
+use crate::bitboard::*;
+use crate::square::*;
 
 /// Number of relevant occupancy bits for a bishop on each square
 #[rustfmt::skip]
@@ -148,6 +149,11 @@ impl Magics {
 
     /// Get slider attack from square with given blockers
     pub fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        self.attacks[square as usize][self.magic_map(square, blockers)]
+        unsafe {
+            *self
+                .attacks
+                .get_unchecked(square as usize)
+                .get_unchecked(self.magic_map(square, blockers))
+        }
     }
 }

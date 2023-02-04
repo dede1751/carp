@@ -1,6 +1,11 @@
 use std::cmp::{max, min};
 
-use crate::{clock::Clock, evaluation::*, moves::*, position::Position, tables::*, tt::*};
+use crate::clock::*;
+use crate::evaluation::*;
+use crate::moves::*;
+use crate::position::*;
+use crate::tables::*;
+use crate::tt::*;
 
 pub const MAX_DEPTH: usize = 128; // max depth to search at
 
@@ -10,6 +15,8 @@ const LMR_LOWER_LIMIT: usize = 2; // stop applying lmr near leaves
 const NMP_BASE_R: usize = 4; // null move pruning reduced depth
 const NMP_FACTOR: usize = 6; // increase to reduce more at higher depths
 const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
+
+const HLP_THRESHOLD: usize = 2; // depth at which history leaf pruning kicks in
 
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
@@ -99,11 +106,11 @@ impl<'a> Search<'a> {
 
         let mut eval: Eval;
         let mut best_move = NULL_MOVE;
+        let mut searched_quiets = Vec::with_capacity(20);
         let mut tt_entry = TTField::new(&self.position, TTFlag::Upper, best_move, -MATE, depth);
 
         for (move_count, (m, _)) in self.position.generate_moves().enumerate() {
             self.position.make_move(m);
-
             if move_count == 0 {
                 // full search on first move
                 eval = -self.negamax(-beta, -alpha, depth - 1);
@@ -121,13 +128,15 @@ impl<'a> Search<'a> {
                 return (0, NULL_MOVE);
             }
 
+            let is_quiet = !m.is_capture() && !m.is_promotion();
+
             if eval > alpha {
                 best_move = m;
                 alpha = eval;
 
                 if eval >= beta {
-                    if !(m.is_capture()) {
-                        self.position.update_sorter(m, depth);
+                    if is_quiet {
+                        self.position.update_sorter(m, depth, searched_quiets);
                     };
 
                     tt_entry.update_data(TTFlag::Lower, best_move, beta);
@@ -139,6 +148,10 @@ impl<'a> Search<'a> {
                 // in root, we insert partial results for the other threads to use
                 tt_entry.update_data(TTFlag::Upper, best_move, alpha);
                 self.tt.insert(tt_entry);
+            }
+
+            if is_quiet {
+                searched_quiets.push(m);
             }
         }
 
@@ -159,6 +172,8 @@ impl<'a> Search<'a> {
 
         let pv_node = alpha != beta - 1; // False when searching with a null window
         let in_check = self.position.king_in_check();
+
+        // Check extension
         if in_check {
             depth += 1;
         }
@@ -205,9 +220,11 @@ impl<'a> Search<'a> {
             None => self.position.set_tt_move(None),
         };
 
-        // Apply null move pruning
-        // Null move reduction values from CounterGo
-        if depth > NMP_LOWER_LIMIT && !pv_node && !in_check && !self.position.only_king_pawns_left()
+        // Null Move Pruning (reduction value from CounterGO)
+        if depth > NMP_LOWER_LIMIT
+            && !pv_node
+            && !in_check
+            && !self.position.only_king_pawns_left()
         {
             let reduction = min(NMP_BASE_R + depth / NMP_FACTOR, depth);
 
@@ -233,11 +250,30 @@ impl<'a> Search<'a> {
         };
 
         let mut eval: Eval;
+        let mut searched_quiets = Vec::with_capacity(20);
         let mut tt_field = TTField::new(&self.position, TTFlag::Upper, NULL_MOVE, alpha, depth);
 
-        for (move_count, (m, _)) in move_list.enumerate() {
+        for (move_count, (m, s)) in move_list.enumerate() {
+            
+            // History leaf pruning
+            // Below a certain depth, prune negative history moves in non-pv nodes
+            if depth <= HLP_THRESHOLD
+                && !pv_node
+                && !in_check
+                && s < HISTORY_OFFSET
+            {
+                if move_count == 0 {
+                    tt_field.update_data(TTFlag::Upper, m, alpha);
+                }
+                break;
+            }
+            
             self.position.make_move(m);
-
+            
+            // Flag for moves checking the opponent
+            let is_check = self.position.king_in_check();
+            let is_quiet = !m.is_capture() && !m.is_promotion();
+            
             if move_count == 0 {
                 // full depth search on first move
                 eval = -self.negamax(-beta, -alpha, depth - 1);
@@ -246,10 +282,13 @@ impl<'a> Search<'a> {
                 // reduce depth for all moves beyond first
                 let reduced_depth = if move_count >= LMR_THRESHOLD
                     && depth >= LMR_LOWER_LIMIT
-                    && !m.is_capture()
-                    && !m.is_promotion()
+                    && is_quiet
                 {
                     let mut lmr_reduction = lmr_reduction(depth, move_count);
+
+                    if is_check && lmr_reduction >= 1 {
+                        lmr_reduction -= 1;
+                    }
 
                     if in_check && lmr_reduction >= 1 {
                         lmr_reduction -= 1;
@@ -291,8 +330,8 @@ impl<'a> Search<'a> {
 
             if eval > alpha {
                 if eval >= beta {
-                    if !(m.is_capture()) {
-                        self.position.update_sorter(m, depth);
+                    if is_quiet {
+                        self.position.update_sorter(m, depth, searched_quiets);
                     };
 
                     alpha = beta;
@@ -302,6 +341,11 @@ impl<'a> Search<'a> {
 
                 alpha = eval;
                 tt_field.update_data(TTFlag::Exact, m, eval);
+            }
+
+            // save searched quiets that didn't cause a cutoff for negative history score
+            if is_quiet {
+                searched_quiets.push(m);
             }
         }
 
@@ -344,7 +388,7 @@ impl<'a> Search<'a> {
 
         for (m, s) in self.position.generate_captures() {
             if !in_check {
-                if s < 0 {
+                if s < GOOD_CAPTURE_OFFSET {
                     break; // we reached negative see, it's probably not worth searching
                 }
 
@@ -432,7 +476,7 @@ mod performance_tests {
     use std::sync::{atomic::AtomicBool, Arc};
     use std::time::Instant;
 
-    use crate::{clock::*, piece::Color, position::*, tables::init_all_tables};
+    use crate::piece::*;
 
     fn search_driver(fen: &str, depth: usize) {
         init_all_tables();

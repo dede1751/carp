@@ -63,7 +63,7 @@ static mut LMR_TABLE: LMRTable = LMRTable {
 };
 
 const LMR_BASE: f32 = 0.75; // increase to reduce every move more
-const LMR_FACTOR: f32 = 2.0; // increase to reduce more further in the movelist
+const LMR_FACTOR: f32 = 2.0; // increase to reduce less further in the movelist
 
 impl LMRTable {
     fn init(&mut self) {
@@ -90,17 +90,22 @@ pub fn init_all_tables() {
 
 /// Gets pawn attacks from tables
 pub fn pawn_attacks(square: Square, side: Color) -> BitBoard {
-    unsafe { TABLES.pawn_attacks[side as usize][square as usize] }
+    unsafe {
+        *TABLES
+            .pawn_attacks
+            .get_unchecked(side as usize)
+            .get_unchecked(square as usize)
+    }
 }
 
 /// Gets knight attacks from tables
 pub fn knight_attacks(square: Square) -> BitBoard {
-    unsafe { TABLES.knight_attacks[square as usize] }
+    unsafe { *TABLES.knight_attacks.get_unchecked(square as usize) }
 }
 
 /// Gets king attacks from tables
 pub fn king_attacks(square: Square) -> BitBoard {
-    unsafe { TABLES.king_attacks[square as usize] }
+    unsafe { *TABLES.king_attacks.get_unchecked(square as usize) }
 }
 
 /// Gets bishop attacks based on the blocker bitboard
@@ -120,7 +125,9 @@ pub fn queen_attacks(square: Square, blockers: BitBoard) -> BitBoard {
 
 /// Gets the lmr reduction given depth and move count
 pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
-    unsafe { LMR_TABLE.reductions[min(depth, 63)][min(move_count, 63)] }
+    let d = min(depth, 63);
+    let m = min(move_count, 63);
+    unsafe { *LMR_TABLE.reductions.get_unchecked(d).get_unchecked(m) }
 }
 
 #[cfg(test)]

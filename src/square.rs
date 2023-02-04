@@ -1,6 +1,7 @@
 use std::{fmt, str::FromStr};
 
-use crate::{bitboard::BitBoard, from};
+use crate::bitboard::*;
+use crate::from;
 
 /// Board square enum, indexed from A8 = 0 to H1 = 63
 #[repr(u8)]
