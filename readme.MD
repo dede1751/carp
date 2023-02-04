@@ -22,8 +22,8 @@ time to depth and reduced the branching factor greatly. Now Carp can easily push
 blitz midgames, hitting much softer depth walls.
 
 To benchmark the engine I've also added a test directory with a simple shell script running cutechess
-cli. The script allows to run gauntlet tests against engines in the test/engines folder or sprt tests
-against older versions of Carp. Engines must be manually added to the shell script.
+cli. The script allows to run gauntlet tests against other engines or SPRT tests against older versions
+of Carp. Engines must be manually added to the shell script.
 I still need to properly run the tests, but at first glance it seems that the new version has improved
 tremendously just by pruning much more aggressively.
 
