@@ -876,6 +876,7 @@ mod tests {
 
     #[test]
     fn test_pin_mask() {
+        init_all_tables();
         let board: Board = "R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1"
             .parse()
             .unwrap();
