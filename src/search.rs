@@ -260,6 +260,7 @@ impl<'a> Search<'a> {
             if depth <= HLP_THRESHOLD
                 && !pv_node
                 && !in_check
+                && !is_mate(alpha.abs())
                 && s < HISTORY_OFFSET
             {
                 if move_count == 0 {
