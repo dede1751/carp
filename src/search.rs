@@ -12,11 +12,21 @@ pub const MAX_DEPTH: usize = 128; // max depth to search at
 const LMR_THRESHOLD: usize = 2; // moves to execute before any reduction
 const LMR_LOWER_LIMIT: usize = 2; // stop applying lmr near leaves
 
+const RFP_THRESHOLD: usize = 8; // depth at which rfp kicks in
+const RFP_MARGIN: Eval = 130; // multiplier for eval safety margin for rfp cutoffs
+
 const NMP_BASE_R: usize = 4; // null move pruning reduced depth
 const NMP_FACTOR: usize = 6; // increase to reduce more at higher depths
 const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
 
 const HLP_THRESHOLD: usize = 2; // depth at which history leaf pruning kicks in
+
+const EFP_THRESHOLD: usize = 8; // depth at which extended futility pruning kicks in
+const EFP_BASE: Eval = 100; // base eval bonus margin for efp
+const EFP_MARGIN: Eval = 120; // multiplier for eval bonus margin for efp
+
+const LMP_THRESHOLD: usize = 8; // depth at which late move pruning kicks in
+const LMP_BASE: usize = 4; // lmp move count at depth = 0
 
 const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
 const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
@@ -195,12 +205,16 @@ impl<'a> Search<'a> {
             return 0;
         }
 
-        // Probe tt for eval and best move
+        // Probe tt for eval and best move (for pv, only cutoff at leaves)
         match self.tt.probe(self.position.hash()) {
             Some(entry) => {
                 let tt_move = entry.get_move();
-
-                if entry.get_depth() >= depth {
+                
+                if pv_node {
+                    if depth == 1 && entry.get_flag() == TTFlag::Exact {
+                        return entry.get_value(self.position.ply);
+                    }
+                } else if entry.get_depth() >= depth {
                     let tt_eval = entry.get_value(self.position.ply);
 
                     match entry.get_flag() {
@@ -220,23 +234,39 @@ impl<'a> Search<'a> {
             None => self.position.set_tt_move(None),
         };
 
-        // Null Move Pruning (reduction value from CounterGO)
-        if depth > NMP_LOWER_LIMIT
-            && !pv_node
-            && !in_check
-            && !self.position.only_king_pawns_left()
-        {
-            let reduction = min(NMP_BASE_R + depth / NMP_FACTOR, depth);
+        // Static pruning techniques:
+        // these heuristics are trying to prove that the position is statically good enough to not
+        // need any further deep search.
+        let mut stand_pat = MATE;
 
-            self.position.make_null();
-            let eval = -self.negamax(-beta, -beta + 1, depth - reduction);
-            self.position.undo_move();
+        if !pv_node && !in_check {
 
-            // cutoff above beta and not for mate scores!
-            if eval >= beta && !is_mate(eval.abs()) {
-                return beta;
+            // Reverse Futility Pruning (static eval pruning)
+            // At pre-frontier nodes, check if the static eval minus a safety margin is enough to
+            // produce a beta cutoff. 
+            if depth <= RFP_THRESHOLD {
+                stand_pat = self.position.evaluate(); // this remains valid for efp
+
+                if  !is_mate(beta.abs()) && stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
+                    return beta;
+                }
             }
-        }
+    
+            // Null Move Pruning (reduction value from CounterGO)
+            // Give the opponent a "free shot" and see if that improves beta.
+            if depth > NMP_LOWER_LIMIT && !self.position.only_king_pawns_left() {
+                let reduction = min(NMP_BASE_R + depth / NMP_FACTOR, depth);
+
+                self.position.make_null();
+                let eval = -self.negamax(-beta, -beta + 1, depth - reduction);
+                self.position.undo_move();
+
+                // cutoff above beta and not for mate scores!
+                if eval >= beta && !is_mate(eval.abs()) {
+                    return beta;
+                }
+            }
+        }        
 
         let move_list = self.position.generate_moves();
 
@@ -254,27 +284,50 @@ impl<'a> Search<'a> {
         let mut tt_field = TTField::new(&self.position, TTFlag::Upper, NULL_MOVE, alpha, depth);
 
         for (move_count, (m, s)) in move_list.enumerate() {
-            
-            // History leaf pruning
-            // Below a certain depth, prune negative history moves in non-pv nodes
-            if depth <= HLP_THRESHOLD
-                && !pv_node
-                && !in_check
-                && !is_mate(alpha.abs())
-                && s < HISTORY_OFFSET
-            {
-                if move_count == 0 {
-                    tt_field.update_data(TTFlag::Upper, m, alpha);
-                }
-                break;
-            }
-            
             self.position.make_move(m);
             
             // Flag for moves checking the opponent
             let is_check = self.position.king_in_check();
             let is_quiet = !m.is_capture() && !m.is_promotion();
             
+            // Quiet move pruning
+            if !pv_node && is_quiet && !in_check && !is_check && !is_mate(alpha.abs()){
+                let mut prune = false;
+
+                // History leaf pruning
+                // Below a certain depth, prune negative history moves in non-pv nodes
+                if depth <= HLP_THRESHOLD && s < HISTORY_OFFSET {
+                    prune = true;
+                }
+
+                // Extended Futility pruning
+                // Below a certain depth, prune moves which will most likely not improve alpha
+                if !prune
+                    && depth <= EFP_THRESHOLD
+                    && stand_pat + EFP_BASE + EFP_MARGIN * (depth as Eval) < alpha
+                {
+                    prune = true;
+                }
+
+                // Late move pruning
+                if !prune
+                    && depth <= LMP_THRESHOLD
+                    && move_count >= LMP_BASE + (depth * depth)
+                {
+                    prune = true;
+                }
+
+                // even when all moves get pruned, save something to the tt
+                if prune {
+                    self.position.undo_move();
+
+                    if move_count == 0 {
+                        tt_field.update_data(TTFlag::Upper, m, alpha);
+                    }
+                    break;
+                }
+            }
+
             if move_count == 0 {
                 // full depth search on first move
                 eval = -self.negamax(-beta, -alpha, depth - 1);
@@ -285,24 +338,19 @@ impl<'a> Search<'a> {
                     && depth >= LMR_LOWER_LIMIT
                     && is_quiet
                 {
-                    let mut lmr_reduction = lmr_reduction(depth, move_count);
+                    let lmr_reduction = lmr_reduction(depth, move_count);
+                    let lmr_extension = is_check as usize + in_check as usize + pv_node as usize;
 
-                    if is_check && lmr_reduction >= 1 {
-                        lmr_reduction -= 1;
-                    }
-
-                    if in_check && lmr_reduction >= 1 {
-                        lmr_reduction -= 1;
-                    }
-
-                    if pv_node && lmr_reduction >= 1 {
-                        lmr_reduction -= 1;
-                    }
-
-                    if depth >= lmr_reduction + 1 {
-                        depth - lmr_reduction
+                    if lmr_extension >= lmr_reduction {
+                        depth
                     } else {
-                        1
+                        let lmr = lmr_reduction - lmr_extension;
+
+                        if depth >= lmr + 1 {
+                            depth - lmr
+                        } else {
+                            1
+                        }
                     }
                 } else {
                     depth

@@ -43,9 +43,12 @@ human player should be able to hold out and enjoy a good game.
 * Lockless Transposition table with newest + highest depth replacement scheme
 * Principal Variation Search
 * Null Move Pruning
+* Reverse Futility Pruning
 * Late Move Reductions
 * Mate Distance Pruning
 * History Leaf Pruning
+* Extended Futility Pruning
+* Late Move Pruning
 * Delta/SEE/Futility pruning in QS
 
 Of course it is still lacking many optimizations, most notably:
