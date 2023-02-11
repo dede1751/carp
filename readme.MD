@@ -43,8 +43,8 @@ human player should be able to hold out and enjoy a good game.
 * Multithreading with Lazy-SMP
 * Lockless Transposition table with newest + highest depth replacement scheme
 * Iterative Deepening with Aspiration Windows
-* Internal Iterative Deepening
 * Principal Variation Search
+* Internal Iterative Reductions
 * Late Move Reductions
 * Null Move Pruning
 * Reverse Futility Pruning

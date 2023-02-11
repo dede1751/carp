@@ -19,8 +19,7 @@ const NMP_BASE_R: usize = 4; // null move pruning reduced depth
 const NMP_FACTOR: usize = 6; // increase to reduce more at higher depths
 const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
 
-const IID_R: usize = 2; // iid reduced depth
-const IID_LOWER_LIMIT: usize = 4; // stop applying iid near leaves
+const IIR_LOWER_LIMIT: usize = 4; // stop applying iir near leaves
 
 const HLP_THRESHOLD: usize = 2; // depth at which history leaf pruning kicks in
 
@@ -270,19 +269,10 @@ impl<'a> Search<'a> {
             }
         }
 
-        // Internal Iterative Deepening
-        // When no TT Move is found in PV nodes, do a reduced-depth search to find one
-        // Since we're recovering the best move from the tt, this may incur in instability issues
-        // if running on multiple threads, but it's very unlikely.
-        // Notice that IID will happen recursively, mimicking the behaviour of ID at the root, by
-        // "building" up a progressively more solid tt move.
-        if pv_node && !self.position.found_tt_move() && depth >= IID_LOWER_LIMIT {
-            self.negamax(alpha, beta, depth - IID_R);
-
-            let iid_entry = self.tt.probe(self.position.hash());
-            if let Some(tt_entry) = iid_entry {
-                self.position.set_tt_move(Some(tt_entry.get_move()));
-            }
+        // Internal Iterative Reduction
+        // When no TT Move is found in any node, apply a 1-ply reduction
+        if depth >= IIR_LOWER_LIMIT && !self.position.found_tt_move() {
+            depth -= 1;
         }
 
         let move_list = self.position.generate_moves();
