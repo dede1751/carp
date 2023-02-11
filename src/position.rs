@@ -249,6 +249,10 @@ const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
 ];
 
 impl Position {
+    pub fn found_tt_move(&self) -> bool {
+        self.tt_move.is_some()
+    }
+
     /// Sets the current tt move
     pub fn set_tt_move(&mut self, m: Option<Move>) {
         self.tt_move = m;

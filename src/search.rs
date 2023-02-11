@@ -19,6 +19,9 @@ const NMP_BASE_R: usize = 4; // null move pruning reduced depth
 const NMP_FACTOR: usize = 6; // increase to reduce more at higher depths
 const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
 
+const IID_R: usize = 2; // iid reduced depth
+const IID_LOWER_LIMIT: usize = 4; // stop applying iid near leaves
+
 const HLP_THRESHOLD: usize = 2; // depth at which history leaf pruning kicks in
 
 const EFP_THRESHOLD: usize = 8; // depth at which extended futility pruning kicks in
@@ -209,7 +212,7 @@ impl<'a> Search<'a> {
         match self.tt.probe(self.position.hash()) {
             Some(entry) => {
                 let tt_move = entry.get_move();
-                
+
                 if pv_node {
                     if depth == 1 && entry.get_flag() == TTFlag::Exact {
                         return entry.get_value(self.position.ply);
@@ -237,21 +240,20 @@ impl<'a> Search<'a> {
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
         // need any further deep search.
-        let mut stand_pat = MATE;
+        let mut stand_pat = 0;
 
         if !pv_node && !in_check {
-
             // Reverse Futility Pruning (static eval pruning)
             // At pre-frontier nodes, check if the static eval minus a safety margin is enough to
-            // produce a beta cutoff. 
+            // produce a beta cutoff.
             if depth <= RFP_THRESHOLD {
                 stand_pat = self.position.evaluate(); // this remains valid for efp
 
-                if  !is_mate(beta.abs()) && stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
+                if !is_mate(beta.abs()) && stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
                     return beta;
                 }
             }
-    
+
             // Null Move Pruning (reduction value from CounterGO)
             // Give the opponent a "free shot" and see if that improves beta.
             if depth > NMP_LOWER_LIMIT && !self.position.only_king_pawns_left() {
@@ -266,7 +268,22 @@ impl<'a> Search<'a> {
                     return beta;
                 }
             }
-        }        
+        }
+
+        // Internal Iterative Deepening
+        // When no TT Move is found in PV nodes, do a reduced-depth search to find one
+        // Since we're recovering the best move from the tt, this may incur in instability issues
+        // if running on multiple threads, but it's very unlikely.
+        // Notice that IID will happen recursively, mimicking the behaviour of ID at the root, by
+        // "building" up a progressively more solid tt move.
+        if pv_node && !self.position.found_tt_move() && depth >= IID_LOWER_LIMIT {
+            self.negamax(alpha, beta, depth - IID_R);
+
+            let iid_entry = self.tt.probe(self.position.hash());
+            if let Some(tt_entry) = iid_entry {
+                self.position.set_tt_move(Some(tt_entry.get_move()));
+            }
+        }
 
         let move_list = self.position.generate_moves();
 
@@ -285,13 +302,13 @@ impl<'a> Search<'a> {
 
         for (move_count, (m, s)) in move_list.enumerate() {
             self.position.make_move(m);
-            
+
             // Flag for moves checking the opponent
             let is_check = self.position.king_in_check();
             let is_quiet = !m.is_capture() && !m.is_promotion();
-            
+
             // Quiet move pruning
-            if !pv_node && is_quiet && !in_check && !is_check && !is_mate(alpha.abs()){
+            if !pv_node && !in_check && is_quiet && !is_check && !is_mate(alpha.abs()) {
                 let mut prune = false;
 
                 // History leaf pruning
@@ -310,10 +327,7 @@ impl<'a> Search<'a> {
                 }
 
                 // Late move pruning
-                if !prune
-                    && depth <= LMP_THRESHOLD
-                    && move_count >= LMP_BASE + (depth * depth)
-                {
+                if !prune && depth <= LMP_THRESHOLD && move_count >= LMP_BASE + (depth * depth) {
                     prune = true;
                 }
 
@@ -334,27 +348,26 @@ impl<'a> Search<'a> {
                 tt_field.update_data(TTFlag::Upper, m, alpha); // always save at least one move
             } else {
                 // reduce depth for all moves beyond first
-                let reduced_depth = if move_count >= LMR_THRESHOLD
-                    && depth >= LMR_LOWER_LIMIT
-                    && is_quiet
-                {
-                    let lmr_reduction = lmr_reduction(depth, move_count);
-                    let lmr_extension = is_check as usize + in_check as usize + pv_node as usize;
+                let reduced_depth =
+                    if move_count >= LMR_THRESHOLD && depth >= LMR_LOWER_LIMIT && is_quiet {
+                        let lmr_reduction = lmr_reduction(depth, move_count);
+                        let lmr_extension =
+                            is_check as usize + in_check as usize + pv_node as usize;
 
-                    if lmr_extension >= lmr_reduction {
-                        depth
-                    } else {
-                        let lmr = lmr_reduction - lmr_extension;
-
-                        if depth >= lmr + 1 {
-                            depth - lmr
+                        if lmr_extension >= lmr_reduction {
+                            depth
                         } else {
-                            1
+                            let lmr = lmr_reduction - lmr_extension;
+
+                            if depth >= lmr + 1 {
+                                depth - lmr
+                            } else {
+                                1
+                            }
                         }
-                    }
-                } else {
-                    depth
-                };
+                    } else {
+                        depth
+                    };
 
                 // do reduced depth pvs search, and eventually fall back to full window
                 eval = -self.negamax(-alpha - 1, -alpha, reduced_depth - 1);
@@ -551,18 +564,18 @@ mod performance_tests {
     }
 
     #[test]
-    fn search_kiwipete10() {
+    fn search_kiwipete15() {
         search_driver(
             "fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-            10,
+            15,
         );
     }
 
     #[test]
-    fn search_killer10() {
+    fn search_killer15() {
         search_driver(
             "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1",
-            10,
+            15,
         );
     }
 

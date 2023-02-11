@@ -24,8 +24,11 @@ blitz midgames, hitting much softer depth walls.
 To benchmark the engine I've also added a test directory with a simple shell script running cutechess
 cli. The script allows to run gauntlet tests against other engines or SPRT tests against older versions
 of Carp. Engines must be manually added to the shell script.
-I still need to properly run the tests, but at first glance it seems that the new version has improved
-tremendously just by pruning much more aggressively.
+Version 1.2.2 implemented many search optimizations described in the Chess Programming wiki which
+still need proper testing and parameter tuning, although Carp seems to have gained at least ~120
+elo compared to the previous version.
+To accomodate for all this testing, I'm looking to make Carp OpenBench compliant and eventually
+host my own instance.
 
 The engine is quite fun to play against when limiting the depth to reasonable values, since
 it is relatively dumb positionally: provided it does not see some crazy computer tactic a good
@@ -33,18 +36,18 @@ human player should be able to hold out and enjoy a good game.
 
 ## Implemented optimizations
 
-* Plain magic bitboards for move precalculation
-* Fully legal move generation
+* Fully legal move generation using plain magic bitboards
 * Tapered Evaluation from PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
 * MVV-LVA with Static Exchange Evaluation + Killer/History/CMH/FUH
 * Fail-Hard Negamax + Quiescence
 * Multithreading with Lazy-SMP
-* Iterative Deepening with Aspiration Windows
 * Lockless Transposition table with newest + highest depth replacement scheme
+* Iterative Deepening with Aspiration Windows
+* Internal Iterative Deepening
 * Principal Variation Search
+* Late Move Reductions
 * Null Move Pruning
 * Reverse Futility Pruning
-* Late Move Reductions
 * Mate Distance Pruning
 * History Leaf Pruning
 * Extended Futility Pruning
@@ -54,6 +57,7 @@ human player should be able to hold out and enjoy a good game.
 Of course it is still lacking many optimizations, most notably:
 
 * Pondering for Lichess bot games
-* Opening book/Endgame tablebase (although UCI let's you do this in the gui)
-* Various other heuristics (rfp, lmp, razoring, search extensions...)
-* Further improvement to evaluation
+* Opening book (although UCI let's you do this in the gui)
+* Endgame tablebases
+* Various other heuristics (probcut, razoring, search extensions...)
+* Further improvement to evaluation/NNUE
