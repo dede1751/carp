@@ -24,11 +24,11 @@ pub enum TimeControl {
 }
 
 fn parse_value<T: FromStr>(tokens: &mut SplitWhitespace) -> Result<T, &'static str> {
-    Ok(tokens
+    tokens
         .next()
         .ok_or("Missing value for timecontrol!")?
         .parse()
-        .or(Err("Unable to parse!"))?)
+        .or(Err("Unable to parse!"))
 }
 
 /// Convert input to correct time control
@@ -59,16 +59,16 @@ impl FromStr for TimeControl {
             }
         }
 
-        if wtime.is_none() || btime.is_none() {
-            Err("Missing variable time control values!")
-        } else {
+        if let (Some(wtime), Some(btime)) = (wtime, btime) {
             Ok(TimeControl::Variable {
-                wtime: wtime.unwrap(),
-                btime: btime.unwrap(),
+                wtime,
+                btime,
                 winc,
                 binc,
                 movestogo,
             })
+        } else {
+            Err("Missing variable time control values!")
         }
     }
 }

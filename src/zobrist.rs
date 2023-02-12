@@ -107,7 +107,7 @@ mod tests {
         );
         let b2 = b1.make_move(m);
 
-        println!("{}\n{}", b1, b2);
+        println!("{b1}\n{b2}");
 
         let mut z1 = b1.hash;
         z1.toggle_piece(Piece::WK, Square::E1);

@@ -50,8 +50,8 @@ impl Iterator for MoveList {
     }
 }
 
-impl MoveList {
-    pub fn new() -> MoveList {
+impl Default for MoveList {
+    fn default() -> Self {
         MoveList {
             moves: [NULL_MOVE; MAX_MOVES],
             scores: [0; MAX_MOVES],
@@ -59,10 +59,15 @@ impl MoveList {
             index: 0,
         }
     }
+}
 
+impl MoveList {
     /// Returns move list length
     pub fn len(&self) -> usize {
         self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     /// Push move to the back of the movelist
@@ -120,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_movelist() {
-        let mut l = MoveList::new();
+        let mut l = MoveList::default();
 
         l.add_pawn_capture(Square::E2, Square::D3, Color::White, Piece::BP);
         l.add_pawn_quiet(Square::E2, Square::E4, Color::White, 1);

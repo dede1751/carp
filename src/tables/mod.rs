@@ -140,7 +140,7 @@ mod tests {
         let bb1 = bishop_attacks(Square::E4, BitBoard(1161084283129857));
         let bb2 = bishop_attacks(Square::B7, BitBoard(35253091631104));
 
-        println!("{}\n{}\n", bb1, bb2);
+        println!("{bb1}\n{bb2}\n");
 
         assert_eq!(bb1, BitBoard(1169881047499265));
         assert_eq!(bb2, BitBoard(68854022149));
@@ -152,7 +152,7 @@ mod tests {
         let bb1 = rook_attacks(Square::A8, BitBoard(1099511627778));
         let bb2 = rook_attacks(Square::E4, BitBoard(76561335399223296));
 
-        println!("{}\n{}\n", bb1, bb2);
+        println!("{bb1}\n{bb2}\n");
 
         assert_eq!(bb1, BitBoard(1103823438082));
         assert_eq!(bb2, BitBoard(4521393946365952));

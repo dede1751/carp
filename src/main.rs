@@ -41,5 +41,5 @@ macro_rules! from {
 
 fn main() {
     tables::init_all_tables();
-    UCIController::new().run();
+    UCIController::default().run();
 }

@@ -85,7 +85,7 @@ impl fmt::Display for BitBoard {
             }
         }
         s.push_str("\n\n    A B C D E F G H");
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

@@ -61,7 +61,7 @@ impl fmt::Display for Board {
             .push_str("\n\t┗━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┻━━━┛\n\t  A   B   C   D   E   F   G   H\n");
 
         let en_passant_str = match self.en_passant {
-            Some(square) => format!("{}", square),
+            Some(square) => format!("{square}"),
             None => String::from("-"),
         };
 
@@ -247,7 +247,7 @@ impl Board {
         self.occupancy = self.occupancy.pop_bit(square);
         self.side_occupancy[c] = self.side_occupancy[c].pop_bit(square);
         self.hash.toggle_piece(piece, square);
-        self.game_phase -= Board::GAME_PHASE_INCREMENT[p as usize];
+        self.game_phase -= Board::GAME_PHASE_INCREMENT[p];
     }
     fn set_piece(&mut self, piece: Piece, square: Square) {
         let p = piece as usize;
@@ -257,7 +257,7 @@ impl Board {
         self.occupancy = self.occupancy.set_bit(square);
         self.side_occupancy[c] = self.side_occupancy[c].set_bit(square);
         self.hash.toggle_piece(piece, square);
-        self.game_phase += Board::GAME_PHASE_INCREMENT[p as usize];
+        self.game_phase += Board::GAME_PHASE_INCREMENT[p];
     }
 
     /// Makes (legal) move on the board
@@ -266,10 +266,10 @@ impl Board {
         let mut new = Board::new();
 
         // only clone the relevant info
-        new.pieces = self.pieces.clone();
-        new.side_occupancy = self.side_occupancy.clone();
-        new.occupancy = self.occupancy.clone();
-        new.hash = self.hash.clone();
+        new.pieces = self.pieces;
+        new.side_occupancy = self.side_occupancy;
+        new.occupancy = self.occupancy;
+        new.hash = self.hash;
         new.game_phase = self.game_phase;
 
         let (src, tgt) = (m.get_src(), m.get_tgt());
@@ -336,10 +336,10 @@ impl Board {
     pub fn make_null(&self) -> Board {
         let mut new = Board::new();
 
-        new.pieces = self.pieces.clone();
-        new.side_occupancy = self.side_occupancy.clone();
-        new.occupancy = self.occupancy.clone();
-        new.hash = self.hash.clone();
+        new.pieces = self.pieces;
+        new.side_occupancy = self.side_occupancy;
+        new.occupancy = self.occupancy;
+        new.hash = self.hash;
         new.game_phase = self.game_phase;
 
         new.side = !self.side;
@@ -393,7 +393,7 @@ impl Board {
             | self
                 .opp_knights()
                 .into_iter()
-                .map(|sq| knight_attacks(sq))
+                .map(knight_attacks)
                 .fold(EMPTY_BB, |acc, x| acc | x)
             | self
                 .opp_queen_bishop()
@@ -408,7 +408,7 @@ impl Board {
             | self
                 .opp_king()
                 .into_iter()
-                .map(|sq| king_attacks(sq))
+                .map(king_attacks)
                 .fold(EMPTY_BB, |acc, x| acc | x);
     }
 
@@ -741,7 +741,7 @@ impl Board {
 
     /// Generate legal moves without make move.
     pub fn generate_moves(&self) -> MoveList {
-        let mut move_list: MoveList = MoveList::new();
+        let mut move_list: MoveList = MoveList::default();
         let attacker_count = self.checkers.count_bits();
 
         self.generate_king_moves(&mut move_list);
@@ -768,7 +768,7 @@ impl Board {
 
     /// Generate only legal captures without make move
     pub fn generate_captures(&self) -> MoveList {
-        let mut move_list: MoveList = MoveList::new();
+        let mut move_list: MoveList = MoveList::default();
         let attacker_count = self.checkers.count_bits();
 
         self.generate_king_captures(&mut move_list);
@@ -844,10 +844,7 @@ impl Board {
         let duration = start.elapsed();
 
         let perf: u128 = total_nodes as u128 / duration.as_micros();
-        println!(
-            "\n{} nodes in {:?} - {}Mnodes/s",
-            total_nodes, duration, perf
-        );
+        println!("\n{total_nodes} nodes in {duration:?} - {perf}Mnodes/s");
 
         total_nodes
     }
@@ -880,7 +877,7 @@ mod tests {
         let board: Board = "R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1"
             .parse()
             .unwrap();
-        println!("{}", board);
+        println!("{board}");
 
         println!("{}\n{}\n{}", board.pinned, board.diag_pins, board.hv_pins);
 
@@ -896,17 +893,17 @@ mod tests {
     fn test_legal_pawn() {
         init_all_tables();
         let b1: Board = "8/8/8/1k6/3Pp3/8/8/4KQ2 b - d3 0 1".parse().unwrap();
-        println!("{}", b1);
+        println!("{b1}");
         let m1 = b1.generate_moves(); // enpassant blocks check
         assert_eq!(m1.len(), 6);
 
         let b2: Board = "8/8/8/2k5/3Pp3/8/8/4K3 b - d3 0 1".parse().unwrap();
-        println!("{}", b2);
+        println!("{b2}");
         let m2 = b2.generate_moves(); // enpassant captures checker
         assert_eq!(m2.len(), 9);
 
         let b3: Board = "8/8/8/8/k2Pp2Q/8/8/3K4 b - d3 0 1".parse().unwrap();
-        println!("{}", b3);
+        println!("{b3}");
         let m3 = b3.generate_moves(); // enpassant would leave the king in check
         assert_eq!(m3.len(), 6);
     }
@@ -954,7 +951,7 @@ mod tests {
         init_all_tables();
         for (fen, description, correct_count, depth) in PERFT_SUITE {
             let board: Board = fen.parse().unwrap();
-            println!("{}\n{}\n{}", fen, description, board);
+            println!("{fen}\n{description}\n{board}");
 
             let nodes = board.perft(depth);
             assert_eq!(nodes, correct_count);

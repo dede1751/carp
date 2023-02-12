@@ -166,12 +166,12 @@ const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval; // Mate lower bound
 
 /// Returns true if the opponent is checkmated
 pub fn is_mate(eval: Eval) -> bool {
-    eval >= LONGEST_MATE && eval < MATE
+    (LONGEST_MATE..MATE).contains(&eval)
 }
 
 /// Returns true if the current player is checkmated
 pub fn is_mated(eval: Eval) -> bool {
-    eval <= -LONGEST_MATE && eval > -MATE
+    (LONGEST_MATE..MATE).contains(&-eval)
 }
 
 /// Returns the piece value according to the game phase (used for futility pruning in QS)
@@ -332,7 +332,7 @@ mod tests {
         let b1: Board = "4k3/8/8/3r4/3R4/8/8/4K3 w - - 0 -".parse().unwrap();
         let b2: Board = "4k3/8/8/3r4/3R4/8/8/4K3 b - - 0 -".parse().unwrap();
 
-        println!("{}", b1);
+        println!("{b1}");
 
         let eval1 = eval(&b1);
         let eval2 = eval(&b2);
@@ -347,7 +347,7 @@ mod tests {
         let b: Board = "k7/8/8/8/8/8/8/KQQ5 w KQkq - 0 1".parse().unwrap();
         let eval = eval(&b);
 
-        println!("{}", b);
+        println!("{b}");
 
         assert!(eval > 0);
     }

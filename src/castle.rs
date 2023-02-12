@@ -100,7 +100,7 @@ impl fmt::Display for CastlingRights {
             s.push('-')
         };
 
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

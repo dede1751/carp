@@ -126,7 +126,7 @@ mod tests {
         let bb3 = mask_pawn_attacks(Square::H7, Color::Black);
         let bb4 = mask_pawn_attacks(Square::E7, Color::White);
 
-        println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
+        println!("{bb1}\n{bb2}\n{bb3}\n{bb4}\n");
 
         assert_eq!(bb1, BitBoard(2199023255552));
         assert_eq!(bb2, BitBoard(671088640));
@@ -141,7 +141,7 @@ mod tests {
         let bb3 = mask_knight_attacks(Square::G6);
         let bb4 = mask_knight_attacks(Square::B7);
 
-        println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
+        println!("{bb1}\n{bb2}\n{bb3}\n{bb4}\n");
 
         assert_eq!(bb1, BitBoard(1128098930098176));
         assert_eq!(bb2, BitBoard(11333767002587136));
@@ -156,7 +156,7 @@ mod tests {
         let bb3 = mask_king_attacks(Square::H6);
         let bb4 = mask_king_attacks(Square::D8);
 
-        println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
+        println!("{bb1}\n{bb2}\n{bb3}\n{bb4}\n");
 
         assert_eq!(bb1, BitBoard(144959613005987840));
         assert_eq!(bb2, BitBoard(61745389371392));
@@ -169,7 +169,7 @@ mod tests {
         let bb1 = mask_bishop_attacks(Square::E4, BitBoard(1161084283129857));
         let bb2 = mask_bishop_attacks(Square::B7, BitBoard(35253091631104));
 
-        println!("{}\n{}\n", bb1, bb2);
+        println!("{bb1}\n{bb2}\n");
 
         assert_eq!(bb1, BitBoard(1169881047499265));
         assert_eq!(bb2, BitBoard(68854022149));
@@ -180,7 +180,7 @@ mod tests {
         let bb1 = mask_rook_attacks(Square::A8, BitBoard(1099511627778));
         let bb2 = mask_rook_attacks(Square::E4, BitBoard(76561335399223296));
 
-        println!("{}\n{}\n", bb1, bb2);
+        println!("{bb1}\n{bb2}\n");
 
         assert_eq!(bb1, BitBoard(1103823438082));
         assert_eq!(bb2, BitBoard(4521393946365952));
@@ -193,7 +193,7 @@ mod tests {
         let bb3 = bishop_occupancy(Square::H1);
         let bb4 = bishop_occupancy(Square::E4);
 
-        println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
+        println!("{bb1}\n{bb2}\n{bb3}\n{bb4}\n");
 
         assert_eq!(bb1, BitBoard(2216338399232));
         assert_eq!(bb2, BitBoard(1075975168));
@@ -208,7 +208,7 @@ mod tests {
         let bb3 = rook_occupancy(Square::H2);
         let bb4 = rook_occupancy(Square::E4);
 
-        println!("{}\n{}\n{}\n{}\n", bb1, bb2, bb3, bb4);
+        println!("{bb1}\n{bb2}\n{bb3}\n{bb4}\n");
 
         assert_eq!(bb1, BitBoard(282578800148862));
         assert_eq!(bb2, BitBoard(565157600328704));

@@ -29,9 +29,8 @@ pub struct UCIController {
     thread_tx: mpsc::Sender<UCICommand>,
 }
 
-/// Handles communication with the gui and communicates with main engine thread
-impl UCIController {
-    pub fn new() -> UCIController {
+impl Default for UCIController {
+    fn default() -> Self {
         let (tx, rx) = mpsc::channel::<UCICommand>();
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
@@ -42,7 +41,10 @@ impl UCIController {
             thread_tx: tx,
         }
     }
+}
 
+/// Handles communication with the gui and communicates with main engine thread
+impl UCIController {
     /// Start UCI I/O loop
     pub fn run(&self) {
         println!("{NAME} by {AUTHOR}");
@@ -56,7 +58,7 @@ impl UCIController {
                         UCICommand::Uci => {
                             println!("id name {NAME} {VERSION}");
                             println!("id author {AUTHOR}");
-                            println!("{}", ENGINE_OPTIONS);
+                            println!("{ENGINE_OPTIONS}");
                             println!("uciok");
                         }
                         UCICommand::IsReady => {
@@ -67,7 +69,7 @@ impl UCIController {
                         _ => self.thread_tx.send(command).unwrap(),
                     }
                 }
-                Err(e) => eprintln!("{}", e),
+                Err(e) => eprintln!("{e}"),
             };
         }
     }
@@ -80,7 +82,7 @@ enum UCICommand {
     IsReady,
     Option(String, String),
     Perft(usize),
-    Position(Position),
+    Position(Box<Position>),
     Go(TimeControl),
     Quit,
     Stop,
@@ -111,11 +113,11 @@ impl FromStr for UCICommand {
             }
             Some("perft") => match tokens.next().ok_or("No option value!")?.parse() {
                 Ok(d) => Ok(Self::Perft(d)),
-                _ => return Err("Could not parse depth!"),
+                _ => Err("Could not parse depth!"),
             },
-            Some("position") => Ok(Self::Position(
+            Some("position") => Ok(Self::Position(Box::new(
                 tokens.collect::<Vec<&str>>().join(" ").parse()?,
-            )),
+            ))),
             Some("go") => Ok(Self::Go(tokens.collect::<Vec<&str>>().join(" ").parse()?)),
             Some("stop") => Ok(Self::Stop),
             Some("quit") => Ok(Self::Quit),
@@ -176,12 +178,12 @@ impl UCIEngine {
                     self.position.board.perft(d);
                 }
 
-                UCICommand::Position(position) => self.position = position,
+                UCICommand::Position(position) => self.position = *position,
 
                 UCICommand::Go(tc) => {
                     let best_move = self.parse_go(tc);
 
-                    println!("\nbestmove {}", best_move);
+                    println!("\nbestmove {best_move}");
                 }
 
                 _ => eprintln!("Unexpected UCI command!"),
@@ -234,7 +236,7 @@ impl UCIEngine {
             for handle in worker_handles {
                 match handle.join() {
                     Ok(result) => results.push(result),
-                    Err(e) => eprintln!("{:?}", e),
+                    Err(e) => eprintln!("{e:?}"),
                 }
             }
 

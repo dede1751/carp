@@ -52,7 +52,7 @@ impl fmt::Display for Move {
                 self.get_promotion().to_char().to_ascii_lowercase()
             )
         } else {
-            write!(f, "{}", s)
+            write!(f, "{s}")
         }
     }
 }
@@ -61,6 +61,7 @@ impl Move {
     /// Init move through bitwise or of the various values shifted to correct place
     /// When not promoting, pass WP
     /// Flags are u32 boolean values (must be 0 or 1)
+    #[allow(clippy::too_many_arguments)]
     pub const fn encode(
         src: Square,
         tgt: Square,

@@ -78,7 +78,7 @@ pub const DOUBLE_PUSH: [[Square; FILE_COUNT]; 2] = [
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s: String = String::from(SQUARE_STR[*self as usize]);
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

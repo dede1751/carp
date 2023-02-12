@@ -43,15 +43,15 @@ const EVAL_MASK: u64 = 0x00000000FFFF0000; // third/fourth byte
 const MOVE_MASK: u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
 
 /// Convert from external field to compressed internal
-impl Into<(u64, u64)> for TTField {
-    fn into(self) -> (u64, u64) {
-        let data: u64 = self.age as u64
-            | (self.depth as u64) << DEPTH_OFFSET
-            | (self.value as u64) << EVAL_OFFSET
-            | (self.best_move.0 as u64) << MOVE_OFFSET
-            | (self.flag as u64) << FLAG_OFFSET;
+impl From<TTField> for (u64, u64) {
+    fn from(field: TTField) -> Self {
+        let data: u64 = field.age as u64
+            | (field.depth as u64) << DEPTH_OFFSET
+            | (field.value as u64) << EVAL_OFFSET
+            | (field.best_move.0 as u64) << MOVE_OFFSET
+            | (field.flag as u64) << FLAG_OFFSET;
 
-        (self.key ^ data, data)
+        (field.key ^ data, data)
     }
 }
 

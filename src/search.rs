@@ -278,7 +278,7 @@ impl<'a> Search<'a> {
         let move_list = self.position.generate_moves();
 
         // Mate or stalemate. Don't save in the TT, simply return early
-        if move_list.len() == 0 {
+        if move_list.is_empty() {
             if in_check {
                 return -MATE + self.position.ply as Eval;
             } else {
@@ -457,7 +457,7 @@ impl<'a> Search<'a> {
 
     /// Recover pv by traversing the tt from the root
     fn recover_pv(&self, depth: usize) -> Vec<Move> {
-        let mut board = self.position.board.clone();
+        let mut board = self.position.board;
         let mut pv: Vec<Move> = Vec::new();
 
         for _ in 0..depth {
@@ -486,13 +486,13 @@ impl<'a> Search<'a> {
         } else if is_mated(eval) {
             format!("mate {} ", -(eval + MATE) / 2)
         } else {
-            format!("cp {} ", eval)
+            format!("cp {eval} ")
         };
 
         let time = max(self.clock.elapsed().as_millis(), 1);
 
         print!(
-            "info time {} score {} depth {} seldepth {} nodes {} nps {} pv ",
+            "info time {} score {} depth {} seldepth {} nodes {} nps {} pv",
             time,
             score,
             depth,
@@ -503,7 +503,7 @@ impl<'a> Search<'a> {
 
         let pv = self.recover_pv(depth);
         for m in &pv {
-            print!("{} ", m);
+            print!(" {m}");
         }
         println!();
     }
@@ -537,8 +537,7 @@ mod performance_tests {
         let duration = start.elapsed();
 
         println!(
-            "\nDEPTH: {} Found {} in {:?}\n--------------------------------\n",
-            depth, best_move, duration
+            "\nDEPTH: {depth} Found {best_move} in {duration:?}\n--------------------------------\n",
         );
     }
 

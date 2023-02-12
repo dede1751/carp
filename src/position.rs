@@ -75,7 +75,7 @@ impl FromStr for Position {
             ply: 0,
             ply_from_null,
             history,
-            killer_moves: [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH as usize],
+            killer_moves: [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH],
             history_moves: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
             counter_moves: Box::new(
                 [[[[0; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT],
@@ -197,11 +197,14 @@ impl Position {
                 let knight_count = knights.count_bits();
                 let bishop_count = bishops.count_bits();
 
-                (knight_count == 2 && kings & EDGES != EMPTY_BB) // two knights, king not on edge
+                (knight_count == 2 && kings & EDGES != EMPTY_BB)
                     || (bishop_count == 2
-                        && ((bishops & WHITE_SQUARES).count_bits() != 1 // same color bishops
-                            || (one_each && kings & CORNERS != EMPTY_BB))) // opposite color, king not in corner
-                    || (one_each && kings & CORNERS != EMPTY_BB) // bishop and knight, king not in corner
+                        && ((bishops & WHITE_SQUARES).count_bits() != 1
+                            || (one_each && kings & CORNERS != EMPTY_BB)))
+                    || (knight_count == 1
+                        && bishop_count == 1
+                        && one_each
+                        && kings & CORNERS != EMPTY_BB)
             }
             _ => false,
         }
@@ -278,11 +281,11 @@ impl Position {
 
     /// Update killer and history values for sorting quiet moves
     pub fn update_sorter(&mut self, m: Move, depth: usize, searched: Vec<Move>) {
-        let first_killer = self.killer_moves[self.ply as usize][0];
+        let first_killer = self.killer_moves[self.ply][0];
 
         if first_killer != m {
-            self.killer_moves[self.ply as usize][1] = first_killer;
-            self.killer_moves[self.ply as usize][0] = m;
+            self.killer_moves[self.ply][1] = first_killer;
+            self.killer_moves[self.ply][0] = m;
         }
 
         // leaves can introduce a lot of random noise to history scores, don't consider them
@@ -428,16 +431,14 @@ impl Position {
             PROMOTION_SCORES[m.get_promotion() as usize]
         } else if m.is_capture() {
             self.score_capture(m)
+        } else if m.is_castle() {
+            CASTLE_SCORE
+        } else if m == self.killer_moves[self.ply][0] {
+            FIRST_KILLER_SCORE
+        } else if m == self.killer_moves[self.ply][1] {
+            SECOND_KILLER_SCORE
         } else {
-            if m.is_castle() {
-                CASTLE_SCORE
-            } else if m == self.killer_moves[self.ply][0] {
-                FIRST_KILLER_SCORE
-            } else if m == self.killer_moves[self.ply][1] {
-                SECOND_KILLER_SCORE
-            } else {
-                self.score_history(m)
-            }
+            self.score_history(m)
         }
     }
 
@@ -587,7 +588,7 @@ mod tests {
         let occs = pos2.board.occupancy.pop_bit(Square::E2);
         let remap = pos2.remap_xray(Square::E5, occs);
 
-        println!("{}", remap);
+        println!("{remap}");
 
         assert!(remap.get_bit(Square::E1));
         assert!(!remap.get_bit(Square::E2));
