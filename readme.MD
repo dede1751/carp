@@ -17,18 +17,16 @@ and most importantly the [chess programming wiki](https://www.chessprogramming.o
 Move generation is fully legal, inspired by [this article](https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator)
 and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
-Version 1.2 adds much more aggressive pruning techniques, which have brought a noticeable speedup in
-time to depth and reduced the branching factor greatly. Now Carp can easily push to depths 16-17 in
+Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
+time to depth and reduced the branching factor greatly. Now Carp can easily push to depths 18-20 in
 blitz midgames, hitting much softer depth walls.
+Version 1.3 includes many search optimizations discussed in the chess programming wiki, leading to
+a massive elo increase. Currently I would estimate Carp to be ~2750 CCRL40/15 elo on 4CPU, though I
+will wait until done with evaluation to submit it to competitions.
 
 To benchmark the engine I've also added a test directory with a simple shell script running cutechess
 cli. The script allows to run gauntlet tests against other engines or SPRT tests against older versions
 of Carp. Engines must be manually added to the shell script.
-Version 1.2.2 implemented many search optimizations described in the Chess Programming wiki which
-still need proper testing and parameter tuning, although Carp seems to have gained at least ~120
-elo compared to the previous version.
-To accomodate for all this testing, I'm looking to make Carp OpenBench compliant and eventually
-host my own instance.
 
 The engine is quite fun to play against when limiting the depth to reasonable values, since
 it is relatively dumb positionally: provided it does not see some crazy computer tactic a good
@@ -61,3 +59,5 @@ Of course it is still lacking many optimizations, most notably:
 * Endgame tablebases
 * Various other heuristics (probcut, razoring, search extensions...)
 * Further improvement to evaluation/NNUE
+
+I also want to work on OpenBench compliance to simplify testing.

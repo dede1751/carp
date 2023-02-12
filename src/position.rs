@@ -180,17 +180,28 @@ impl Position {
     }
 
     /// Draw by insufficient material (strictly for when it is impossible to mate):
-    ///     - King vs King
-    ///     - King vs King + Bishop
-    ///     - King vs King + Knight
-    ///     - King + Bishop vs King + Bishop
+    /// Some of the logic is taken from Tantabus
     fn insufficient_material(&self) -> bool {
+        const WHITE_SQUARES: BitBoard = BitBoard(12273903644374837845);
+        const CORNERS: BitBoard = BitBoard(9295429630892703873);
+        const EDGES: BitBoard = BitBoard(18411139144890810879);
+        let kings = self.board.kings();
+        let knights = self.board.knights();
+        let bishops = self.board.bishops();
+
         match self.board.occupancy.count_bits() {
             2 => true,
-            3 => self.board.knights() | self.board.bishops() != EMPTY_BB, // 1 knight or 1 bishop
+            3 => knights | bishops != EMPTY_BB, // 1 knight or 1 bishop
             4 => {
-                self.board.bishops().count_bits() == 2 &&                // opposite color bishops
-                (self.board.bishops() & WHITE_SQUARES).count_bits() == 1
+                let one_each = self.board.side_occupancy[0].count_bits() == 2;
+                let knight_count = knights.count_bits();
+                let bishop_count = bishops.count_bits();
+
+                (knight_count == 2 && kings & EDGES != EMPTY_BB) // two knights, king not on edge
+                    || (bishop_count == 2
+                        && ((bishops & WHITE_SQUARES).count_bits() != 1 // same color bishops
+                            || (one_each && kings & CORNERS != EMPTY_BB))) // opposite color, king not in corner
+                    || (one_each && kings & CORNERS != EMPTY_BB) // bishop and knight, king not in corner
             }
             _ => false,
         }

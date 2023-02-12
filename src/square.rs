@@ -74,10 +74,6 @@ pub const DOUBLE_PUSH: [[Square; FILE_COUNT]; 2] = [
     [ A5, B5, C5, D5, E5, F5, G5, H5 ]
 ];
 
-/// Black/White square bitboards
-pub const WHITE_SQUARES: BitBoard = BitBoard(12273903644374837845);
-pub const BLACK_SQUARES: BitBoard = BitBoard(6172840429334713770);
-
 /// Print fen formatted square.
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

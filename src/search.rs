@@ -340,21 +340,10 @@ impl<'a> Search<'a> {
                 // reduce depth for all moves beyond first
                 let reduced_depth =
                     if move_count >= LMR_THRESHOLD && depth >= LMR_LOWER_LIMIT && is_quiet {
-                        let lmr_reduction = lmr_reduction(depth, move_count);
-                        let lmr_extension =
-                            is_check as usize + in_check as usize + pv_node as usize;
+                        let lmr_red = lmr_reduction(depth, move_count) as i32;
+                        let lmr_ext = is_check as i32 + in_check as i32 + pv_node as i32;
 
-                        if lmr_extension >= lmr_reduction {
-                            depth
-                        } else {
-                            let lmr = lmr_reduction - lmr_extension;
-
-                            if depth >= lmr + 1 {
-                                depth - lmr
-                            } else {
-                                1
-                            }
-                        }
+                        (depth as i32 + lmr_ext - lmr_red).clamp(1, depth as i32) as usize
                     } else {
                         depth
                     };
@@ -420,7 +409,7 @@ impl<'a> Search<'a> {
 
         let in_check = self.position.king_in_check();
 
-        // when in check, avoid aggressive pruning
+        // Stand pat and delta pruning avoided when in check
         let mut stand_pat = 0;
         if !in_check {
             stand_pat = self.position.evaluate();
