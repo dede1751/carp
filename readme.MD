@@ -1,5 +1,12 @@
 # Carp
-![example workflow](https://github.com/dede1751/carp/actions/workflows/rust.yml/badge.svg)
+<div align="center">
+
+  [![Build][build-badge]][build-link]
+  [![License][license-badge]][license-link]
+  [![Release][release-badge]][release-link]
+  [![Commits][commits-badge]][commits-link]
+  
+</div>
 
 Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.
 The main goal of this project is to learn the basics of both Rust and Chess Programming.
@@ -61,3 +68,12 @@ Of course it is still lacking many optimizations, most notably:
 * Further improvement to evaluation/NNUE
 
 I also want to work on OpenBench compliance to simplify testing.
+
+[build-badge]:https://img.shields.io/github/actions/workflow/status/dede1751/carp/rust.yml?branch=master&logo=github&style=for-the-badge
+[build-link]:https://github.com/dede1751/carp/actions/workflows/rust.yml
+[commits-badge]:https://img.shields.io/github/commits-since/dede1751/carp/latest?style=for-the-badge
+[commits-link]:https://github.com/dede1751/carp/commits/master
+[release-badge]:https://img.shields.io/github/v/release/dede1751/carp?style=for-the-badge&label=official%20release
+[release-link]:https://github.com/dede1751/carp/releases/latest
+[license-badge]:https://img.shields.io/github/license/dede1751/carp?style=for-the-badge&label=license&color=success
+[license-link]:https://github.com/dede1751/carp/blob/master/LICENSE
