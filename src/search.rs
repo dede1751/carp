@@ -16,7 +16,7 @@ const RFP_THRESHOLD: usize = 8; // depth at which rfp kicks in
 const RFP_MARGIN: Eval = 130; // multiplier for eval safety margin for rfp cutoffs
 
 const NMP_BASE_R: usize = 4; // null move pruning reduced depth
-const NMP_FACTOR: usize = 6; // increase to reduce more at higher depths
+const NMP_FACTOR: usize = 4; // increase to reduce more at higher depths
 const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
 
 const IIR_LOWER_LIMIT: usize = 4; // stop applying iir near leaves
@@ -256,10 +256,10 @@ impl<'a> Search<'a> {
             // Null Move Pruning (reduction value from CounterGO)
             // Give the opponent a "free shot" and see if that improves beta.
             if depth > NMP_LOWER_LIMIT && !self.position.only_king_pawns_left() {
-                let reduction = min(NMP_BASE_R + depth / NMP_FACTOR, depth);
+                let reduction = NMP_BASE_R + depth / NMP_FACTOR;
 
                 self.position.make_null();
-                let eval = -self.negamax(-beta, -beta + 1, depth - reduction);
+                let eval = -self.negamax(-beta, -beta + 1, depth.saturating_sub(reduction));
                 self.position.undo_move();
 
                 // cutoff above beta and not for mate scores!
