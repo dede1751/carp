@@ -100,7 +100,7 @@ impl TTField {
     ) -> TTField {
         if is_mate(value) {
             value += position.ply as Eval;
-        } else if is_mated(value) {
+        } else if is_mate(-value) {
             value -= position.ply as Eval;
         };
 
@@ -136,7 +136,7 @@ impl TTField {
 
         if is_mate(eval - ply) {
             eval - ply
-        } else if is_mated(eval + ply) {
+        } else if is_mate(-(eval + ply)) {
             eval + ply
         } else {
             eval

@@ -129,7 +129,7 @@ impl Clock {
     }
 
     /// Checks whether to deepen the search (true -> continue deepening)
-    pub fn start_check(&mut self, depth: usize) -> bool {
+    pub fn start_check(&mut self, depth: usize, nodes: u64) -> bool {
         if self.stop.load(Ordering::SeqCst) {
             return false;
         }
@@ -141,6 +141,7 @@ impl Clock {
 
         let start = match self.time_control {
             TimeControl::FixedDepth(d) => depth <= d,
+            TimeControl::FixedNodes(n) => nodes <= n,
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 let time = self.start_time.elapsed();
 
@@ -159,7 +160,7 @@ impl Clock {
     }
 
     /// Checks whether to continue searching during the search (true -> continue searching)
-    pub fn mid_check(&mut self, nodes: u64) -> bool {
+    pub fn mid_check(&mut self) -> bool {
         self.check_count += 1;
 
         // load atomic value only every CHECK_FREQUENCY checks
@@ -168,7 +169,6 @@ impl Clock {
         }
 
         let proceed = match self.time_control {
-            TimeControl::FixedNodes(n) => n <= nodes,
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 // check elapsed time only every CHECK_FREQUENCY checks
                 if self.check_count % CHECK_FREQUENCY == 0 {

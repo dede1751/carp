@@ -64,22 +64,21 @@ impl<'a> Search<'a> {
     pub fn iterative_search(&mut self, print_info: bool) -> (Move, usize) {
         let mut best_move = NULL_MOVE;
         let mut temp_best: Move;
-        let mut alpha = -MATE;
-        let mut beta = MATE;
-        let mut eval: Eval = 0;
+        let mut alpha = -MAX;
+        let mut beta = MAX;
+        let mut eval;
         let mut depth = 1;
 
         while !self.stop
-            && self.clock.start_check(depth)
-            && !is_mate(eval.abs())
+            && self.clock.start_check(depth, self.nodes)
             && depth < MAX_DEPTH
         {
             (eval, temp_best) = self.search_root(alpha, beta, depth);
 
             if eval <= alpha {
-                alpha = -MATE;
+                alpha = -MAX;
             } else if eval >= beta {
-                beta = MATE;
+                beta = MAX;
             } else {
                 if depth >= ASPIRATION_THRESHOLD {
                     alpha = eval - ASPIRATION_WINDOW;
@@ -119,7 +118,7 @@ impl<'a> Search<'a> {
         let mut eval: Eval;
         let mut best_move = NULL_MOVE;
         let mut searched_quiets = Vec::with_capacity(20);
-        let mut tt_entry = TTField::new(&self.position, TTFlag::Upper, best_move, -MATE, depth);
+        let mut tt_entry = TTField::new(&self.position, TTFlag::Upper, best_move, -MAX, depth);
 
         for (move_count, (m, _)) in self.position.generate_moves().enumerate() {
             self.position.make_move(m);
@@ -177,7 +176,7 @@ impl<'a> Search<'a> {
 
     /// Fail-Hard Negamax search
     fn negamax(&mut self, mut alpha: Eval, mut beta: Eval, mut depth: usize) -> Eval {
-        if self.stop || !self.clock.mid_check(self.nodes) {
+        if self.stop || !self.clock.mid_check() {
             self.stop = true;
             return 0;
         }
@@ -196,8 +195,8 @@ impl<'a> Search<'a> {
         self.nodes += 1;
 
         // Mate distance pruning (it's a bit faster to do this before draw detection)
-        alpha = max(-MATE + self.position.ply as Eval, alpha);
-        beta = min(MATE - self.position.ply as Eval - 1, beta);
+        alpha = max(-MAX + self.position.ply as Eval, alpha);
+        beta = min(MAX - self.position.ply as Eval - 1, beta);
         if alpha >= beta {
             return alpha;
         }
@@ -280,7 +279,7 @@ impl<'a> Search<'a> {
         // Mate or stalemate. Don't save in the TT, simply return early
         if move_list.is_empty() {
             if in_check {
-                return -MATE + self.position.ply as Eval;
+                return -MAX + self.position.ply as Eval;
             } else {
                 return 0;
             }
@@ -399,7 +398,7 @@ impl<'a> Search<'a> {
 
     /// Quiescence search (only look at capture moves)
     fn quiescence(&mut self, mut alpha: Eval, beta: Eval) -> Eval {
-        if self.stop || !self.clock.mid_check(self.nodes) {
+        if self.stop || !self.clock.mid_check() {
             self.stop = true;
             return 0;
         }
@@ -482,9 +481,9 @@ impl<'a> Search<'a> {
     /// Print UCI score info
     fn print_info(&self, eval: Eval, depth: usize) {
         let score = if is_mate(eval) {
-            format!("mate {} ", (MATE - eval + 1) / 2)
-        } else if is_mated(eval) {
-            format!("mate {} ", -(eval + MATE) / 2)
+            format!("mate {} ", (MAX - eval + 1) / 2)
+        } else if is_mate(-eval) {
+            format!("mate {} ", -(MAX + eval) / 2)
         } else {
             format!("cp {eval} ")
         };

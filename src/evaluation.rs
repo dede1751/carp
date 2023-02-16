@@ -161,17 +161,12 @@ const QUEEN_MOBILITY: S = S(0, 3);
 const QUEEN_MOBILITY_OFFSET: i32 = 9;
 
 pub type Eval = i16;
-pub const MATE: Eval = 30000;
-const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval; // Mate lower bound
+pub const MAX: Eval = 30000;
+const LONGEST_MATE: Eval = MAX - MAX_DEPTH as Eval; // Mate lower bound
 
 /// Returns true if the opponent is checkmated
 pub fn is_mate(eval: Eval) -> bool {
-    (LONGEST_MATE..MATE).contains(&eval)
-}
-
-/// Returns true if the current player is checkmated
-pub fn is_mated(eval: Eval) -> bool {
-    (LONGEST_MATE..MATE).contains(&-eval)
+    (LONGEST_MATE..MAX).contains(&eval)
 }
 
 /// Returns the piece value according to the game phase (used for futility pruning in QS)

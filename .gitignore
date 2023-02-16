@@ -1,3 +1,4 @@
 /target
-/test/*.pgn
 /marlinflow
+/scripts/*.pgn
+/scripts/*.txt
