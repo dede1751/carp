@@ -4,6 +4,7 @@ use crate::clock::*;
 use crate::evaluation::*;
 use crate::moves::*;
 use crate::position::*;
+use crate::sorter::*;
 use crate::tables::*;
 use crate::tt::*;
 
@@ -69,10 +70,7 @@ impl<'a> Search<'a> {
         let mut eval;
         let mut depth = 1;
 
-        while !self.stop
-            && self.clock.start_check(depth, self.nodes)
-            && depth < MAX_DEPTH
-        {
+        while !self.stop && self.clock.start_check(depth, self.nodes) && depth < MAX_DEPTH {
             (eval, temp_best) = self.search_root(alpha, beta, depth);
 
             if eval <= alpha {
@@ -408,27 +406,24 @@ impl<'a> Search<'a> {
 
         let in_check = self.position.king_in_check();
 
-        // Stand pat and delta pruning avoided when in check
-        let mut stand_pat = 0;
-        if !in_check {
-            stand_pat = self.position.evaluate();
+        // Stand pat and delta pruning
+        let stand_pat = self.position.evaluate();
 
-            if self.position.ply >= MAX_DEPTH {
-                return stand_pat;
-            }
-
-            if stand_pat >= beta {
-                return beta;
-            }
-            if stand_pat < alpha - QS_DELTA_MARGIN {
-                return alpha; // delta pruning
-            }
-            alpha = max(stand_pat, alpha);
+        if self.position.ply >= MAX_DEPTH {
+            return stand_pat;
         }
+
+        if stand_pat >= beta {
+            return beta;
+        }
+        if stand_pat < alpha - QS_DELTA_MARGIN {
+            return alpha;
+        }
+        alpha = max(stand_pat, alpha);
 
         for (m, s) in self.position.generate_captures() {
             if !in_check {
-                if s < GOOD_CAPTURE_OFFSET {
+                if s < GOOD_CAPTURE {
                     break; // we reached negative see, it's probably not worth searching
                 }
 

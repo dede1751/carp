@@ -9,7 +9,7 @@ use crate::evaluation::*;
 use crate::move_list::*;
 use crate::moves::*;
 use crate::piece::*;
-use crate::search::*;
+use crate::sorter::*;
 use crate::square::*;
 use crate::tables::*;
 use crate::zobrist::*;
@@ -21,13 +21,9 @@ pub struct Position {
     pub board: Board,
     pub age: u8,
     pub ply: usize,
-    ply_from_null: usize,
-    history: Vec<(Board, Move, usize)>,
-    killer_moves: [[Move; MAX_KILLERS]; MAX_DEPTH], // [ply][num_killer]
-    history_moves: [[[i32; SQUARE_COUNT]; SQUARE_COUNT]; 2], // [color][from][to]
-    counter_moves: Box<[[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT]>, // [piece+col][to][from][to]
-    followup_moves: Box<[[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT]>, // [piece+col][to][from][to]
-    tt_move: Option<Move>,
+    pub ply_from_null: usize,
+    pub history: Vec<(Board, Move, usize)>,
+    sorter: Sorter,
 }
 
 /// Get position from uci position string
@@ -75,15 +71,7 @@ impl FromStr for Position {
             ply: 0,
             ply_from_null,
             history,
-            killer_moves: [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH],
-            history_moves: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
-            counter_moves: Box::new(
-                [[[[0; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT],
-            ),
-            followup_moves: Box::new(
-                [[[[0; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT],
-            ),
-            tt_move: None,
+            sorter: Sorter::default(),
         };
 
         Ok(res)
@@ -107,7 +95,7 @@ impl Position {
     pub fn generate_captures(&self) -> MoveList {
         let mut move_list = self.board.generate_captures();
 
-        self.score_captures(&mut move_list);
+        self.sorter.score_captures(self, &mut move_list);
         move_list
     }
 
@@ -115,7 +103,7 @@ impl Position {
     pub fn generate_moves(&self) -> MoveList {
         let mut move_list = self.board.generate_moves();
 
-        self.score_moves(&mut move_list);
+        self.sorter.score_moves(self, &mut move_list);
         move_list
     }
 
@@ -148,6 +136,37 @@ impl Position {
         self.board = old_board;
         self.ply -= 1;
         self.ply_from_null = old_ply;
+    }
+
+    /// Returns true if the tt move has been set
+    pub fn found_tt_move(&self) -> bool {
+        self.sorter.tt_move.is_some()
+    }
+
+    /// Sets the current tt move in the move sorter
+    pub fn set_tt_move(&mut self, m: Option<Move>) {
+        self.sorter.tt_move = m;
+    }
+
+    /// Recovers the move from lookback plies ago. Only goes back to last null move
+    /// Panics if lookback > history length or lookback = 0
+    pub fn recover_move(&self, lookback: usize) -> Option<Move> {
+        if self.ply_from_null >= lookback {
+            let index = self.history.len() - lookback;
+
+            Some(self.history.get(index).unwrap().1)
+        } else {
+            None
+        }
+    }
+
+    pub fn update_sorter(&mut self, m: Move, depth: usize, searched: Vec<Move>) {
+        let counter = self.recover_move(1);
+        let followup = self.recover_move(2);
+        let side = self.board.side as usize;
+
+        self.sorter
+            .update(m, counter, followup, depth, self.ply, side, searched);
     }
 
     /// Checks whether the current side's king is in check
@@ -216,255 +235,8 @@ impl Position {
     }
 }
 
-///     Move Scoring
-/// 300         -> TT Move
-/// 200         -> queen promotion
-/// 110:165     -> good and equal captures according to MVV-LVA
-/// 110         -> enpassant
-/// 102:103     -> second and first killer
-/// 101         -> castling move
-///  10: 65     -> bad captures according to MVV-LVA
-///   0:-98304  -> quiet moves according to history score
-const MAX_KILLERS: usize = 2;
-
-const TT_SCORE: i32 = 300;
-
-pub const GOOD_CAPTURE_OFFSET: i32 = 100;
-const EP_SCORE: i32 = GOOD_CAPTURE_OFFSET + 10;
-const FIRST_KILLER_SCORE: i32 = GOOD_CAPTURE_OFFSET + 3;
-const SECOND_KILLER_SCORE: i32 = GOOD_CAPTURE_OFFSET + 2;
-const CASTLE_SCORE: i32 = GOOD_CAPTURE_OFFSET + 1;
-
-pub const HISTORY_OFFSET: i32 = -(3 * 16384);
-const WORST: i32 = -(6 * 16384); // each history can be at the least -16384, start at history offset
-
-const PROMOTION_SCORES: [i32; PIECE_COUNT] = [
-    0, 0, WORST, WORST, WORST, WORST, WORST, WORST, 200, 200, 0, 0,
-];
-
-/// Static Exchange Evaluation piece scores
-const SEE_VALUES: [i32; PIECE_COUNT] = [1, 1, 3, 3, 3, 3, 5, 5, 9, 9, 20, 20];
-
-#[rustfmt::skip]
-const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
-//    WP  BP  WN  BN  WB  BB  WR  BR  WQ  BQ  WK  BK 
-    [ 15, 15, 25, 25, 35, 35, 45, 45, 55, 55, 65, 65 ], // WP
-    [ 15, 15, 25, 25, 35, 35, 45, 45, 55, 55, 65, 65 ], // BP
-    [ 14, 14, 24, 24, 34, 34, 44, 44, 54, 54, 64, 64 ], // WN
-    [ 14, 14, 24, 24, 34, 34, 44, 44, 54, 54, 64, 64 ], // BN
-    [ 13, 13, 23, 23, 33, 33, 43, 43, 53, 53, 63, 63 ], // WB
-    [ 13, 13, 23, 23, 33, 33, 43, 43, 53, 53, 63, 63 ], // BB
-    [ 12, 12, 22, 22, 32, 32, 42, 42, 52, 52, 62, 62 ], // WR
-    [ 12, 12, 22, 22, 32, 32, 42, 42, 52, 52, 62, 62 ], // BR
-    [ 11, 11, 21, 21, 31, 31, 41, 41, 51, 51, 61, 61 ], // WQ
-    [ 11, 11, 21, 21, 31, 31, 41, 41, 51, 51, 61, 61 ], // BQ
-    [ 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60 ], // WK
-    [ 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60 ], // BK
-];
-
+/// SEE Implementation
 impl Position {
-    pub fn found_tt_move(&self) -> bool {
-        self.tt_move.is_some()
-    }
-
-    /// Sets the current tt move
-    pub fn set_tt_move(&mut self, m: Option<Move>) {
-        self.tt_move = m;
-    }
-
-    /// Taper history so that it's bounded to 32 * 512 = 16384 (and -16384)
-    /// Discussed here:
-    /// http://www.talkchess.com/forum3/viewtopic.php?f=7&t=76540
-    fn tapered_history(bonus: i32, old: i32) -> i32 {
-        old + 16 * bonus - old * bonus / 512
-    }
-
-    /// Update killer and history values for sorting quiet moves
-    pub fn update_sorter(&mut self, m: Move, depth: usize, searched: Vec<Move>) {
-        let first_killer = self.killer_moves[self.ply][0];
-
-        if first_killer != m {
-            self.killer_moves[self.ply][1] = first_killer;
-            self.killer_moves[self.ply][0] = m;
-        }
-
-        // leaves can introduce a lot of random noise to history scores, don't consider them
-        if depth < 3 {
-            return;
-        }
-
-        // history bonus is Stockfish's "gravity"
-        let bonus = ((depth * depth) as i32).clamp(-400, 400);
-
-        self.update_history(m, bonus, &searched);
-
-        // countermove history
-        if self.ply_from_null > 0 {
-            let prev = self.history.last().unwrap().1; // impossible panic
-            self.update_counters(m, prev, bonus, &searched);
-
-            // followup history
-            if self.ply_from_null > 1 {
-                let prev = self.history.get(self.history.len() - 2).unwrap().1; // impossible panic
-                self.update_followup(m, prev, bonus, &searched);
-            }
-        }
-    }
-
-    fn update_history(&mut self, curr: Move, bonus: i32, searched: &Vec<Move>) {
-        let col = self.board.side as usize;
-
-        for m in searched {
-            let src = m.get_src() as usize;
-            let tgt = m.get_tgt() as usize;
-            let old_hist = self.history_moves[col][src][tgt];
-
-            self.history_moves[col][src][tgt] = Self::tapered_history(-bonus, old_hist);
-        }
-
-        let src = curr.get_src() as usize;
-        let tgt = curr.get_tgt() as usize;
-        let old_hist = self.history_moves[col][src][tgt];
-
-        self.history_moves[col][src][tgt] = Self::tapered_history(bonus, old_hist);
-    }
-
-    fn update_counters(&mut self, curr: Move, prev: Move, bonus: i32, searched: &Vec<Move>) {
-        let prev_p = prev.get_piece() as usize;
-        let prev_tgt = prev.get_tgt() as usize;
-
-        for m in searched {
-            let src = m.get_src() as usize;
-            let tgt = m.get_tgt() as usize;
-            let old_cmh = self.counter_moves[prev_p][prev_tgt][src][tgt];
-
-            self.counter_moves[prev_p][prev_tgt][src][tgt] = Self::tapered_history(-bonus, old_cmh);
-        }
-
-        let src = curr.get_src() as usize;
-        let tgt = curr.get_tgt() as usize;
-        let old_cmh = self.counter_moves[prev_p][prev_tgt][src][tgt];
-
-        self.counter_moves[prev_p][prev_tgt][src][tgt] = Self::tapered_history(bonus, old_cmh);
-    }
-
-    fn update_followup(&mut self, curr: Move, prev: Move, bonus: i32, searched: &Vec<Move>) {
-        let prev_p = prev.get_piece() as usize;
-        let prev_tgt = prev.get_tgt() as usize;
-
-        for m in searched {
-            let src = m.get_src() as usize;
-            let tgt = m.get_tgt() as usize;
-            let old_fuh = self.followup_moves[prev_p][prev_tgt][src][tgt];
-
-            self.followup_moves[prev_p][prev_tgt][src][tgt] =
-                Self::tapered_history(-bonus, old_fuh);
-        }
-
-        let src = curr.get_src() as usize;
-        let tgt = curr.get_tgt() as usize;
-        let old_fuh = self.followup_moves[prev_p][prev_tgt][src][tgt];
-
-        self.followup_moves[prev_p][prev_tgt][src][tgt] = Self::tapered_history(bonus, old_fuh);
-    }
-
-    /// Score individual captures.
-    fn score_capture(&self, m: Move) -> i32 {
-        if m.is_enpassant() {
-            EP_SCORE
-        } else {
-            let mut score = MVV_LVA[m.get_piece() as usize][m.get_capture() as usize];
-
-            if self.see(m) >= 0 {
-                score += GOOD_CAPTURE_OFFSET
-            }
-
-            score
-        }
-    }
-
-    /// Score assuming all moves are captures
-    fn score_captures(&self, move_list: &mut MoveList) {
-        for i in 0..move_list.len() {
-            let m = move_list.moves[i];
-
-            move_list.scores[i] = if m.is_promotion() {
-                PROMOTION_SCORES[m.get_promotion() as usize]
-            } else {
-                self.score_capture(m)
-            };
-        }
-    }
-
-    /// Score quiet moves according to Standard/Counter Move/Follow Up heuristics
-    fn score_history(&self, m: Move) -> i32 {
-        let col = self.board.side as usize;
-        let src = m.get_src() as usize;
-        let tgt = m.get_tgt() as usize;
-
-        let mut score = self.history_moves[col][src][tgt];
-
-        // counter move
-        if self.ply_from_null > 0 {
-            let prev_move = self.history.last().unwrap().1;
-            let prev_p = prev_move.get_piece() as usize;
-            let prev_tgt = prev_move.get_tgt() as usize;
-
-            score += self.counter_moves[prev_p][prev_tgt][src][tgt];
-
-            // followup move
-            if self.ply_from_null > 1 {
-                let prev_move = self.history.get(self.history.len() - 2).unwrap().1; // impossible panic
-                let prev_p = prev_move.get_piece() as usize;
-                let prev_tgt = prev_move.get_tgt() as usize;
-
-                score += self.followup_moves[prev_p][prev_tgt][src][tgt];
-            }
-        }
-
-        HISTORY_OFFSET + score
-    }
-
-    /// Score any type of move
-    fn score_move(&self, m: Move) -> i32 {
-        if m.is_promotion() {
-            PROMOTION_SCORES[m.get_promotion() as usize]
-        } else if m.is_capture() {
-            self.score_capture(m)
-        } else if m.is_castle() {
-            CASTLE_SCORE
-        } else if m == self.killer_moves[self.ply][0] {
-            FIRST_KILLER_SCORE
-        } else if m == self.killer_moves[self.ply][1] {
-            SECOND_KILLER_SCORE
-        } else {
-            self.score_history(m)
-        }
-    }
-
-    /// Sort all moves in the movelist
-    fn score_moves(&self, move_list: &mut MoveList) {
-        match self.tt_move {
-            Some(tt_move) => {
-                for i in 0..move_list.len() {
-                    let m = move_list.moves[i];
-
-                    move_list.scores[i] = if m == tt_move {
-                        TT_SCORE
-                    } else {
-                        self.score_move(m)
-                    }
-                }
-            }
-
-            None => {
-                for i in 0..move_list.len() {
-                    move_list.scores[i] = self.score_move(move_list.moves[i]);
-                }
-            }
-        };
-    }
-
     /// Returns bitboard with all pieces attacking a square
     fn map_all_attackers(&self, square: Square) -> BitBoard {
         let b = self.board;
@@ -507,8 +279,9 @@ impl Position {
     /// use it when a capture is losing material to quantify how much, not when it's winning.
     ///
     /// TODO: move to a simple boolean see, since the value returned is not used
-    fn see(&self, m: Move) -> i32 {
-        let mut swap_list: [i32; 32] = [0; 32];
+    pub fn see(&self, m: Move) -> i16 {
+        const SEE_VALUES: [i16; PIECE_COUNT] = [1, 1, 3, 3, 3, 3, 5, 5, 9, 9, 20, 20];
+        let mut swap_list: [i16; 32] = [0; 32];
         swap_list[0] = SEE_VALUES[m.get_capture() as usize];
 
         let mut swap_piece = m.get_piece();
@@ -617,21 +390,5 @@ mod tests {
         assert_eq!(pos1.see(m1), 1);
         assert_eq!(pos2.see(m2), -2);
         assert_eq!(pos3.see(m3), 1);
-    }
-
-    #[test]
-    fn test_sorter() {
-        init_all_tables();
-        let pos: Position =
-            "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
-                .parse()
-                .unwrap();
-        let move_list = pos.generate_moves();
-
-        let mut prev = -WORST;
-        for (_, score) in move_list {
-            assert!(prev >= score);
-            prev = score;
-        }
     }
 }

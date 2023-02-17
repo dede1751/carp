@@ -12,6 +12,7 @@ pub mod tables;
 pub mod board;
 pub mod castle;
 pub mod position;
+pub mod sorter;
 pub mod zobrist;
 
 pub mod clock;
