@@ -8,6 +8,9 @@ use crate::position::*;
 use crate::search::*;
 use crate::square::*;
 
+type CMHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
+type FUHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
+
 /// Move Scoring
 /// 300         -> TT Move
 /// 200         -> queen promotion
@@ -17,11 +20,8 @@ use crate::square::*;
 /// 101         -> castling move
 ///  10: 65     -> bad captures according to MVV-LVA
 ///   0:-98304  -> quiet moves according to history score
-type CMHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
-type FUHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
-
 #[derive(Clone, Debug)]
-pub struct Sorter {
+pub struct MoveSorter {
     killer_moves: [[Move; 2]; MAX_DEPTH], // [ply][num_killer]
     history_moves: [[[i32; SQUARE_COUNT]; SQUARE_COUNT]; 2], // [color][from][to]
     pub counter_move: Option<Move>,
@@ -45,9 +45,9 @@ fn box_array<T>() -> Box<T> {
     }
 }
 
-impl Default for Sorter {
+impl Default for MoveSorter {
     fn default() -> Self {
-        Sorter {
+        MoveSorter {
             killer_moves: [[NULL_MOVE; 2]; MAX_DEPTH],
             history_moves: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
             counter_move: None,
@@ -60,7 +60,7 @@ impl Default for Sorter {
 }
 
 /// Sorter updates
-impl Sorter {
+impl MoveSorter {
     /// Taper history so that it's bounded to 32 * 512 = 16384 (and -16384)
     /// Discussed here:
     /// http://www.talkchess.com/forum3/viewtopic.php?f=7&t=76540
@@ -177,7 +177,7 @@ const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
 ];
 
 /// Move Scoring
-impl Sorter {
+impl MoveSorter {
     /// Score individual captures.
     fn score_capture(&self, board: &Board, m: Move) -> i32 {
         if m.is_enpassant() {

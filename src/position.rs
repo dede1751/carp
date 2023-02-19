@@ -4,8 +4,8 @@ use crate::bitboard::*;
 use crate::board::*;
 use crate::evaluation::*;
 use crate::move_list::*;
+use crate::move_sorter::*;
 use crate::moves::*;
-use crate::sorter::*;
 use crate::zobrist::*;
 
 /// Position, represents a Board's evolution along the search tree.
@@ -17,7 +17,7 @@ pub struct Position {
     pub ply: usize,
     pub ply_from_null: usize,
     pub history: Vec<(Board, Move, usize)>,
-    sorter: Sorter,
+    sorter: MoveSorter,
 }
 
 /// Get position from uci position string
@@ -65,7 +65,7 @@ impl FromStr for Position {
             ply: 0,
             ply_from_null,
             history,
-            sorter: Sorter::default(),
+            sorter: MoveSorter::default(),
         };
 
         Ok(res)
@@ -171,6 +171,11 @@ impl Position {
     pub fn king_in_check(&self) -> bool {
         self.board.checkers != EMPTY_BB
     }
+    
+    /// Only king and pawns are on the board. Used to rule out null move pruning
+    pub fn only_king_pawns_left(&self) -> bool {
+        self.board.game_phase == 0
+    }
 
     /// Returns current position's eval
     pub fn evaluate(&self) -> Eval {
@@ -214,23 +219,17 @@ impl Position {
                 let one_each = self.board.side_occupancy[0].count_bits() == 2;
                 let knight_count = knights.count_bits();
                 let bishop_count = bishops.count_bits();
+                let king_in_corner = kings & CORNERS != EMPTY_BB;
+                let king_on_edge = kings & EDGES != EMPTY_BB;
 
-                !((knight_count == 2 && kings & EDGES != EMPTY_BB)
-                    || (bishop_count == 2
-                        && ((bishops & WHITE_SQUARES).count_bits() != 1
-                            || (one_each && kings & CORNERS != EMPTY_BB)))
-                    || (knight_count == 1
-                        && bishop_count == 1
-                        && one_each
-                        && kings & CORNERS != EMPTY_BB))
+                (knight_count == 2 && !king_on_edge) || // knvkn, king not on edge
+                (bishop_count == 2 && (
+                    (bishops & WHITE_SQUARES).count_bits() != 1 || // same color bishops
+                    (one_each && !king_in_corner))) ||  // one bishop each, king not in corner
+                (knight_count == bishop_count && one_each && !king_in_corner) // knvkb, king not in corner
             }
             _ => false,
         }
-    }
-
-    /// Only king and pawns are on the board. Used to rule out null move pruning
-    pub fn only_king_pawns_left(&self) -> bool {
-        self.board.game_phase == 0
     }
 }
 
@@ -245,8 +244,10 @@ mod tests {
         init_all_tables();
         let kbvkn_mate: Position = "fen 5b1K/5k1N/8/8/8/8/8/8 b - - 1 1".parse().unwrap();
         let kbvkn_draw: Position = "fen 8/8/3k4/4n3/8/2KB4/8/8 w - - 0 1".parse().unwrap();
+        let krvkn: Position = "fen 8/8/4k3/4n3/8/2KR4/8/8 w - - 0 1".parse().unwrap();
 
         assert!(!kbvkn_mate.insufficient_material());
         assert!(kbvkn_draw.insufficient_material());
+        assert!(!krvkn.insufficient_material());
     }
 }

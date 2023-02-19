@@ -2,9 +2,9 @@ use std::cmp::{max, min};
 
 use crate::clock::*;
 use crate::evaluation::*;
+use crate::move_sorter::*;
 use crate::moves::*;
 use crate::position::*;
-use crate::sorter::*;
 use crate::tables::*;
 use crate::tt::*;
 
