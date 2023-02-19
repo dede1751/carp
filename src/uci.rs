@@ -196,7 +196,7 @@ impl UCIEngine {
     fn parse_go(&self, tc: TimeControl) -> Move {
         self.stop.store(false, Ordering::Relaxed);
 
-        let move_list = self.position.board.generate_moves();
+        let move_list = self.position.board.gen_moves::<true>();
         let move_count = move_list.len();
 
         if move_count == 0 {

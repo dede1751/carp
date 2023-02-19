@@ -461,7 +461,7 @@ impl<'a> Search<'a> {
             };
 
             // move "sanity" check, since a hash collision is possible
-            let move_list = board.generate_moves();
+            let move_list = board.gen_moves::<true>();
 
             if move_list.moves.contains(&tt_move) {
                 board = board.make_move(tt_move);

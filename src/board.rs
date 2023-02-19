@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::time::Instant;
 use std::{fmt, str::FromStr};
 
@@ -356,10 +357,7 @@ impl Board {
 
         new
     }
-}
 
-/// Implement board move generation
-impl Board {
     /// Set attackers to all enemy pieces directly attacking the king.
     /// If there is at least one attacker, initialize the bitboards for blocking/capturing the check
     fn map_checkers(&mut self) {
@@ -448,7 +446,17 @@ impl Board {
         // pinned pieces are own pieces along any pin mask
         self.pinned = (self.diag_pins | self.hv_pins) & self.own_occupancy();
     }
+}
 
+const N: usize = 2;
+const B: usize = 4;
+const R: usize = 6;
+const Q: usize = 8;
+pub const QUIETS: bool = true;
+pub const CAPTURES: bool = false;
+
+/// Implement board move generation
+impl Board {
     /// Looks for which piece was captured on tgt square
     /// Panics if no piece is set on the tgt square. Only call if it's sure to be a capture.
     fn get_captured_piece(&self, tgt: Square) -> Piece {
@@ -458,67 +466,40 @@ impl Board {
             .unwrap() // possible panic
     }
 
-    /// Converts attack bitboard to target squares and adds all the moves to the movelist
-    fn add_moves(&self, piece: Piece, source: Square, attacks: BitBoard, move_list: &mut MoveList) {
-        for target in attacks {
-            if self.opp_occupancy().get_bit(target) {
-                move_list.add_capture(source, target, piece, self.get_captured_piece(target));
-            } else {
+    /// Given a target map for the source square, it adds all possible moves to the move list
+    /// If QUIET==false, only captures are added.
+    fn insert_moves<const QUIET: bool>(
+        &self,
+        piece: Piece,
+        source: Square,
+        targets: BitBoard,
+        move_list: &mut MoveList,
+    ) {
+        let captures = targets & self.opp_occupancy();
+        for target in captures {
+            move_list.add_capture(source, target, piece, self.get_captured_piece(target));
+        }
+
+        if QUIET {
+            let quiets = targets & !self.occupancy;
+            for target in quiets {
                 move_list.add_quiet(source, target, piece, 0);
             }
         }
     }
 
-    /// Converts attack bitboard to target squares and adds all of them as captures to the movelist
-    fn add_captures(
-        &self,
-        piece: Piece,
-        source: Square,
-        attacks: BitBoard,
-        move_list: &mut MoveList,
-    ) {
-        for target in attacks {
-            move_list.add_capture(source, target, piece, self.get_captured_piece(target));
-        }
-    }
-
-    /// Generate all legal king moves
-    fn generate_king_moves(&self, move_list: &mut MoveList) {
+    /// Generate all legal king moves, or only captures if QUIET==false
+    fn gen_king_moves<const QUIET: bool>(&self, move_list: &mut MoveList) {
         let king_square = self.own_king().lsb();
-        let attacks = king_attacks(king_square) & !self.own_occupancy() & !self.threats;
+        let targets = king_attacks(king_square) & !self.threats;
 
-        self.add_moves(self.side.king(), king_square, attacks, move_list);
+        self.insert_moves::<QUIET>(self.side.king(), king_square, targets, move_list);
     }
 
-    /// Generate only legal king captures
-    fn generate_king_captures(&self, move_list: &mut MoveList) {
-        let king_square = self.own_king().lsb();
-        let attacks = king_attacks(king_square) & self.opp_occupancy() & !self.threats;
+    /// Generate all legal pawn quiet moves
+    fn gen_pawn_quiets(&self, move_list: &mut MoveList) {
+        const START_RANKS: [Rank; 2] = [Rank::Second, Rank::Seventh];
 
-        self.add_captures(self.side.king(), king_square, attacks, move_list);
-    }
-
-    /// Generate all legal castling moves
-    fn generate_castling_moves(&self, move_list: &mut MoveList) {
-        let side: usize = self.side as usize;
-        let source = CASTLE_SQUARES[side];
-
-        if self.castling_rights.has_kingside(self.side)
-            && (self.threats | self.occupancy) & KINGSIDE_OCCUPANCIES[side] == EMPTY_BB
-        {
-            move_list.add_quiet(source, KINGSIDE_TARGETS[side], self.side.king(), 1);
-        }
-
-        if self.castling_rights.has_queenside(self.side)
-            && self.occupancy & QUEENSIDE_OCCUPANCIES[side] == EMPTY_BB
-            && self.threats & QUEENSIDE_THREATS[side] == EMPTY_BB
-        {
-            move_list.add_quiet(source, QUEENSIDE_TARGETS[side], self.side.king(), 1);
-        }
-    }
-
-    /// Generate all legal pawn pushes
-    fn generate_pawn_quiets(&self, move_list: &mut MoveList) {
         let side = self.side as usize;
         let pawn_bb = self.own_pawns() & !self.diag_pins; // diag pinned pawns cannot move
 
@@ -549,7 +530,7 @@ impl Board {
     }
 
     /// Generate all legal pawn captures (including enpassant)
-    fn generate_pawn_captures(&self, move_list: &mut MoveList) {
+    fn gen_pawn_captures(&self, move_list: &mut MoveList) {
         let pawn_bb = self.own_pawns() & !self.hv_pins; // hv pinned pawns cannot capture
         let check_mask = self.block_check | self.capture_check;
 
@@ -603,197 +584,212 @@ impl Board {
         }
     }
 
-    /// Generate all legal knight moves
-    fn generate_knight_moves(&self, move_list: &mut MoveList) {
-        let knight_bb = self.own_knights() & !self.pinned; // pinned knights can never move
-        let check_mask = self.block_check | self.capture_check;
+    /// Generate all legal castling moves
+    fn gen_castling_moves(&self, move_list: &mut MoveList) {
+        const SRC: [Square; 2] = [Square::E1, Square::E8];
+        const K_TGT: [Square; 2] = [Square::G1, Square::G8];
+        const Q_TGT: [Square; 2] = [Square::C1, Square::C8];
+        const K_OCCS: [BitBoard; 2] = [BitBoard(6917529027641081856), BitBoard(96)];
+        const Q_OCCS: [BitBoard; 2] = [BitBoard(1008806316530991104), BitBoard(14)];
+        const Q_THREATS: [BitBoard; 2] = [BitBoard(864691128455135232), BitBoard(12)];
 
-        for source in knight_bb {
-            let attacks = knight_attacks(source) & check_mask & !self.own_occupancy();
+        let side = self.side as usize;
+        let piece = self.side.king();
 
-            self.add_moves(self.side.knight(), source, attacks, move_list);
+        if self.castling_rights.has_kingside(self.side)
+            && (self.threats | self.occupancy) & K_OCCS[side] == EMPTY_BB
+        {
+            move_list.add_quiet(SRC[side], K_TGT[side], piece, 1);
+        }
+
+        if self.castling_rights.has_queenside(self.side)
+            && self.occupancy & Q_OCCS[side] == EMPTY_BB
+            && self.threats & Q_THREATS[side] == EMPTY_BB
+        {
+            move_list.add_quiet(SRC[side], Q_TGT[side], piece, 1);
         }
     }
 
-    /// Generate only legal knight captures
-    fn generate_knight_captures(&self, move_list: &mut MoveList) {
-        let knight_bb = self.own_knights() & !self.pinned; // pinned knights can never move
+    /// Generate all legal moves for any standard piece.
+    /// PIECE is crate::Piece as usize
+    /// if QUIET==false, only generate captures
+    fn gen_piece_moves<const PIECE: usize, const QUIET: bool>(&self, move_list: &mut MoveList) {
+        let side = self.side as usize;
+        let piece = Piece::from(PIECE + side);
+        let mut piece_bb = self.pieces[PIECE + side];
         let check_mask = self.block_check | self.capture_check;
 
-        for source in knight_bb {
-            let attacks = knight_attacks(source) & check_mask & self.opp_occupancy();
-
-            self.add_captures(self.side.knight(), source, attacks, move_list);
+        if PIECE == N {
+            piece_bb &= !self.pinned; // pinned knights cannot move
+        } else if PIECE == B {
+            piece_bb &= !self.hv_pins; // hv-pinned bishops cannot move
+        } else if PIECE == R {
+            piece_bb &= !self.diag_pins // diag-pinned rooks cannot move
         }
-    }
 
-    /// Generate all legal bishop moves
-    fn generate_bishop_moves(&self, move_list: &mut MoveList) {
-        let bishop_bb = self.own_bishops() & !self.hv_pins; // hv pinned bishops can't move
-        let check_mask = self.block_check | self.capture_check;
+        for source in piece_bb {
+            let mut targets = EMPTY_BB;
 
-        for source in bishop_bb {
-            let mut attacks =
-                bishop_attacks(source, self.occupancy) & check_mask & !self.own_occupancy();
+            if PIECE == N {
+                targets = knight_attacks(source);
+            } else if PIECE == B {
+                targets = bishop_attacks(source, self.occupancy);
 
-            // if pinned, only move along the diagonal pin ray
-            if self.diag_pins.get_bit(source) {
-                attacks &= self.diag_pins
+                if self.diag_pins.get_bit(source) {
+                    targets &= self.diag_pins // move along diagonal pin ray
+                }
+            } else if PIECE == R {
+                targets = rook_attacks(source, self.occupancy);
+
+                if self.hv_pins.get_bit(source) {
+                    targets &= self.hv_pins // move along orthogonal pin ray
+                }
+            } else if PIECE == Q {
+                // queen, when pinned, behaves like a rook or a bishop
+                if self.diag_pins.get_bit(source) {
+                    targets = bishop_attacks(source, self.occupancy) & self.diag_pins;
+                } else if self.hv_pins.get_bit(source) {
+                    targets = rook_attacks(source, self.occupancy) & self.hv_pins;
+                } else {
+                    targets = queen_attacks(source, self.occupancy);
+                }
             }
+            targets &= check_mask;
 
-            self.add_moves(self.side.bishop(), source, attacks, move_list);
+            self.insert_moves::<QUIET>(piece, source, targets, move_list);
         }
     }
 
-    /// Generate only legal bishop captures
-    fn generate_bishop_captures(&self, move_list: &mut MoveList) {
-        let bishop_bb = self.own_bishops() & !self.hv_pins; // hv pinned bishops can't move
-        let check_mask = self.block_check | self.capture_check;
-
-        for source in bishop_bb {
-            let mut attacks =
-                bishop_attacks(source, self.occupancy) & check_mask & self.opp_occupancy();
-
-            // if pinned, only move along the diagonal pin ray
-            if self.diag_pins.get_bit(source) {
-                attacks &= self.diag_pins
-            }
-
-            self.add_captures(self.side.bishop(), source, attacks, move_list);
-        }
-    }
-
-    /// Generate all legal rook moves
-    fn generate_rook_moves(&self, move_list: &mut MoveList) {
-        let rook_bb = self.own_rooks() & !self.diag_pins; // diag pinned rooks can't move
-        let check_mask = self.block_check | self.capture_check;
-
-        for source in rook_bb {
-            let mut attacks =
-                rook_attacks(source, self.occupancy) & check_mask & !self.own_occupancy();
-
-            // if pinned, only move along hv pin ray
-            if self.hv_pins.get_bit(source) {
-                attacks &= self.hv_pins
-            }
-
-            self.add_moves(self.side.rook(), source, attacks, move_list);
-        }
-    }
-
-    /// Generate only legal rook captures
-    fn generate_rook_captures(&self, move_list: &mut MoveList) {
-        let rook_bb = self.own_rooks() & !self.diag_pins; // diag pinned rooks can't move
-        let check_mask = self.block_check | self.capture_check;
-
-        for source in rook_bb {
-            let mut attacks =
-                rook_attacks(source, self.occupancy) & check_mask & self.opp_occupancy();
-
-            // if pinned, only move along hv pin ray
-            if self.hv_pins.get_bit(source) {
-                attacks &= self.hv_pins
-            }
-
-            self.add_captures(self.side.rook(), source, attacks, move_list);
-        }
-    }
-
-    /// Generate all legal queen moves
-    fn generate_queen_moves(&self, move_list: &mut MoveList) {
-        let queen_bb = self.own_queens();
-        let check_mask = self.block_check | self.capture_check;
-
-        for source in queen_bb {
-            // depending on the pin type, the queen can behave like a bishop or a rook
-            let mut attacks = if self.diag_pins.get_bit(source) {
-                bishop_attacks(source, self.occupancy) & self.diag_pins
-            } else if self.hv_pins.get_bit(source) {
-                rook_attacks(source, self.occupancy) & self.hv_pins
-            } else {
-                queen_attacks(source, self.occupancy)
-            };
-            attacks &= check_mask & !self.own_occupancy();
-
-            self.add_moves(self.side.queen(), source, attacks, move_list);
-        }
-    }
-
-    /// Generate only legal queen captures
-    fn generate_queen_captures(&self, move_list: &mut MoveList) {
-        let queen_bb = self.own_queens();
-        let check_mask = self.block_check | self.capture_check;
-
-        for source in queen_bb {
-            // depending on the pin type, the queen can behave like a bishop or a rook
-            let mut attacks = if self.diag_pins.get_bit(source) {
-                bishop_attacks(source, self.occupancy) & self.diag_pins
-            } else if self.hv_pins.get_bit(source) {
-                rook_attacks(source, self.occupancy) & self.hv_pins
-            } else {
-                queen_attacks(source, self.occupancy)
-            };
-            attacks &= check_mask & self.opp_occupancy(); // handle check and only consider captures
-
-            self.add_captures(self.side.queen(), source, attacks, move_list);
-        }
-    }
-
-    /// Generate legal moves without make move.
-    pub fn generate_moves(&self) -> MoveList {
+    /// Generate all legal moves, or only captures if QUIET==false
+    pub fn gen_moves<const QUIET: bool>(&self) -> MoveList {
         let mut move_list: MoveList = MoveList::default();
         let attacker_count = self.checkers.count_bits();
 
-        self.generate_king_moves(&mut move_list);
+        self.gen_king_moves::<QUIET>(&mut move_list);
 
         // with double checks, only king moves are legal, so we stop here
         if attacker_count > 1 {
             return move_list;
         }
 
-        if self.castling_rights != NO_RIGHTS && attacker_count == 0 {
-            self.generate_castling_moves(&mut move_list);
+        if QUIET && self.castling_rights != NO_RIGHTS && attacker_count == 0 {
+            self.gen_castling_moves(&mut move_list);
         }
 
-        // generate all the legal piece captures using pin and blocker/capture masks
-        self.generate_pawn_captures(&mut move_list);
-        self.generate_pawn_quiets(&mut move_list);
-        self.generate_knight_moves(&mut move_list);
-        self.generate_bishop_moves(&mut move_list);
-        self.generate_rook_moves(&mut move_list);
-        self.generate_queen_moves(&mut move_list);
-
-        move_list
-    }
-
-    /// Generate only legal captures without make move
-    pub fn generate_captures(&self) -> MoveList {
-        let mut move_list: MoveList = MoveList::default();
-        let attacker_count = self.checkers.count_bits();
-
-        self.generate_king_captures(&mut move_list);
-
-        // with double checks, only king moves are legal, so we stop here
-        if attacker_count > 1 {
-            return move_list;
+        // generate all the legal piece moves using pin and blocker/capture masks
+        self.gen_pawn_captures(&mut move_list);
+        if QUIET {
+            self.gen_pawn_quiets(&mut move_list);
         }
 
-        // generate all the other legal piece captures using pin and blocker/capture masks
-        self.generate_pawn_captures(&mut move_list);
-        self.generate_knight_captures(&mut move_list);
-        self.generate_bishop_captures(&mut move_list);
-        self.generate_rook_captures(&mut move_list);
-        self.generate_queen_captures(&mut move_list);
+        self.gen_piece_moves::<N, QUIET>(&mut move_list);
+        self.gen_piece_moves::<B, QUIET>(&mut move_list);
+        self.gen_piece_moves::<R, QUIET>(&mut move_list);
+        self.gen_piece_moves::<Q, QUIET>(&mut move_list);
 
         move_list
     }
 
     /// Finds legal move in board from the uci-formatted move string
     pub fn find_move(&self, move_str: &str) -> Option<Move> {
-        self.generate_moves()
+        self.gen_moves::<QUIETS>()
             .moves
             .into_iter()
             .find(|m| m.to_string() == move_str)
+    }
+}
+
+/// SEE
+impl Board {
+    /// Returns bitboard with all pieces attacking a square
+    fn map_all_attackers(&self, square: Square) -> BitBoard {
+        self.pieces[WPAWN] & pawn_attacks(square, Color::Black)
+            | self.pieces[BPAWN] & pawn_attacks(square, Color::White)
+            | self.knights() & knight_attacks(square)
+            | (self.bishops() | self.queens()) & bishop_attacks(square, self.occupancy)
+            | (self.rooks() | self.queens()) & rook_attacks(square, self.occupancy)
+            | self.kings() & king_attacks(square)
+    }
+
+    /// Maps sliding attackers assuming the occupancy is that given by the occs bitboard
+    /// Used in see to add xray attackers to the attacker bitboard after making a capture.
+    /// There is definitely a more efficient way.
+    fn remap_xray(&self, square: Square, occs: BitBoard) -> BitBoard {
+        let diagonal_sliders = (self.bishops() | self.queens()) & occs;
+        let orthogonal_sliders = (self.rooks() | self.queens()) & occs;
+
+        diagonal_sliders & bishop_attacks(square, occs)
+            | orthogonal_sliders & rook_attacks(square, occs)
+    }
+
+    /// Returns the least valuable of the attackers within the attacker map
+    fn get_lva(&self, attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
+        for piece in PIECES[side as usize] {
+            let squares = attackers & self.pieces[piece as usize];
+
+            if squares != EMPTY_BB {
+                return Some((squares.lsb(), piece));
+            }
+        }
+
+        None
+    }
+
+    /// Returns the static exchange evaluation of the given move in the position
+    /// Note that the see score is a much less usesful sorting metric compared to mvv-lva. We only
+    /// use it when a capture is losing material to quantify how much, not when it's winning.
+    ///
+    /// TODO: move to a simple boolean see, since the value returned is not used
+    pub fn see(&self, m: Move) -> i16 {
+        const SEE_VALUES: [i16; PIECE_COUNT] = [1, 1, 3, 3, 3, 3, 5, 5, 9, 9, 20, 20];
+        let mut swap_list: [i16; 32] = [0; 32];
+        swap_list[0] = SEE_VALUES[m.get_capture() as usize];
+
+        let mut swap_piece = m.get_piece();
+        let mut src = m.get_src();
+        let tgt = m.get_tgt();
+
+        let possible_xray = self.pawns() | self.bishops() | self.rooks() | self.queens();
+
+        let mut side = !self.side;
+        let mut occs = self.occupancy;
+        let mut attackers = self.map_all_attackers(tgt);
+
+        let mut depth = 1;
+        loop {
+            // score assuming capturing piece is lost afterwards
+            swap_list[depth] = SEE_VALUES[swap_piece as usize] - swap_list[depth - 1];
+
+            // early stand pat pruning
+            if max(-swap_list[depth - 1], swap_list[depth]) < 0 {
+                break;
+            }
+
+            // remove capturing piece and add back xray attackers
+            attackers = attackers.pop_bit(src);
+            occs = occs.pop_bit(src);
+            if possible_xray.get_bit(src) {
+                attackers |= self.remap_xray(tgt, occs);
+            }
+
+            match self.get_lva(attackers, side) {
+                Some((sq, p)) => {
+                    src = sq;
+                    swap_piece = p;
+
+                    side = !side;
+                    depth += 1;
+                }
+
+                None => break,
+            }
+        }
+
+        // negamax the results
+        for d in (1..depth).rev() {
+            swap_list[d - 1] = -max(swap_list[d], -swap_list[d - 1]);
+        }
+        swap_list[0]
     }
 }
 
@@ -801,18 +797,18 @@ impl Board {
 impl Board {
     /// Recursive move generation
     fn perft_driver(&self, depth: usize) -> u64 {
+        let move_list = self.gen_moves::<QUIETS>();
+
         if depth == 1 {
-            return self.generate_moves().len() as u64;
+            return move_list.len() as u64;
         } else if depth == 0 {
             return 1;
         }
 
-        let move_list = self.generate_moves();
         let mut nodes = 0;
         for i in 0..move_list.len() {
             let m = move_list.moves[i];
             let new_board = self.make_move(m);
-
             nodes += new_board.perft_driver(depth - 1);
         }
 
@@ -821,7 +817,7 @@ impl Board {
 
     /// Cumulative (divide) perft
     pub fn perft(&self, depth: usize) -> u64 {
-        let move_list = self.generate_moves();
+        let move_list = self.gen_moves::<QUIETS>();
         let mut total_nodes = 0;
 
         let start = Instant::now();
@@ -894,18 +890,72 @@ mod tests {
         init_all_tables();
         let b1: Board = "8/8/8/1k6/3Pp3/8/8/4KQ2 b - d3 0 1".parse().unwrap();
         println!("{b1}");
-        let m1 = b1.generate_moves(); // enpassant blocks check
+        let m1 = b1.gen_moves::<QUIETS>(); // enpassant blocks check
         assert_eq!(m1.len(), 6);
 
         let b2: Board = "8/8/8/2k5/3Pp3/8/8/4K3 b - d3 0 1".parse().unwrap();
         println!("{b2}");
-        let m2 = b2.generate_moves(); // enpassant captures checker
+        let m2 = b2.gen_moves::<QUIETS>(); // enpassant captures checker
         assert_eq!(m2.len(), 9);
 
         let b3: Board = "8/8/8/8/k2Pp2Q/8/8/3K4 b - d3 0 1".parse().unwrap();
         println!("{b3}");
-        let m3 = b3.generate_moves(); // enpassant would leave the king in check
+        let m3 = b3.gen_moves::<QUIETS>(); // enpassant would leave the king in check
         assert_eq!(m3.len(), 6);
+    }
+
+    #[test]
+    fn test_see_helpers() {
+        init_all_tables();
+        let b1: Board = "1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
+            .parse()
+            .unwrap();
+        let b2: Board = "1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
+            .parse()
+            .unwrap();
+
+        let att1 = b1.map_all_attackers(Square::E5);
+        let att2 = b2.map_all_attackers(Square::E5);
+
+        println!("{b1}\n{att1}\n{b2}\n{att2}");
+
+        assert!(att1.get_bit(Square::E1));
+        assert!(!att1.get_bit(Square::D8));
+
+        assert!(att2.get_bit(Square::E2));
+        assert!(!att2.get_bit(Square::E1));
+
+        let occs = b2.occupancy.pop_bit(Square::E2);
+        let remap = b2.remap_xray(Square::E5, occs);
+
+        println!("{remap}");
+
+        assert!(remap.get_bit(Square::E1));
+        assert!(!remap.get_bit(Square::E2));
+    }
+
+    #[test]
+    fn test_see() {
+        init_all_tables();
+        let b1: Board = "1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
+            .parse()
+            .unwrap();
+        let b2: Board = "1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
+            .parse()
+            .unwrap();
+        let b3: Board = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+            .parse()
+            .unwrap();
+
+        println!("{b1}\n{b2}\n{b3}");
+
+        let m1 = b1.find_move("e1e5").unwrap();
+        let m2 = b2.find_move("d3e5").unwrap();
+        let m3 = b3.find_move("g2h3").unwrap();
+
+        assert_eq!(b1.see(m1), 1);
+        assert_eq!(b2.see(m2), -2);
+        assert_eq!(b3.see(m3), 1);
     }
 
     #[rustfmt::skip]

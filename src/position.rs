@@ -1,17 +1,11 @@
-use std::{
-    cmp::{max, min},
-    str::FromStr,
-};
+use std::{cmp::min, str::FromStr};
 
 use crate::bitboard::*;
 use crate::board::*;
 use crate::evaluation::*;
 use crate::move_list::*;
 use crate::moves::*;
-use crate::piece::*;
 use crate::sorter::*;
-use crate::square::*;
-use crate::tables::*;
 use crate::zobrist::*;
 
 /// Position, represents a Board's evolution along the search tree.
@@ -93,15 +87,15 @@ impl Position {
 
     /// Generate a sorted list of captures
     pub fn generate_captures(&self) -> MoveList {
-        let mut move_list = self.board.generate_captures();
+        let mut move_list = self.board.gen_moves::<CAPTURES>();
 
-        self.sorter.score_captures(self, &mut move_list);
+        self.sorter.score_captures(&self.board, &mut move_list);
         move_list
     }
 
     /// Generate a sorted list of moves
     pub fn generate_moves(&self) -> MoveList {
-        let mut move_list = self.board.generate_moves();
+        let mut move_list = self.board.gen_moves::<QUIETS>();
 
         self.sorter.score_moves(self, &mut move_list);
         move_list
@@ -110,6 +104,9 @@ impl Position {
     /// Makes the given move
     pub fn make_move(&mut self, m: Move) {
         let new = self.board.make_move(m);
+
+        self.sorter.followup_move = self.sorter.counter_move;
+        self.sorter.counter_move = Some(m);
 
         self.history.push((self.board, m, self.ply_from_null));
         self.board = new;
@@ -120,6 +117,9 @@ impl Position {
     /// Passes turn to opponent (this resets the ply_from_null clock)
     pub fn make_null(&mut self) {
         let new = self.board.make_null();
+
+        self.sorter.followup_move = None;
+        self.sorter.counter_move = None;
 
         self.history
             .push((self.board, NULL_MOVE, self.ply_from_null));
@@ -136,6 +136,20 @@ impl Position {
         self.board = old_board;
         self.ply -= 1;
         self.ply_from_null = old_ply;
+
+        let len = self.history.len();
+
+        self.sorter.counter_move = if self.ply_from_null > 0 {
+            self.history.get(len - 1).map(|t| t.1)
+        } else {
+            None
+        };
+
+        self.sorter.followup_move = if self.ply_from_null > 1 {
+            self.history.get(len - 2).map(|t| t.1)
+        } else {
+            None
+        };
     }
 
     /// Returns true if the tt move has been set
@@ -148,25 +162,9 @@ impl Position {
         self.sorter.tt_move = m;
     }
 
-    /// Recovers the move from lookback plies ago. Only goes back to last null move
-    /// Panics if lookback > history length or lookback = 0
-    pub fn recover_move(&self, lookback: usize) -> Option<Move> {
-        if self.ply_from_null >= lookback {
-            let index = self.history.len() - lookback;
-
-            Some(self.history.get(index).unwrap().1)
-        } else {
-            None
-        }
-    }
-
     pub fn update_sorter(&mut self, m: Move, depth: usize, searched: Vec<Move>) {
-        let counter = self.recover_move(1);
-        let followup = self.recover_move(2);
-        let side = self.board.side as usize;
-
         self.sorter
-            .update(m, counter, followup, depth, self.ply, side, searched);
+            .update(m, depth, self.ply, self.board.side as usize, searched);
     }
 
     /// Checks whether the current side's king is in check
@@ -204,6 +202,7 @@ impl Position {
         const WHITE_SQUARES: BitBoard = BitBoard(12273903644374837845);
         const CORNERS: BitBoard = BitBoard(9295429630892703873);
         const EDGES: BitBoard = BitBoard(18411139144890810879);
+
         let kings = self.board.kings();
         let knights = self.board.knights();
         let bishops = self.board.bishops();
@@ -216,14 +215,14 @@ impl Position {
                 let knight_count = knights.count_bits();
                 let bishop_count = bishops.count_bits();
 
-                (knight_count == 2 && kings & EDGES != EMPTY_BB)
+                !((knight_count == 2 && kings & EDGES != EMPTY_BB)
                     || (bishop_count == 2
                         && ((bishops & WHITE_SQUARES).count_bits() != 1
                             || (one_each && kings & CORNERS != EMPTY_BB)))
                     || (knight_count == 1
                         && bishop_count == 1
                         && one_each
-                        && kings & CORNERS != EMPTY_BB)
+                        && kings & CORNERS != EMPTY_BB))
             }
             _ => false,
         }
@@ -235,160 +234,19 @@ impl Position {
     }
 }
 
-/// SEE Implementation
-impl Position {
-    /// Returns bitboard with all pieces attacking a square
-    fn map_all_attackers(&self, square: Square) -> BitBoard {
-        let b = self.board;
-
-        b.pieces[WPAWN] & pawn_attacks(square, Color::Black)
-            | b.pieces[BPAWN] & pawn_attacks(square, Color::White)
-            | b.knights() & knight_attacks(square)
-            | (b.bishops() | b.queens()) & bishop_attacks(square, b.occupancy)
-            | (b.rooks() | b.queens()) & rook_attacks(square, b.occupancy)
-            | b.kings() & king_attacks(square)
-    }
-
-    /// Maps sliding attackers assuming the occupancy is that given by the occs bitboard
-    /// Used in see to add xray attackers to the attacker bitboard after making a capture.
-    /// There is definitely a more efficient way.
-    fn remap_xray(&self, square: Square, occs: BitBoard) -> BitBoard {
-        let b = self.board;
-        let diagonal_sliders = (b.bishops() | b.queens()) & occs;
-        let orthogonal_sliders = (b.rooks() | b.queens()) & occs;
-
-        diagonal_sliders & bishop_attacks(square, occs)
-            | orthogonal_sliders & rook_attacks(square, occs)
-    }
-
-    /// Returns the least valuable of the attackers within the attacker map
-    fn get_lva(&self, attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
-        for piece in PIECES[side as usize] {
-            let squares = attackers & self.board.pieces[piece as usize];
-
-            if squares != EMPTY_BB {
-                return Some((squares.lsb(), piece));
-            }
-        }
-
-        None
-    }
-
-    /// Returns the static exchange evaluation of the given move in the position
-    /// Note that the see score is a much less usesful sorting metric compared to mvv-lva. We only
-    /// use it when a capture is losing material to quantify how much, not when it's winning.
-    ///
-    /// TODO: move to a simple boolean see, since the value returned is not used
-    pub fn see(&self, m: Move) -> i16 {
-        const SEE_VALUES: [i16; PIECE_COUNT] = [1, 1, 3, 3, 3, 3, 5, 5, 9, 9, 20, 20];
-        let mut swap_list: [i16; 32] = [0; 32];
-        swap_list[0] = SEE_VALUES[m.get_capture() as usize];
-
-        let mut swap_piece = m.get_piece();
-        let mut src = m.get_src();
-        let tgt = m.get_tgt();
-
-        let possible_xray =
-            self.board.pawns() | self.board.bishops() | self.board.rooks() | self.board.queens();
-
-        let mut side = !self.board.side;
-        let mut occs = self.board.occupancy;
-        let mut attackers = self.map_all_attackers(tgt);
-
-        let mut depth = 1;
-        loop {
-            // score assuming capturing piece is lost afterwards
-            swap_list[depth] = SEE_VALUES[swap_piece as usize] - swap_list[depth - 1];
-
-            // early stand pat pruning
-            if max(-swap_list[depth - 1], swap_list[depth]) < 0 {
-                break;
-            }
-
-            // remove capturing piece and add back xray attackers
-            attackers = attackers.pop_bit(src);
-            occs = occs.pop_bit(src);
-            if possible_xray.get_bit(src) {
-                attackers |= self.remap_xray(tgt, occs);
-            }
-
-            match self.get_lva(attackers, side) {
-                Some((sq, p)) => {
-                    src = sq;
-                    swap_piece = p;
-
-                    side = !side;
-                    depth += 1;
-                }
-
-                None => break,
-            }
-        }
-
-        // negamax the results
-        for d in (1..depth).rev() {
-            swap_list[d - 1] = -max(swap_list[d], -swap_list[d - 1]);
-        }
-        swap_list[0]
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::tables::init_all_tables;
+
     use super::*;
 
     #[test]
-    fn test_see_helpers() {
+    fn test_draw() {
         init_all_tables();
-        let pos1: Position = "fen 1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
-            .parse()
-            .unwrap();
-        let pos2: Position = "fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
-            .parse()
-            .unwrap();
+        let kbvkn_mate: Position = "fen 5b1K/5k1N/8/8/8/8/8/8 b - - 1 1".parse().unwrap();
+        let kbvkn_draw: Position = "fen 8/8/3k4/4n3/8/2KB4/8/8 w - - 0 1".parse().unwrap();
 
-        let att1 = pos1.map_all_attackers(Square::E5);
-        let att2 = pos2.map_all_attackers(Square::E5);
-
-        println!("{}\n{}\n{}\n{}", pos1.board, att1, pos2.board, att2);
-
-        assert!(att1.get_bit(Square::E1));
-        assert!(!att1.get_bit(Square::D8));
-
-        assert!(att2.get_bit(Square::E2));
-        assert!(!att2.get_bit(Square::E1));
-
-        let occs = pos2.board.occupancy.pop_bit(Square::E2);
-        let remap = pos2.remap_xray(Square::E5, occs);
-
-        println!("{remap}");
-
-        assert!(remap.get_bit(Square::E1));
-        assert!(!remap.get_bit(Square::E2));
-    }
-
-    #[test]
-    fn test_see() {
-        init_all_tables();
-        let pos1: Position = "fen 1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
-            .parse()
-            .unwrap();
-        let pos2: Position = "fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
-            .parse()
-            .unwrap();
-        let pos3: Position =
-            "fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-                .parse()
-                .unwrap();
-
-        println!("{}\n{}\n{}", pos1.board, pos2.board, pos3.board);
-
-        let m1 = pos1.board.find_move("e1e5").unwrap();
-        let m2 = pos2.board.find_move("d3e5").unwrap();
-        let m3 = pos3.board.find_move("g2h3").unwrap();
-
-        assert_eq!(pos1.see(m1), 1);
-        assert_eq!(pos2.see(m2), -2);
-        assert_eq!(pos3.see(m3), 1);
+        assert!(!kbvkn_mate.insufficient_material());
+        assert!(kbvkn_draw.insufficient_material());
     }
 }

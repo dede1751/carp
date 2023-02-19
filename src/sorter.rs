@@ -1,13 +1,12 @@
 use std::cmp::min;
 
+use crate::board::*;
 use crate::move_list::*;
 use crate::moves::*;
 use crate::piece::*;
 use crate::position::*;
 use crate::search::*;
 use crate::square::*;
-
-const MAX_KILLERS: usize = 2;
 
 /// Move Scoring
 /// 300         -> TT Move
@@ -23,10 +22,12 @@ type FUHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COU
 
 #[derive(Clone, Debug)]
 pub struct Sorter {
-    killer_moves: [[Move; MAX_KILLERS]; MAX_DEPTH], // [ply][num_killer]
+    killer_moves: [[Move; 2]; MAX_DEPTH], // [ply][num_killer]
     history_moves: [[[i32; SQUARE_COUNT]; SQUARE_COUNT]; 2], // [color][from][to]
-    counter_moves: Box<CMHistory>,                  // [piece+col][to][from][to]
-    followup_moves: Box<FUHistory>,                 // [piece+col][to][from][to]
+    pub counter_move: Option<Move>,
+    counter_moves: Box<CMHistory>, // [piece+col][to][from][to]
+    pub followup_move: Option<Move>,
+    followup_moves: Box<FUHistory>, // [piece+col][to][from][to]
     pub tt_move: Option<Move>,
 }
 
@@ -47,9 +48,11 @@ fn box_array<T>() -> Box<T> {
 impl Default for Sorter {
     fn default() -> Self {
         Sorter {
-            killer_moves: [[NULL_MOVE; MAX_KILLERS]; MAX_DEPTH],
+            killer_moves: [[NULL_MOVE; 2]; MAX_DEPTH],
             history_moves: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
+            counter_move: None,
             counter_moves: box_array::<CMHistory>(),
+            followup_move: None,
             followup_moves: box_array::<FUHistory>(),
             tt_move: None,
         }
@@ -110,17 +113,7 @@ impl Sorter {
     }
 
     /// Update killer and history values for sorting quiet moves after a beta cutoff
-    #[allow(clippy::too_many_arguments)]
-    pub fn update(
-        &mut self,
-        m: Move,
-        counter: Option<Move>,
-        followup: Option<Move>,
-        depth: usize,
-        ply: usize,
-        side: usize,
-        searched: Vec<Move>,
-    ) {
+    pub fn update(&mut self, m: Move, depth: usize, ply: usize, side: usize, searched: Vec<Move>) {
         let first_killer = self.killer_moves[ply][0];
 
         if first_killer != m {
@@ -141,10 +134,10 @@ impl Sorter {
         // countermove and followup history
         const CMH: bool = true;
         const FUH: bool = false;
-        if let Some(counter_move) = counter {
+        if let Some(counter_move) = self.counter_move {
             self.update_double::<CMH>(m, counter_move, bonus, &searched);
 
-            if let Some(followup_move) = followup {
+            if let Some(followup_move) = self.followup_move {
                 self.update_double::<FUH>(m, followup_move, bonus, &searched);
             }
         }
@@ -186,13 +179,13 @@ const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
 /// Move Scoring
 impl Sorter {
     /// Score individual captures.
-    fn score_capture(&self, pos: &Position, m: Move) -> i32 {
+    fn score_capture(&self, board: &Board, m: Move) -> i32 {
         if m.is_enpassant() {
             EP_SCORE
         } else {
             let mut score = MVV_LVA[m.get_piece() as usize][m.get_capture() as usize];
 
-            if pos.see(m) >= 0 {
+            if board.see(m) >= 0 {
                 score += GOOD_CAPTURE
             }
 
@@ -201,35 +194,34 @@ impl Sorter {
     }
 
     /// Score assuming all moves are captures
-    pub fn score_captures(&self, pos: &Position, move_list: &mut MoveList) {
+    pub fn score_captures(&self, board: &Board, move_list: &mut MoveList) {
         for i in 0..move_list.len() {
             let m = move_list.moves[i];
 
             move_list.scores[i] = if m.is_promotion() {
                 PROMOTION_SCORES[m.get_promotion() as usize]
             } else {
-                self.score_capture(pos, m)
+                self.score_capture(board, m)
             };
         }
     }
 
     /// Score quiet moves according to Standard/Counter Move/Follow Up heuristics
-    fn score_history(&self, pos: &Position, m: Move) -> i32 {
-        let col = pos.board.side as usize;
+    fn score_history(&self, m: Move, side: usize) -> i32 {
         let src = m.get_src() as usize;
         let tgt = m.get_tgt() as usize;
 
-        let mut score = self.history_moves[col][src][tgt];
+        let mut score = self.history_moves[side][src][tgt];
 
         // counter move
-        if let Some(counter_move) = pos.recover_move(1) {
+        if let Some(counter_move) = self.counter_move {
             let prev_p = counter_move.get_piece() as usize;
             let prev_tgt = counter_move.get_tgt() as usize;
 
             score += self.counter_moves[prev_p][prev_tgt][src][tgt];
 
             // followup move
-            if let Some(followup_move) = pos.recover_move(2) {
+            if let Some(followup_move) = self.followup_move {
                 let prev_p = followup_move.get_piece() as usize;
                 let prev_tgt = followup_move.get_tgt() as usize;
 
@@ -245,7 +237,7 @@ impl Sorter {
         if m.is_promotion() {
             PROMOTION_SCORES[m.get_promotion() as usize]
         } else if m.is_capture() {
-            self.score_capture(pos, m)
+            self.score_capture(&pos.board, m)
         } else if m.is_castle() {
             CASTLE_SCORE
         } else if m == self.killer_moves[pos.ply][0] {
@@ -253,7 +245,7 @@ impl Sorter {
         } else if m == self.killer_moves[pos.ply][1] {
             SECOND_KILLER
         } else {
-            self.score_history(pos, m)
+            self.score_history(m, pos.board.side as usize)
         }
     }
 

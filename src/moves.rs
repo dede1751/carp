@@ -7,9 +7,6 @@ use crate::square::*;
 /// Indexed by color, rank at which each side's pawns promote
 pub const PROMOTION_RANKS: [Rank; 2] = [Rank::Seventh, Rank::Second];
 
-/// Indexed by color, rank at which each side's pawns start
-pub const START_RANKS: [Rank; 2] = [Rank::Second, Rank::Seventh];
-
 /// Moves, encoded in 32b
 /// Smaller encoding can be achieved using only 2B (6b src, 6b tgt, 3b promotion, 1b extra) but it
 /// makes the rest of the engine much less ergonomic. We only use the least significant 28 bits
