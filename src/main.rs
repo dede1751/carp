@@ -17,6 +17,7 @@ pub mod zobrist;
 
 pub mod clock;
 pub mod evaluation;
+pub mod nnue;
 pub mod search;
 pub mod tt;
 pub mod uci;

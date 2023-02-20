@@ -1,0 +1,113 @@
+    NNUE -- Explanation
+This is a writeup I made to better understand nnue evaluation in
+a (768->256)x2->1 architecture. It's basically a reinterpretation
+of Viridithas' nnue inference code to make sense of it. Thanks
+to Cosmo for the clean code and helpful suggestions.
+
+WEIRD CONSTANTS:
+    QA, QB, QAB     -  Quantization constants to convert floats
+    SCALE           -  Depends on the training scale parameter
+    CR_MIN, CR_MAX  -  Clipped ReLu bounds
+
+ACCUMULATORS:
+    accumulators contain 2 arrays of the hidden layer size (256).
+    they contain the values in the hidden layer for each pov
+    since accumulators are normally produced incrementally, we must
+    also be able to build the initial accumulator when initializing
+    a Position struct
+
+NNUEState: 
+    the network state is entirely represented by an accumulator
+    stack.
+    accumulator are kept on a stack, updated on each move along
+    the search tree. make move should run an update method on the
+    accumulator, pushing the updated accumulator to the stack
+
+    stack size should just be the max search depth
+    
+    Add this to make move in the position struct
+    1) make move
+    2) push new accumulator to stack
+    3) update new accumulator based on move
+
+
+NNUEParams:
+    since the trainer uses floats internally, and floats are far too
+    slow to compute, all parameters must be quantized. I do not fully
+    understand the quantization value choices, but the idea is to
+    simply multiply the float by the given quantization factor.
+    Values for the first layer connection (ft weights, hidden biases)
+    are quantized with QA, output weights with QB and the output bias
+    with QA*QB.
+    Since all values in the net have been multiplied by a factor of
+    QA*QB, we "unquantize" the evaluation by dividing it by QA*QB
+
+    - weights:
+        the trainer outputs a feature weight matrix, with 768 columns
+        and 256 rows, so indexed by [hidden neuron][feature], and an
+        output weight vector with 256 * 2 weights (double perspective)
+
+        for sparse matrix multiplication in the efficiently updatable
+        layer, we want the weights to be transposed, to access them
+        sequentially given a single feature:
+
+        say we have to update feature i, then we want the weights for
+        each hidden neuron connected to i to be next to each other,
+        to avoid column-major traversal, so we rearrange the first
+        set of weights (ft.weights) to be in the form:
+
+            ft_weights[i * 256 .. i * 256 + 256]
+        
+        to do this, simply transpose and linearize json matrix
+            ft_weights[j * 256 + i] = weights[i][j]
+        
+        since the output is directly connected to the hidden layer,
+        the weight matrix is 1x(256*2) so a simple vector
+    
+    - biases:
+        biases are the same size as the second layer, so 256*2 values
+        for hidden and 1 for output
+
+UPDATING STATE:
+    simple quiet moves: from index set to 0, to index set to 1 (both pov)
+
+    captures/castle/enpassant/promotions require special care, use a
+    different update function to turn on a single feature or one
+    function for each
+
+    since inputs are one-hot, hidden is simply the sum of bias + weights
+    for each active feature. to do this only for the updated features,
+    we do this for both the white accumulator and black accumulator
+
+    let zip = weights[from_index..from_index + 256]
+        .iter()
+        .zip(weights[to_index..to_index + 256].iter())
+        .zip(side_accumulator.iter_mut());
+
+    for ((remove_weight, add_weight), acc_value) in zip {
+        *acc_value += *add_weight - *remove_weight;
+    }
+
+EVALUATION:
+    evaluation happens once the hidden layer has already been computed, since
+    that is a step of the make move function.
+
+    starting from the current accumulator, we concatenate the side arrays so
+    that the first one is the current side and the second one is the opposing
+    side and zip the resulting array to the output weights (256 * 2), sum all
+    of those after Clipped ReLu
+
+    let mut out = output_bias;
+    let concat_zip = hidden_us
+        .iter()
+        .chain(hidden_them.iter())
+        .zip(output_weights);
+
+    for (&value, &weight) in concat_zip {
+        out += (value.clamp(CR_MIN, CR_MAX) as i32) * (weight as i32);
+    }
+
+    finally, the result is multiplied by the scale factor and divided by the
+    total quantization constant:
+
+    out * SCALE / QAB
