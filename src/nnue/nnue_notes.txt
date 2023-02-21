@@ -4,7 +4,7 @@ a (768->256)x2->1 architecture. It's basically a reinterpretation
 of Viridithas' nnue inference code to make sense of it. Thanks
 to Cosmo for the clean code and helpful suggestions.
 
-WEIRD CONSTANTS:
+CONSTANTS:
     QA, QB, QAB     -  Quantization constants to convert floats
     SCALE           -  Depends on the training scale parameter
     CR_MIN, CR_MAX  -  Clipped ReLu bounds
@@ -84,8 +84,10 @@ UPDATING STATE:
         .zip(weights[to_index..to_index + 256].iter())
         .zip(side_accumulator.iter_mut());
 
-    for ((remove_weight, add_weight), acc_value) in zip {
-        *acc_value += *add_weight - *remove_weight;
+    for ((&remove_weight, &add_weight), acc) in zip {
+        let val = add_weight - remove_weight;
+
+        *acc += val;
     }
 
 EVALUATION:

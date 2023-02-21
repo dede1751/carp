@@ -140,6 +140,11 @@ impl Square {
         (tf - sf, sr - tr)
     }
 
+    /// Get new square by flipping the rank of the original.
+    pub const fn flipv(self) -> Square {
+        from!(self as u8 ^ 56, 63)
+    }
+
     /// Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
     pub const fn right(self) -> Square {
         from!(self as u8 + 1, 63)
