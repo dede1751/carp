@@ -50,9 +50,8 @@ impl Accumulator {
     /// Updates weights for a single feature, either turning them on or off
     fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
         fn update<const ON: bool>(acc: &mut SideAccumulator, idx: usize) {
-            let weights = MODEL.feature_weights;
             let zip = acc.iter_mut()
-                .zip(&weights[idx..idx + HIDDEN]);
+                .zip(&MODEL.feature_weights[idx..idx + HIDDEN]);
 
             for (acc_val, &weight) in zip {
                 if ON {
@@ -71,12 +70,11 @@ impl Accumulator {
     /// Adds in features for the destination and removes the features of the source
     fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
         fn add_sub(acc: &mut SideAccumulator, from: usize, to: usize) {
-            let weights = MODEL.feature_weights;
             let zip = acc.iter_mut()
                 .zip(
-                    weights[from..from + HIDDEN]
+                    MODEL.feature_weights[from..from + HIDDEN]
                         .iter()
-                        .zip(&weights[to..to + HIDDEN])
+                        .zip(&MODEL.feature_weights[to..to + HIDDEN])
             );
 
             for (acc_val, (&remove_weight, &add_weight)) in zip {
@@ -120,6 +118,7 @@ pub const OFF: bool = false;
 
 impl NNUEState {
     /// Inits nnue state from a board
+    /// To be able to run debug builds, heap is allocated manually
     pub fn from_board(board: &Board) -> Box<Self> {
         let mut boxed: Box<Self> = unsafe {
             let layout = alloc::Layout::new::<Self>();
@@ -188,17 +187,17 @@ impl NNUEState {
     }
 }
 
-/// Returns white and black index for given feature
+/// Returns white and black feature weight index for given feature
 fn nnue_index(piece: Piece, sq: Square) -> (usize, usize) {
     const COLOR_STRIDE: usize = 64 * 6;
     const PIECE_STRIDE: usize = 64;
-    let p = piece as usize / 2;
+    let p = (piece as usize) / 2;
     let c = piece.color() as usize;
 
-    let white_idx = c * COLOR_STRIDE + p * PIECE_STRIDE + sq as usize;
-    let black_idx = (1 ^ c) * COLOR_STRIDE + p * PIECE_STRIDE + sq.flipv() as usize;
+    let white_idx = c * COLOR_STRIDE + p * PIECE_STRIDE + sq.flipv() as usize;
+    let black_idx = (1 ^ c) * COLOR_STRIDE + p * PIECE_STRIDE + sq as usize;
 
-    (white_idx, black_idx)
+    (white_idx * HIDDEN, black_idx * HIDDEN)
 }
 
 #[cfg(test)]
@@ -225,10 +224,10 @@ mod tests {
         let idx3 = nnue_index(Piece::BP, Square::A1);
         let idx4 = nnue_index(Piece::WK, Square::E1);
 
-        assert_eq!(idx1, (0, 440));
-        assert_eq!(idx2, (63, 391));
-        assert_eq!(idx3, (440, 0));
-        assert_eq!(idx4, (380, 708));
+        assert_eq!(idx1, (14336, 98304));
+        assert_eq!(idx2, (1792, 114432));
+        assert_eq!(idx3, (98304, 14336));
+        assert_eq!(idx4, (82944, 195584));
     }
 
     #[test]
