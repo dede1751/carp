@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Simple script using the chess library to automate format conversion from pgn to marlinflow format
 import sys
 import random
@@ -7,7 +8,7 @@ import chess.pgn
 
 # Check for correct number of command line arguments
 if len(sys.argv) != 3:
-    print("Usage: python3 convert_pgn.py <pgn_file> <out_file>")
+    print("Usage: python convert_pgn.py <pgn_file> <out_file>")
     sys.exit(1)
 
 pgn_file = sys.argv[1]
