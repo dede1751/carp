@@ -1,4 +1,4 @@
-# Carp
+# <div align="center"> Carp </div>
 <div align="center">
 
   [![Build][build-badge]][build-link]
@@ -8,16 +8,12 @@
   
 </div>
 
-Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.
+Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.\
+The engine is built on top of a conventional Negamax search and uses a simple NNUE evaluation.
+
 The main goal of this project is to learn the basics of both Rust and Chess Programming.
 
-[Play against Carp on Lichess! (looking to get a raspi for stable hosting)](https://lichess.org/@/Carp_Bot)
-
-Main sources for this project are [CMK's Chess engine in C series](https://www.youtube.com/watch?v=QUNP-UjujBM&list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs), 
-[Jordanbray's move generator](https://github.com/jordanbray/chess), [Malu's Asymptote engine](https://github.com/malu/asymptote)
-and most importantly the [chess programming wiki](https://www.chessprogramming.org/Main_Page) and
-[Bruce Moreland's Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)
-(hosted on the wayback machine).
+[Play against Carp on Lichess!](https://lichess.org/@/Carp_Bot) -- Trying to work on more consistent uptime
 
 ## Performance
 
@@ -25,29 +21,34 @@ Move generation is fully legal, inspired by [this article](https://www.codeproje
 and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
 Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
-time to depth and reduced the branching factor greatly. Now Carp can easily push to depths 18-20 in
-blitz midgames, hitting much softer depth walls.
-Version 1.3 includes many search optimizations discussed in the chess programming wiki, leading to
-a massive elo increase. Currently I would estimate Carp to be ~2750 CCRL40/15 elo on 4CPU, though I
-will wait until done with evaluation to submit it to competitions.
+time to depth and reduced the branching factor greatly. Carp will easily push depth 18-20 with NNUE and
+22-23 with the HCE in blitz midgames.
 
-To benchmark the engine I've also added a test directory with a simple shell script running cutechess
-cli. The script allows to run gauntlet tests against other engines or SPRT tests against older versions
-of Carp. Engines must be manually added to the shell script.
+## NNUE
 
-The engine is quite fun to play against when limiting the depth to reasonable values, since
-it is relatively dumb positionally: provided it does not see some crazy computer tactic a good
-human player should be able to hold out and enjoy a good game.
+Carp uses a 768->256->1 perspective net trained with MarlinFlow.
+It fully relies on its own self-play data for training the network, and a datagen script (for windows, as its
+my more capable machine) for fen generation. All utilities for training the network are found in the Scripts
+directory.
+
+Carp is temporarily making use of Viridithas's first net to debug inference, kindly handed to me by Viri's
+author. Once data generation and net training is completed it will move to its own first net (most likely
+much weaker). For this reason, NNUE is currently hardcoded to be disabled, though it can be activated
+in the Position module.
 
 ## Implemented optimizations
 
 * Fully legal move generation using plain magic bitboards
-* Tapered Evaluation from PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
-* MVV-LVA with Static Exchange Evaluation + Killer/History/CMH/FUH
 * Fail-Hard Negamax + Quiescence
+* Iterative Deepening with Aspiration Windows
+* NNUE: (768->256)x2->1
+* HCE: PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
+* Move Ordering:
+  - MVV-LVA with Static Exchange Evaluation
+  - Killers
+  - History / Counter Move History / Followup History
 * Multithreading with Lazy-SMP
 * Lockless Transposition table with newest + highest depth replacement scheme
-* Iterative Deepening with Aspiration Windows
 * Principal Variation Search
 * Internal Iterative Reductions
 * Late Move Reductions
@@ -65,9 +66,21 @@ Of course it is still lacking many optimizations, most notably:
 * Opening book (although UCI let's you do this in the gui)
 * Endgame tablebases
 * Various other heuristics (probcut, razoring, search extensions...)
-* Further improvement to evaluation/NNUE
+* Continuous net improvements
 
-I also want to work on OpenBench compliance to simplify testing.
+## Dependencies
+None of these are necessary to run the engine, but they are vital for development:
+
+* [Cutechess-Cli](https://github.com/cutechess/cutechess)
+* [MarlinFlow](https://github.com/dsekercioglu/marlinflow)
+
+## Credits
+* [CMK's chess engine in C series](https://www.youtube.com/watch?v=QUNP-UjujBM&list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs)
+* [Chess Programming Wiki](https://www.chessprogramming.org/Main_Page)
+* Bruce Moreland's [Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)
+* Cosmo, author of [Viridithas](https://github.com/cosmobobak/viridithas), for a lot of help with NNUE
+* Malu's [Asymptote](https://github.com/malu/asymptote) engine to better understand search heuristics
+* The entire chess programming community, for countless awesome resources
 
 [build-badge]:https://img.shields.io/github/actions/workflow/status/dede1751/carp/rust.yml?branch=master&logo=github&style=for-the-badge
 [build-link]:https://github.com/dede1751/carp/actions/workflows/rust.yml

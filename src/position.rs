@@ -3,10 +3,13 @@ use std::{cmp::min, str::FromStr};
 use crate::bitboard::*;
 use crate::board::*;
 use crate::evaluation::*;
+use crate::nnue::*;
 use crate::move_list::*;
 use crate::move_sorter::*;
 use crate::moves::*;
 use crate::zobrist::*;
+
+const USE_NNUE: bool = true;
 
 /// Position, represents a Board's evolution along the search tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -15,9 +18,10 @@ pub struct Position {
     pub board: Board,
     pub age: u8,
     pub ply: usize,
-    pub ply_from_null: usize,
-    pub history: Vec<(Board, Move, usize)>,
+    ply_from_null: usize,
+    history: Vec<(Board, Move, usize)>,
     sorter: MoveSorter,
+    nnue_state: Box<NNUEState>,
 }
 
 /// Get position from uci position string
@@ -66,6 +70,7 @@ impl FromStr for Position {
             ply_from_null,
             history,
             sorter: MoveSorter::default(),
+            nnue_state: NNUEState::from_board(&board),
         };
 
         Ok(res)
@@ -103,7 +108,11 @@ impl Position {
 
     /// Makes the given move
     pub fn make_move(&mut self, m: Move) {
-        let new = self.board.make_move(m);
+        let new = if USE_NNUE {
+            self.board.make_move_nnue(m, &mut self.nnue_state)
+        } else {
+            self.board.make_move(m)
+        };
 
         self.sorter.followup_move = self.sorter.counter_move;
         self.sorter.counter_move = Some(m);
@@ -117,6 +126,10 @@ impl Position {
     /// Passes turn to opponent (this resets the ply_from_null clock)
     pub fn make_null(&mut self) {
         let new = self.board.make_null();
+
+        if USE_NNUE {
+            self.nnue_state.push();
+        }
 
         self.sorter.followup_move = None;
         self.sorter.counter_move = None;
@@ -132,6 +145,10 @@ impl Position {
     /// Panics if the history vector is empty!
     pub fn undo_move(&mut self) {
         let (old_board, _, old_ply) = self.history.pop().unwrap();
+
+        if USE_NNUE {
+            self.nnue_state.pop();
+        }
 
         self.board = old_board;
         self.ply -= 1;
@@ -179,7 +196,11 @@ impl Position {
 
     /// Returns current position's eval
     pub fn evaluate(&self) -> Eval {
-        eval(&self.board)
+        if USE_NNUE {
+            self.nnue_state.evaluate(self.board.side) as i16
+        } else {
+            eval(&self.board)
+        }
     }
 
     /// Checks if position is a rule-based draw

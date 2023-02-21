@@ -4,6 +4,7 @@ use std::{fmt, str::FromStr};
 
 use crate::bitboard::*;
 use crate::castle::*;
+use crate::nnue::*;
 use crate::move_list::*;
 use crate::moves::*;
 use crate::piece::*;
@@ -274,17 +275,16 @@ impl Board {
         new.game_phase = self.game_phase;
 
         let (src, tgt) = (m.get_src(), m.get_tgt());
-        let piece: Piece = m.get_piece();
-        let promotion: Piece = m.get_promotion();
+        let piece = m.get_piece();
+        let promotion = m.get_promotion();
 
-        new.halfmoves += self.halfmoves + 1;
+        new.halfmoves = self.halfmoves + 1;
 
         new.remove_piece(piece, src);
         if m.is_capture() || piece == Piece::WP || piece == Piece::BP {
             new.halfmoves = 0
         }
 
-        // handle captures, enpassant or castling moves
         if m.is_enpassant() {
             let ep_target = PUSH[!self.side as usize][tgt as usize];
 
@@ -332,6 +332,87 @@ impl Board {
 
         new
     }
+
+    /// Make move with NNUE accumulator increments
+    pub fn make_move_nnue(&self, m: Move, nnue_state: &mut Box<NNUEState>) -> Board {
+        let mut new = Board::new();
+
+        new.pieces = self.pieces;
+        new.side_occupancy = self.side_occupancy;
+        new.occupancy = self.occupancy;
+        new.hash = self.hash;
+        new.game_phase = self.game_phase;
+
+        // add new accumulator
+        nnue_state.push();
+
+        let (src, tgt) = (m.get_src(), m.get_tgt());
+        let piece = m.get_piece();
+        let promotion = m.get_promotion();
+
+        new.halfmoves = self.halfmoves + 1;
+
+        new.remove_piece(piece, src);
+        if m.is_capture() || piece == Piece::WP || piece == Piece::BP {
+            new.halfmoves = 0
+        }
+
+        if m.is_enpassant() {
+            let ep_target = PUSH[!self.side as usize][tgt as usize];
+            let capture = m.get_capture();
+
+            new.remove_piece(capture, ep_target);
+            nnue_state.manual_update::<OFF>(capture, ep_target);
+        } else if m.is_capture() {
+            let capture = m.get_capture();
+
+            new.remove_piece(capture, tgt);
+            nnue_state.manual_update::<OFF>(capture, tgt);
+        } else if m.is_castle() {
+            let rook = self.side.rook();
+            let (rook_src, rook_tgt) = ROOK_CASTLING_MOVE[tgt as usize];
+
+            new.remove_piece(rook, rook_src);
+            new.set_piece(rook, rook_tgt);
+            nnue_state.move_update(rook, rook_src, rook_tgt);
+        }
+
+        if m.is_promotion() {
+            new.set_piece(promotion, tgt);
+            nnue_state.manual_update::<OFF>(piece, src);
+            nnue_state.manual_update::<ON>(promotion, tgt);
+        } else {
+            new.set_piece(piece, tgt);
+            nnue_state.move_update(piece, src, tgt);
+        }
+
+        if let Some(square) = self.en_passant {
+            new.en_passant = None;
+            new.hash.toggle_ep(square);
+        }
+
+        if m.is_double_push() {
+            let ep_tgt = PUSH[self.side as usize][src as usize];
+
+            new.en_passant = Some(ep_tgt);
+            new.hash.toggle_ep(ep_tgt);
+        }
+
+        let new_rights = self.castling_rights.update(src, tgt);
+
+        new.castling_rights = new_rights;
+        new.hash.swap_castle(self.castling_rights, new_rights);
+
+        new.side = !self.side;
+        new.hash.toggle_side();
+
+        new.map_pins();
+        new.map_checkers();
+        new.map_king_threats();
+
+        new
+    }
+
 
     /// Makes the null move on the board, giving the turn to the opponent
     pub fn make_null(&self) -> Board {
