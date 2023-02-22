@@ -173,13 +173,16 @@ impl NNUEState {
     pub fn evaluate(&self, side: Color) -> i32 {
         let acc = &self.accumulator_stack[self.current_acc];
 
-        let hidden = match side {
-            Color::White => acc.white.iter().chain(acc.black.iter()),
-            Color::Black => acc.black.iter().chain(acc.white.iter()),
+        let (us, them) = match side {
+            Color::White => (acc.white.iter(), acc.black.iter()),
+            Color::Black => (acc.black.iter(), acc.white.iter()),
         };
 
         let mut out = MODEL.output_bias as i32;
-        for (&value, &weight) in hidden.zip(&MODEL.output_weights) {
+        for (&value, &weight) in us.zip(&MODEL.output_weights[..HIDDEN]) {
+            out += (value.clamp(CR_MIN, CR_MAX) as i32) * (weight as i32);
+        }
+        for (&value, &weight) in them.zip(&MODEL.output_weights[HIDDEN..]) {
             out += (value.clamp(CR_MIN, CR_MAX) as i32) * (weight as i32);
         }
 
