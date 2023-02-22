@@ -6,14 +6,14 @@
   [![Release][release-badge]][release-link]
   [![Commits][commits-badge]][commits-link]
   
+  [![lichess-badge]][lichess-link]
+  
 </div>
 
 Carp is a UCI-compatible didactic engine written in Rust, using a bitboard-based piece-centric approach.\
 The engine is built on top of a conventional Negamax search and uses a simple NNUE evaluation.
 
 The main goal of this project is to learn the basics of both Rust and Chess Programming.
-
-[Play against Carp on Lichess!](https://lichess.org/@/Carp_Bot) -- Trying to work on more consistent uptime
 
 ## Performance
 
@@ -33,8 +33,8 @@ directory.
 
 Carp is temporarily making use of Viridithas's first net to debug inference, kindly handed to me by Viri's
 author. Once data generation and net training is completed it will move to its own first net (most likely
-much weaker). For this reason, NNUE is currently hardcoded to be disabled, though it can be activated
-in the Position module.
+much weaker). For this reason, NNUE is currently toggleable, though hundreds of elo stronger compared to
+the HCE.
 
 ## Implemented optimizations
 
@@ -90,3 +90,5 @@ None of these are necessary to run the engine, but they are vital for developmen
 [release-link]:https://github.com/dede1751/carp/releases/latest
 [license-badge]:https://img.shields.io/github/license/dede1751/carp?style=for-the-badge&label=license&color=success
 [license-link]:https://github.com/dede1751/carp/blob/master/LICENSE
+[lichess-badge]:https://img.shields.io/badge/Play%20Carp%20-v1.3-yellow?logo=lichess&style=for-the-badge
+[lichess-link]:https://lichess.org/@/Carp_Bot
