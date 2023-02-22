@@ -21,8 +21,8 @@ Move generation is fully legal, inspired by [this article](https://www.codeproje
 and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
 Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
-time to depth and reduced the branching factor greatly. Carp will easily push depth 18-20 with NNUE and
-22-23 with the HCE in blitz midgames.
+time to depth and reduced the branching factor greatly. Carp will easily push depth 20-22 with NNUE
+enabled, even in complex blitz midgames.
 
 ## NNUE
 
