@@ -3,10 +3,10 @@ use std::{cmp::min, str::FromStr};
 use crate::bitboard::*;
 use crate::board::*;
 use crate::evaluation::*;
-use crate::nnue::*;
 use crate::move_list::*;
 use crate::move_sorter::*;
 use crate::moves::*;
+use crate::nnue::*;
 use crate::zobrist::*;
 
 const USE_NNUE: bool = true;
@@ -188,7 +188,7 @@ impl Position {
     pub fn king_in_check(&self) -> bool {
         self.board.checkers != EMPTY_BB
     }
-    
+
     /// Only king and pawns are on the board. Used to rule out null move pruning
     pub fn only_king_pawns_left(&self) -> bool {
         self.board.game_phase == 0

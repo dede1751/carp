@@ -4,9 +4,9 @@ use std::{fmt, str::FromStr};
 
 use crate::bitboard::*;
 use crate::castle::*;
-use crate::nnue::*;
 use crate::move_list::*;
 use crate::moves::*;
+use crate::nnue::*;
 use crate::piece::*;
 use crate::square::*;
 use crate::tables::*;
@@ -412,7 +412,6 @@ impl Board {
 
         new
     }
-
 
     /// Makes the null move on the board, giving the turn to the opponent
     pub fn make_null(&self) -> Board {

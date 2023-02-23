@@ -1,16 +1,16 @@
+use std::alloc;
 /// NNUE Implementation
 /// Carp uses a 768->256->1 perspective net architecture, fully trained on self play data.
 /// Network is initialized at compile time from the binary files in the net folder.
 /// A new net can be loaded by running the convert_json.py script in the scripts folder.
-/// 
+///
 /// Huge thanks to Cosmo, author of Viridithas, for the help. The code here is heavily inspired by
 /// his engine.
 use std::mem;
-use std::alloc;
 
 use crate::board::*;
-use crate::search::*;
 use crate::piece::*;
+use crate::search::*;
 use crate::square::*;
 
 // network arch
@@ -41,7 +41,7 @@ impl Default for Accumulator {
     fn default() -> Self {
         Self {
             white: MODEL.feature_bias,
-            black: MODEL.feature_bias
+            black: MODEL.feature_bias,
         }
     }
 }
@@ -50,7 +50,8 @@ impl Accumulator {
     /// Updates weights for a single feature, either turning them on or off
     fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
         fn update<const ON: bool>(acc: &mut SideAccumulator, idx: usize) {
-            let zip = acc.iter_mut()
+            let zip = acc
+                .iter_mut()
                 .zip(&MODEL.feature_weights[idx..idx + HIDDEN]);
 
             for (acc_val, &weight) in zip {
@@ -70,16 +71,15 @@ impl Accumulator {
     /// Adds in features for the destination and removes the features of the source
     fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
         fn add_sub(acc: &mut SideAccumulator, from: usize, to: usize) {
-            let zip = acc.iter_mut()
-                .zip(
-                    MODEL.feature_weights[from..from + HIDDEN]
-                        .iter()
-                        .zip(&MODEL.feature_weights[to..to + HIDDEN])
+            let zip = acc.iter_mut().zip(
+                MODEL.feature_weights[from..from + HIDDEN]
+                    .iter()
+                    .zip(&MODEL.feature_weights[to..to + HIDDEN]),
             );
 
             for (acc_val, (&remove_weight, &add_weight)) in zip {
                 let new_val = add_weight - remove_weight;
-    
+
                 *acc_val += new_val
             }
         }
