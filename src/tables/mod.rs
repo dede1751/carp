@@ -2,7 +2,7 @@
 ///
 /// Carp uses Black Magic BitBoards found by Volker Annuss and Niklas Fiekas
 /// https://www.talkchess.com/forum3/viewtopic.php?f=7&t=64790&sid=0cd7ee9568af2cbd4c7297b348b5a850
-/// 
+///
 /// Move tables are used for attacks only and exclude pawn quiet moves, which are calculated on
 /// the fly by the move generator.
 /// I spent a lot of time trying to get const evaluation for the tables to work, but it took far
@@ -20,7 +20,10 @@ use attacks::*;
 pub use constants::*;
 use magics::*;
 
-use crate::{bitboard::*, piece::Color, square::*};
+use crate::bitboard::*;
+use crate::piece::*;
+use crate::search_params::*;
+use crate::square::*;
 
 /// Precalculated attack tables for leaper pieces
 struct Tables {
@@ -61,9 +64,6 @@ struct LMRTable {
 static mut LMR_TABLE: LMRTable = LMRTable {
     reductions: [[0; 64]; 64],
 };
-
-const LMR_BASE: f32 = 0.75; // increase to reduce every move more
-const LMR_FACTOR: f32 = 2.0; // increase to reduce less further in the movelist
 
 impl LMRTable {
     fn init(&mut self) {

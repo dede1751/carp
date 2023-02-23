@@ -6,7 +6,7 @@ use std::ops::{AddAssign, Mul, Sub};
 use crate::bitboard::*;
 use crate::board::*;
 use crate::piece::*;
-use crate::search::MAX_DEPTH;
+use crate::search_params::*;
 use crate::square::*;
 use crate::tables::*;
 

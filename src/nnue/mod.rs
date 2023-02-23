@@ -10,7 +10,7 @@ use std::mem;
 
 use crate::board::*;
 use crate::piece::*;
-use crate::search::*;
+use crate::search_params::*;
 use crate::square::*;
 
 // network arch

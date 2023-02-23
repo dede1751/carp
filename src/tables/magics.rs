@@ -7,6 +7,7 @@ use crate::square::*;
 /// All attacks are stored in the same buffer, each square for bishop/rook gets its slice of this
 static mut ATTACKS: [BitBoard; 87988] = [EMPTY_BB; 87988];
 
+// Black magics, contain the magic number and attack table index
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default)]
 struct BlackMagic {
     magic: usize,
@@ -15,7 +16,10 @@ struct BlackMagic {
 
 macro_rules! M {
     ($m: expr, $i: expr) => {
-        BlackMagic { magic: $m , index: $i }
+        BlackMagic {
+            magic: $m,
+            index: $i,
+        }
     };
 }
 
@@ -73,7 +77,7 @@ const DEFAULT_ROOK_MAGICS: [BlackMagic; SQUARE_COUNT] = [
     M!(0x0002000308482882,  1009)
 ];
 
-/// Magics are lazily initialized at startup
+// Magics are lazily initialized at startup
 pub struct Magics {
     magics: [BlackMagic; SQUARE_COUNT],
     notmasks: BB64,

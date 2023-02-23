@@ -5,7 +5,7 @@ use crate::move_list::*;
 use crate::moves::*;
 use crate::piece::*;
 use crate::position::*;
-use crate::search::*;
+use crate::search_params::*;
 use crate::square::*;
 
 type CMHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
@@ -122,7 +122,7 @@ impl MoveSorter {
         }
 
         // leaves can introduce a lot of random noise to history scores, don't consider them
-        if depth < 3 {
+        if depth < HISTORY_LOWER_LIMIT {
             return;
         }
 

@@ -5,37 +5,9 @@ use crate::evaluation::*;
 use crate::move_sorter::*;
 use crate::moves::*;
 use crate::position::*;
+use crate::search_params::*;
 use crate::tables::*;
 use crate::tt::*;
-
-pub const MAX_DEPTH: usize = 128; // max depth to search at
-
-const LMR_THRESHOLD: usize = 2; // moves to execute before any reduction
-const LMR_LOWER_LIMIT: usize = 2; // stop applying lmr near leaves
-
-const RFP_THRESHOLD: usize = 8; // depth at which rfp kicks in
-const RFP_MARGIN: Eval = 130; // multiplier for eval safety margin for rfp cutoffs
-
-const NMP_BASE_R: usize = 4; // null move pruning reduced depth
-const NMP_FACTOR: usize = 4; // increase to reduce more at higher depths
-const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
-
-const IIR_LOWER_LIMIT: usize = 4; // stop applying iir near leaves
-
-const HLP_THRESHOLD: usize = 2; // depth at which history leaf pruning kicks in
-
-const EFP_THRESHOLD: usize = 8; // depth at which extended futility pruning kicks in
-const EFP_BASE: Eval = 100; // base eval bonus margin for efp
-const EFP_MARGIN: Eval = 120; // multiplier for eval bonus margin for efp
-
-const LMP_THRESHOLD: usize = 8; // depth at which late move pruning kicks in
-const LMP_BASE: usize = 4; // lmp move count at depth = 0
-
-const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
-const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
-
-const QS_DELTA_MARGIN: Eval = 1100; // highest queen value possible
-const QS_FUTILITY_MARGIN: Eval = 200; // overhead we allow for captures in qs
 
 /// Search the move tree, starting at the given position
 pub struct Search<'a> {
@@ -300,7 +272,7 @@ impl<'a> Search<'a> {
 
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
-                if depth <= HLP_THRESHOLD && s < HISTORY_OFFSET {
+                if depth <= HLP_THRESHOLD && s - HISTORY_OFFSET < HLP_MARGIN {
                     prune = true;
                 }
 
