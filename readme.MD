@@ -38,7 +38,7 @@ the HCE.
 
 ## Implemented optimizations
 
-* Fully legal move generation using plain magic bitboards
+* Fully legal move generation with Fixed Shift Black Magic Bitboards
 * Fail-Hard Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
 * NNUE: (768->256)x2->1

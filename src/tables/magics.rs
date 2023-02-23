@@ -4,156 +4,130 @@ use super::attacks::*;
 use crate::bitboard::*;
 use crate::square::*;
 
-/// Number of relevant occupancy bits for a bishop on each square
-#[rustfmt::skip]
-pub const BISHOP_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
-    6, 5, 5, 5, 5, 5, 5, 6,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    6, 5, 5, 5, 5, 5, 5, 6,
-];
-
-/// Number of relevant occupancy bits for a rook on each square
-#[rustfmt::skip]
-pub const ROOK_OCCUPANCY_BITS: [u32; SQUARE_COUNT] = [
-    12, 11, 11, 11, 11, 11, 11, 12,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    12, 11, 11, 11, 11, 11, 11, 12,
-];
-
-/// Default bishop magic numbers
-#[rustfmt::skip]
-pub const DEFAULT_BISHOP_MAGICS: BB64 = [
-    BitBoard(18018831494946945),    BitBoard(5683392850989056),     BitBoard(1154048864819347976),
-    BitBoard(1130506259411456),     BitBoard(9295994850753466656),  BitBoard(722274213532008961),
-    BitBoard(144679242373791746),   BitBoard(2819852240160768),     BitBoard(72066458926448704),
-    BitBoard(79238992794112),       BitBoard(1134698215018542),     BitBoard(44092287352833),
-    BitBoard(13836474536570134528), BitBoard(35768558952715),       BitBoard(9223409424612344080),
-    BitBoard(612885924355252480),   BitBoard(5208413037808118789),  BitBoard(1155245891784015936),
-    BitBoard(2252075903829120),     BitBoard(9225624940543279114),  BitBoard(1189513612367104000),
-    BitBoard(9512306104749523472),  BitBoard(576742365927198723),   BitBoard(4539885961085440),
-    BitBoard(2308103606194341892),  BitBoard(13862397412175380998), BitBoard(333415950299702305),
-    BitBoard(90076392745664544),    BitBoard(2306410358388064771),  BitBoard(288378294993293312),
-    BitBoard(74345757197010958),    BitBoard(2306408175647080720),  BitBoard(73201120490840092),
-    BitBoard(9800396855820955656),  BitBoard(11529779164388327745), BitBoard(577166640917512320),
-    BitBoard(9800397946725861384),  BitBoard(14060563500683528704), BitBoard(40675471674966276),
-    BitBoard(649081871889609226),   BitBoard(144695739342752131),   BitBoard(1154065580883052548),
-    BitBoard(1152939184974204944),  BitBoard(8079468246723600416),  BitBoard(144124160329646145),
-    BitBoard(8163913195585792),     BitBoard(585477299839697040),   BitBoard(596735817053896832),
-    BitBoard(1126621814723152),     BitBoard(226064005973413888),   BitBoard(4611796245609973762),
-    BitBoard(2305851806414143616),  BitBoard(225338878252549120),   BitBoard(6920132705669689392),
-    BitBoard(1612323861716860928),  BitBoard(2410131644024840),     BitBoard(149467612894740997),
-    BitBoard(72057946359738912),    BitBoard(3307863148545),        BitBoard(9288682823518209),
-    BitBoard(8725210120),           BitBoard(9259423391126393344),  BitBoard(13835137325615579664),
-    BitBoard(1153488869854019624),
-];
-
-/// Default rook magic numbers
-#[rustfmt::skip]
-pub const DEFAULT_ROOK_MAGICS: BB64 = [
-    BitBoard(9979994641325359136),  BitBoard(90072129987412032),    BitBoard(180170925814149121),
-    BitBoard(72066458867205152),    BitBoard(144117387368072224),   BitBoard(216203568472981512),
-    BitBoard(9547631759814820096),  BitBoard(2341881152152807680),  BitBoard(140740040605696),
-    BitBoard(2316046545841029184),  BitBoard(72198468973629440),    BitBoard(81205565149155328),
-    BitBoard(146508277415412736),   BitBoard(1441574144763625600),  BitBoard(144959621596184832),
-    BitBoard(576742228899270912),   BitBoard(36033470048378880),    BitBoard(72198881818984448),
-    BitBoard(1301692025185255936),  BitBoard(90217678106527746),    BitBoard(324684134750365696),
-    BitBoard(9265030608319430912),  BitBoard(577591050391142672),   BitBoard(10135298189295745),
-    BitBoard(72127964931719168),    BitBoard(2323857549994496000),  BitBoard(563233422344228),
-    BitBoard(27305413499159048),    BitBoard(11259035584037888),    BitBoard(2201171001472),
-    BitBoard(9078684693565976),     BitBoard(581684600791172),      BitBoard(141012643086368),
-    BitBoard(9367522478059946048),  BitBoard(9152472371171329),     BitBoard(180214388500734464),
-    BitBoard(288249067933272064),   BitBoard(71056073229328),       BitBoard(19796108253360),
-    BitBoard(153158682589268036),   BitBoard(4611756387818831872),  BitBoard(162147213133225986),
-    BitBoard(5769111398076449024),  BitBoard(4503633988190336),     BitBoard(281509354340356),
-    BitBoard(15141950770229837952), BitBoard(4706263844262248449),  BitBoard(1152923982962491444),
-    BitBoard(18014537030570112),    BitBoard(36345525091434816),    BitBoard(4503737075241088),
-    BitBoard(288521747001517312),   BitBoard(1443403719252381952),  BitBoard(576601506971779200),
-    BitBoard(3458765683159483392),  BitBoard(2306124495217363200),  BitBoard(4702039830173876225),
-    BitBoard(19581379746529409),    BitBoard(362612750088163587),   BitBoard(2310628118748237825),
-    BitBoard(281629729755171),      BitBoard(72339120558835829),    BitBoard(11529232780022513828),
-    BitBoard(9223382004467269670),
-];
-
 /// All attacks are stored in the same buffer, each square for bishop/rook gets its slice of this
-static mut ATTACKS: [BitBoard; 107648] = [EMPTY_BB; 107648];
+static mut ATTACKS: [BitBoard; 87988] = [EMPTY_BB; 87988];
+
+#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default)]
+struct BlackMagic {
+    magic: usize,
+    index: usize,
+}
+
+macro_rules! M {
+    ($m: expr, $i: expr) => {
+        BlackMagic { magic: $m , index: $i }
+    };
+}
+
+/// Default Bishop black magics found by Niklas Fiekas
+#[rustfmt::skip]
+const DEFAULT_BISHOP_MAGICS: [BlackMagic; SQUARE_COUNT] = [
+    M!(0xA7020080601803D8, 60984), M!(0x13802040400801F1, 66046), M!(0x0A0080181001F60C, 32910),
+    M!(0x1840802004238008, 16369), M!(0xC03FE00100000000, 42115), M!(0x24C00BFFFF400000,   835),
+    M!(0x0808101F40007F04, 18910), M!(0x100808201EC00080, 25911), M!(0xFFA2FEFFBFEFB7FF, 63301),
+    M!(0x083E3EE040080801, 16063), M!(0xC0800080181001F8, 17481), M!(0x0440007FE0031000, 59361),
+    M!(0x2010007FFC000000, 18735), M!(0x1079FFE000FF8000, 61249), M!(0x3C0708101F400080, 68938),
+    M!(0x080614080FA00040, 61791), M!(0x7FFE7FFF817FCFF9, 21893), M!(0x7FFEBFFFA01027FD, 62068),
+    M!(0x53018080C00F4001, 19829), M!(0x407E0001000FFB8A, 26091), M!(0x201FE000FFF80010, 15815),
+    M!(0xFFDFEFFFDE39FFEF, 16419), M!(0xCC8808000FBF8002, 59777), M!(0x7FF7FBFFF8203FFF, 16288),
+    M!(0x8800013E8300C030, 33235), M!(0x0420009701806018, 15459), M!(0x7FFEFF7F7F01F7FD, 15863),
+    M!(0x8700303010C0C006, 75555), M!(0xC800181810606000, 79445), M!(0x20002038001C8010, 15917),
+    M!(0x087FF038000FC001,  8512), M!(0x00080C0C00083007, 73069), M!(0x00000080FC82C040, 16078),
+    M!(0x000000407E416020, 19168), M!(0x00600203F8008020, 11056), M!(0xD003FEFE04404080, 62544),
+    M!(0xA00020C018003088, 80477), M!(0x7FBFFE700BFFE800, 75049), M!(0x107FF00FE4000F90, 32947),
+    M!(0x7F8FFFCFF1D007F8, 59172), M!(0x0000004100F88080, 55845), M!(0x00000020807C4040, 61806),
+    M!(0x00000041018700C0, 73601), M!(0x0010000080FC4080, 15546), M!(0x1000003C80180030, 45243),
+    M!(0xC10000DF80280050, 20333), M!(0xFFFFFFBFEFF80FDC, 33402), M!(0x000000101003F812, 25917),
+    M!(0x0800001F40808200, 32875), M!(0x084000101F3FD208,  4639), M!(0x080000000F808081, 17077),
+    M!(0x0004000008003F80, 62324), M!(0x08000001001FE040, 18159), M!(0x72DD000040900A00, 61436),
+    M!(0xFFFFFEFFBFEFF81D, 57073), M!(0xCD8000200FEBF209, 61025), M!(0x100000101EC10082, 81259),
+    M!(0x7FBAFFFFEFE0C02F, 64083), M!(0x7F83FFFFFFF07F7F, 56114), M!(0xFFF1FFFFFFF7FFC1, 57058),
+    M!(0x0878040000FFE01F, 58912), M!(0x945E388000801012, 22194), M!(0x0840800080200FDA, 70880),
+    M!(0x100000C05F582008, 11140)
+];
+
+/// Default Rook black magics found by Niklas Fiekas
+#[rustfmt::skip]
+const DEFAULT_ROOK_MAGICS: [BlackMagic; SQUARE_COUNT] = [
+	M!(0x80280013FF84FFFF, 10890), M!(0x5FFBFEFDFEF67FFF, 50579), M!(0xFFEFFAFFEFFDFFFF, 62020),
+    M!(0x003000900300008A, 67322), M!(0x0050028010500023, 80251), M!(0x0020012120A00020, 58503),
+    M!(0x0030006000C00030, 51175), M!(0x0058005806B00002, 83130), M!(0x7FBFF7FBFBEAFFFC, 50430),
+    M!(0x0000140081050002, 21613), M!(0x0000180043800048, 72625), M!(0x7FFFE800021FFFB8, 80755),
+    M!(0xFFFFCFFE7FCFFFAF, 69753), M!(0x00001800C0180060, 26973), M!(0x4F8018005FD00018, 84972),
+    M!(0x0000180030620018, 31958), M!(0x00300018010C0003, 69272), M!(0x0003000C0085FFFF, 48372),
+    M!(0xFFFDFFF7FBFEFFF7, 65477), M!(0x7FC1FFDFFC001FFF, 43972), M!(0xFFFEFFDFFDFFDFFF, 57154),
+    M!(0x7C108007BEFFF81F, 53521), M!(0x20408007BFE00810, 30534), M!(0x0400800558604100, 16548),
+    M!(0x0040200010080008, 46407), M!(0x0010020008040004, 11841), M!(0xFFFDFEFFF7FBFFF7, 21112),
+    M!(0xFEBF7DFFF8FEFFF9, 44214), M!(0xC00000FFE001FFE0, 57925), M!(0x4AF01F00078007C3, 29574),
+    M!(0xBFFBFAFFFB683F7F, 17309), M!(0x0807F67FFA102040, 40143), M!(0x200008E800300030, 64659),
+    M!(0x0000008780180018, 70469), M!(0x0000010300180018, 62917), M!(0x4000008180180018, 60997),
+    M!(0x008080310005FFFA, 18554), M!(0x4000188100060006, 14385), M!(0xFFFFFF7FFFBFBFFF,     0),
+    M!(0x0000802000200040, 38091), M!(0x20000202EC002800, 25122), M!(0xFFFFF9FF7CFFF3FF, 60083),
+    M!(0x000000404B801800, 72209), M!(0x2000002FE03FD000, 67875), M!(0xFFFFFF6FFE7FCFFD, 56290),
+    M!(0xBFF7EFFFBFC00FFF, 43807), M!(0x000000100800A804, 73365), M!(0x6054000A58005805, 76398),
+    M!(0x0829000101150028, 20024), M!(0x00000085008A0014,  9513), M!(0x8000002B00408028, 24324),
+    M!(0x4000002040790028, 22996), M!(0x7800002010288028, 23213), M!(0x0000001800E08018, 56002),
+    M!(0xA3A80003F3A40048, 22809), M!(0x2003D80000500028, 44545), M!(0xFFFFF37EEFEFDFBE, 36072),
+    M!(0x40000280090013C1,  4750), M!(0xBF7FFEFFBFFAF71F,  6014), M!(0xFFFDFFFF777B7D6E, 36054),
+    M!(0x48300007E8080C02, 78538), M!(0xAFE0000FFF780402, 28745), M!(0xEE73FFFBFFBB77FE,  8555),
+    M!(0x0002000308482882,  1009)
+];
 
 /// Magics are lazily initialized at startup
 pub struct Magics {
-    magics: BB64,
-    occupancy: BB64,
-    occupancy_bits: [u32; SQUARE_COUNT],
-    attacks_offset: usize,
-    attacks: [&'static [BitBoard]; SQUARE_COUNT],
+    magics: [BlackMagic; SQUARE_COUNT],
+    notmasks: BB64,
+    shift: usize,
     occupancy_gen: fn(Square) -> BitBoard,
     attack_gen: fn(Square, BitBoard) -> BitBoard,
 }
 
 pub static mut BISHOP_MAGICS: Magics = Magics {
     magics: DEFAULT_BISHOP_MAGICS,
-    occupancy: EMPTY_BB64,
-    occupancy_bits: BISHOP_OCCUPANCY_BITS,
-    attacks_offset: 0,
-    attacks: [&[]; SQUARE_COUNT],
+    notmasks: EMPTY_BB64,
+    shift: 9,
     occupancy_gen: bishop_occupancy,
     attack_gen: mask_bishop_attacks,
 };
 
 pub static mut ROOK_MAGICS: Magics = Magics {
     magics: DEFAULT_ROOK_MAGICS,
-    occupancy: EMPTY_BB64,
-    occupancy_bits: ROOK_OCCUPANCY_BITS,
-    attacks_offset: 5248,
-    attacks: [&[]; SQUARE_COUNT],
+    notmasks: EMPTY_BB64,
+    shift: 12,
     occupancy_gen: rook_occupancy,
     attack_gen: mask_rook_attacks,
 };
 
 impl Magics {
     pub fn init(&mut self) {
-        let mut base = self.attacks_offset;
-
         for square in ALL_SQUARES {
-            let size = 1 << self.occupancy_bits[square as usize];
-            let mask = (self.occupancy_gen)(square);
-            self.occupancy[square as usize] = mask;
+            let size = 1 << self.shift;
+            let occupancies = (self.occupancy_gen)(square);
+            self.notmasks[square as usize] = !occupancies;
 
             for idx in 0..size {
-                let blockers = set_occupancy(mask, idx);
+                let blockers = set_occupancy(occupancies, idx);
                 let index = self.magic_map(square, blockers);
 
-                unsafe { ATTACKS[base + index] = (self.attack_gen)(square, blockers) }
+                unsafe { ATTACKS[index] = (self.attack_gen)(square, blockers) }
             }
-
-            unsafe { self.attacks[square as usize] = &ATTACKS[base..base + size] }
-            base += size;
         }
     }
 
     /// Get magic index for the tables given the blocker board and source square
     fn magic_map(&self, square: Square, blockers: BitBoard) -> usize {
         let sq = square as usize;
-        let map = (blockers & self.occupancy[sq]) * self.magics[sq];
+        let bm = self.magics[sq];
 
-        (map.0 as usize) >> (64 - self.occupancy_bits[sq])
+        let mut relevant_occs = (blockers | self.notmasks[sq]).0 as usize;
+        relevant_occs *= bm.magic;
+        relevant_occs >>= 64 - self.shift;
+
+        relevant_occs + bm.index
     }
 
     /// Get slider attack from square with given blockers
     pub fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        unsafe {
-            *self
-                .attacks
-                .get_unchecked(square as usize)
-                .get_unchecked(self.magic_map(square, blockers))
-        }
+        unsafe { *ATTACKS.get_unchecked(self.magic_map(square, blockers)) }
     }
 }

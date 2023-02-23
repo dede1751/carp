@@ -1,8 +1,8 @@
 /// Module for initializing various global constants
 ///
-/// Carp uses plain magic bitboards found through random guessing for slider piece attack tables.
-/// Magic generation code is in earlier commits, it's left out since there is no real use in
-/// changing them.
+/// Carp uses Black Magic BitBoards found by Volker Annuss and Niklas Fiekas
+/// https://www.talkchess.com/forum3/viewtopic.php?f=7&t=64790&sid=0cd7ee9568af2cbd4c7297b348b5a850
+/// 
 /// Move tables are used for attacks only and exclude pawn quiet moves, which are calculated on
 /// the fly by the move generator.
 /// I spent a lot of time trying to get const evaluation for the tables to work, but it took far
