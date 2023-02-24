@@ -13,6 +13,7 @@ if len(sys.argv) != 3:
 
 pgn_file = sys.argv[1]
 out_file = sys.argv[2]
+count = 0
 lines = list()
 
 with open(pgn_file, "r") as pgn:
@@ -21,7 +22,6 @@ with open(pgn_file, "r") as pgn:
         if game is None:
             break
 
-        board = game.board()
         result = game.headers["Result"]
         if result == "1-0":
             wdl = "1"
@@ -30,26 +30,32 @@ with open(pgn_file, "r") as pgn:
         else:
             wdl = "0.5"
         
+        board = game.board()
         for node in game.mainline():
-            board.push(node.move)
-            
+
             eval = node.comment.split("/")[0]
             if 'M' in eval or "Draw" in eval:
                 break
-            if "book" in eval:
-                continue
 
-            if node.comment != "" and not board.is_check():
+            if eval != "" and not "book" in eval and not board.is_check():
                 eval = int(float(eval) * 100)
+                if board.turn == chess.BLACK:
+                    eval = -eval
                 lines.append(board.fen() + " | " + str(eval) + " | " + wdl + "\n")
 
-                # Avoid keeping too many lines in memory
-                if len(lines) >= 10000000:
+                count += 1
+                if count % 100000 == 0:
+                    print(f"Processed {count} FENs")
+
+                # Avoid keeping too many lines in memory (100M ~ 8GB)
+                if count >= 100000000:
                     random.shuffle(lines)
                     with open(out_file, "a") as out:
                         out.writelines(lines)
-
                     lines = list()
+                    count = 0
+                
+            board.push(node.move)
 
 random.shuffle(lines)
 with open(out_file, "a") as out:
