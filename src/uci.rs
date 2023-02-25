@@ -227,11 +227,11 @@ impl UCIEngine {
 
                 let mut worker_search = Search::new(worker_pos, worker_tc, &self.tt);
 
-                worker_handles.push(scope.spawn(move || worker_search.iterative_search(false)));
+                worker_handles.push(scope.spawn(move || worker_search.iterative_search::<false>()));
             }
 
             // Deploy main search in this thread
-            results.push(main_search.iterative_search(true));
+            results.push(main_search.iterative_search::<true>());
 
             for handle in worker_handles {
                 match handle.join() {

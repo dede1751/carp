@@ -2,3 +2,4 @@
 /marlinflow
 /scripts/*.pgn
 /scripts/*.txt
+scripts/engines/*

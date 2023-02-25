@@ -34,7 +34,7 @@ impl<'a> Search<'a> {
     /// Iteratively searches the board at increasing depth
     /// After the shallower depths, we start doing reduced-window searches and eventually reopen
     /// each "side" of the window in case of fail-high or fail-low
-    pub fn iterative_search(&mut self, print_info: bool) -> (Move, usize) {
+    pub fn iterative_search<const INFO: bool>(&mut self) -> (Move, usize) {
         let mut best_move = NULL_MOVE;
         let mut temp_best: Move;
         let mut alpha = -MAX;
@@ -56,7 +56,7 @@ impl<'a> Search<'a> {
                 }
 
                 if !self.stop {
-                    if print_info {
+                    if INFO {
                         self.print_info(eval, depth);
                         self.seldepth = 0;
                     }
@@ -367,7 +367,7 @@ impl<'a> Search<'a> {
     }
 
     /// Quiescence search (only look at capture moves)
-    fn quiescence(&mut self, mut alpha: Eval, beta: Eval) -> Eval {
+    fn quiescence(&mut self, mut alpha: Eval, mut beta: Eval) -> Eval {
         if self.stop || !self.clock.mid_check() {
             self.stop = true;
             return 0;
@@ -375,6 +375,29 @@ impl<'a> Search<'a> {
 
         self.nodes += 1;
         self.seldepth = max(self.seldepth, self.position.ply);
+        let pv_node = alpha != beta - 1;
+
+        // Probe tt for eval and best move (no depth requirements)
+        match self.tt.probe(self.position.hash()) {
+            Some(entry) => {
+                let tt_move = entry.get_move();
+                let tt_eval = entry.get_value(self.position.ply);
+
+                match entry.get_flag() {
+                    TTFlag::Exact => return tt_eval,
+                    TTFlag::Upper => beta = min(beta, tt_eval),
+                    TTFlag::Lower => alpha = max(alpha, tt_eval),
+                }
+
+                // Upper/Lower flags can cause indirect cutoffs!
+                if alpha >= beta {
+                    return tt_eval;
+                }
+                self.position.set_tt_move(Some(tt_move));
+            }
+
+            None => self.position.set_tt_move(None),
+        };
 
         let in_check = self.position.king_in_check();
 
@@ -393,8 +416,11 @@ impl<'a> Search<'a> {
         }
         alpha = max(stand_pat, alpha);
 
+        // Qsearch entries are always overwritten, since they are depth 0
+        let mut tt_field = TTField::new(&self.position, TTFlag::Upper, NULL_MOVE, alpha, 0);
+
         for (m, s) in self.position.generate_captures() {
-            if !in_check {
+            if !in_check && !pv_node {
                 if s < GOOD_CAPTURE {
                     break; // we reached negative see, it's probably not worth searching
                 }
@@ -410,12 +436,24 @@ impl<'a> Search<'a> {
             let eval = -self.quiescence(-beta, -alpha);
             self.position.undo_move();
 
+            if self.stop {
+                return 0;
+            }
+
             if eval > alpha {
                 if eval >= beta {
-                    return beta;
+                    alpha = beta;
+                    tt_field.update_data(TTFlag::Lower, m, beta);
+                    break;
                 }
+            
                 alpha = eval;
+                tt_field.update_data(TTFlag::Exact, m, eval);
             }
+        }
+
+        if !self.stop && tt_field.get_move() != NULL_MOVE {
+            self.tt.insert(tt_field);
         }
 
         alpha
@@ -499,7 +537,7 @@ mod performance_tests {
 
         let mut search: Search = Search::new(position, clock, &tt);
         let start = Instant::now();
-        let (best_move, _) = search.iterative_search(true);
+        let (best_move, _) = search.iterative_search::<true>();
         let duration = start.elapsed();
 
         println!(

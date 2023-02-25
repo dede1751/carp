@@ -31,8 +31,8 @@ while getopts ":hg:s:" arg; do
     s)elo=${OPTARG}
       cutechess-cli \
         -concurrency 2 \
-        -engine cmd="./../target/release/carp" name="Carp DEV" proto=uci \
-        -engine cmd="./../../../../Downloads/Weiawaga-5.0/target/release/Weiawaga" name="Weiawaga" proto=uci \
+        -engine cmd="engines/carp_TTQ_NOPV" name="Carp DEV" proto=uci \
+        -engine cmd="engines/carp_CONTROL" name="Carp CONTROL" proto=uci \
         -each tc=inf/8+0.08 option.Hash=256 option.Threads=1 \
         -games 2 -rounds 2500 -repeat 2 -maxmoves 200 \
         -openings file=books/UHO_8moves.pgn format=pgn order=random plies=6 \
