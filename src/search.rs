@@ -367,7 +367,7 @@ impl<'a> Search<'a> {
     }
 
     /// Quiescence search (only look at capture moves)
-    fn quiescence(&mut self, mut alpha: Eval, mut beta: Eval) -> Eval {
+    fn quiescence(&mut self, mut alpha: Eval, beta: Eval) -> Eval {
         if self.stop || !self.clock.mid_check() {
             self.stop = true;
             return 0;
@@ -375,31 +375,6 @@ impl<'a> Search<'a> {
 
         self.nodes += 1;
         self.seldepth = max(self.seldepth, self.position.ply);
-        let pv_node = alpha != beta - 1;
-
-        // Probe tt for eval and best move (no depth requirements)
-        match self.tt.probe(self.position.hash()) {
-            Some(entry) => {
-                let tt_move = entry.get_move();
-                let tt_eval = entry.get_value(self.position.ply);
-
-                match entry.get_flag() {
-                    TTFlag::Exact => return tt_eval,
-                    TTFlag::Upper => beta = min(beta, tt_eval),
-                    TTFlag::Lower => alpha = max(alpha, tt_eval),
-                }
-
-                // Upper/Lower flags can cause indirect cutoffs!
-                if alpha >= beta {
-                    return tt_eval;
-                }
-                self.position.set_tt_move(Some(tt_move));
-            }
-
-            None => self.position.set_tt_move(None),
-        };
-
-        let in_check = self.position.king_in_check();
 
         // Stand pat and delta pruning
         let stand_pat = self.position.evaluate();
@@ -416,11 +391,9 @@ impl<'a> Search<'a> {
         }
         alpha = max(stand_pat, alpha);
 
-        // Qsearch entries are always overwritten, since they are depth 0
-        let mut tt_field = TTField::new(&self.position, TTFlag::Upper, NULL_MOVE, alpha, 0);
-
+        let in_check = self.position.king_in_check();
         for (m, s) in self.position.generate_captures() {
-            if !in_check && !pv_node {
+            if !in_check {
                 if s < GOOD_CAPTURE {
                     break; // we reached negative see, it's probably not worth searching
                 }
@@ -442,27 +415,18 @@ impl<'a> Search<'a> {
 
             if eval > alpha {
                 if eval >= beta {
-                    alpha = beta;
-                    tt_field.update_data(TTFlag::Lower, m, beta);
-                    break;
+                    return beta;
                 }
-            
                 alpha = eval;
-                tt_field.update_data(TTFlag::Exact, m, eval);
             }
-        }
-
-        if !self.stop && tt_field.get_move() != NULL_MOVE {
-            self.tt.insert(tt_field);
         }
 
         alpha
     }
 
-    /// Recover pv by traversing the tt from the root
-    fn recover_pv(&self, depth: usize) -> Vec<Move> {
+    /// Print pv by traversing the tt from the root
+    fn print_pv(&self, depth: usize) {
         let mut board = self.position.board;
-        let mut pv: Vec<Move> = Vec::new();
 
         for _ in 0..depth {
             let tt_move = match self.tt.probe(board.hash) {
@@ -475,12 +439,12 @@ impl<'a> Search<'a> {
 
             if move_list.moves.contains(&tt_move) {
                 board = board.make_move(tt_move);
-                pv.push(tt_move);
+                print!(" {tt_move}");
             } else {
                 break;
             }
         }
-        pv
+        println!();
     }
 
     /// Print UCI score info
@@ -505,11 +469,7 @@ impl<'a> Search<'a> {
             (self.nodes as u128 * 1000) / time,
         );
 
-        let pv = self.recover_pv(depth);
-        for m in &pv {
-            print!(" {m}");
-        }
-        println!();
+        self.print_pv(depth);
     }
 }
 

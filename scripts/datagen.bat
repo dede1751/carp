@@ -9,11 +9,9 @@ cargo build --release
 cd scripts
 
 cutechess-cli -engine cmd=../target/release/carp -engine cmd=../target/release/carp ^
-    -each proto=uci option.Hash=128 nodes=10000 tc=inf ^
-    -rounds 500000 -concurrency 5 ^
+    -each proto=uci option.Hash=256 nodes=2500 tc=inf ^
+    -rounds 2000000 -concurrency 5 ^
     -openings file=books/UHO_8moves.pgn format=pgn order=random plies=6 ^
-    -resign movecount=3 score=500 ^
-    -draw movenumber=50 movecount=5 score=20 ^
     -pgnout games.pgn
 
 rem Convert game data to marlinflow format and shuffle the result
