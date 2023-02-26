@@ -34,15 +34,6 @@ impl_math_ops! {
     BitXor::bitxor
 }
 
-/// Mul uses different implementation for overflow protection
-impl std::ops::Mul for BitBoard {
-    type Output = Self;
-
-    fn mul(self, other: Self) -> Self::Output {
-        Self(self.0.wrapping_mul(other.0))
-    }
-}
-
 /// Implement math assignment operations
 macro_rules! impl_math_assign_ops {
     ($($trait:ident::$fn:ident),*) => {

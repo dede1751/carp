@@ -227,10 +227,10 @@ mod tests {
         let idx3 = nnue_index(Piece::BP, Square::A1);
         let idx4 = nnue_index(Piece::WK, Square::E1);
 
-        assert_eq!(idx1, (14336, 98304));
-        assert_eq!(idx2, (1792, 114432));
-        assert_eq!(idx3, (98304, 14336));
-        assert_eq!(idx4, (82944, 195584));
+        assert_eq!(idx1, (21504, 147456));
+        assert_eq!(idx2, (2688, 171648));
+        assert_eq!(idx3, (147456, 21504));
+        assert_eq!(idx4, (124416, 293376));
     }
 
     #[test]

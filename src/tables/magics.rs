@@ -124,7 +124,7 @@ impl Magics {
         let bm = self.magics[sq];
 
         let mut relevant_occs = (blockers | self.notmasks[sq]).0 as usize;
-        relevant_occs *= bm.magic;
+        relevant_occs = relevant_occs.wrapping_mul(bm.magic);
         relevant_occs >>= 64 - self.shift;
 
         relevant_occs + bm.index
