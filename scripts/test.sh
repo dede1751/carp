@@ -23,7 +23,7 @@ while getopts ":hg:s:" arg; do
         -tournament gauntlet -rounds $rounds -games 2 -repeat -ratinginterval 1 -recover \
         -engine cmd="./../target/release/carp" name="Carp DEV" proto=uci \
         -each tc=inf/8+0.08 option.Hash=256 option.Threads=1 \
-        -openings file=books/UHO_8moves.pgn format=pgn order=random plies=6 \
+        -openings file=books/UHO_8moves.pgn format=pgn order=random plies=16 \
         -resign movecount=3 score=500 \
         -draw movenumber=50 movecount=5 score=20 \
         -pgnout "gauntlet.pgn"
@@ -32,9 +32,10 @@ while getopts ":hg:s:" arg; do
       cutechess-cli \
         -concurrency 2 \
         -engine cmd="../target/release/carp" name="Carp DEV" proto=uci \
+        -engine cmd="engines/carp_NNUE" name="Carp NNUE" proto=uci \
         -each tc=inf/8+0.08 option.Hash=256 option.Threads=1 \
         -games 2 -rounds 2500 -repeat 2 -maxmoves 200 \
-        -openings file=books/UHO_8moves.pgn format=pgn order=random plies=6 \
+        -openings file=books/UHO_8moves.pgn format=pgn order=random plies=16 \
         -sprt elo0=0 elo1=$elo alpha=0.05 beta=0.05 \
         -resign movecount=3 score=500 \
         -draw movenumber=50 movecount=5 score=20 \

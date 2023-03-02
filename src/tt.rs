@@ -3,9 +3,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::evaluation::*;
 use crate::moves::*;
 use crate::position::*;
+use crate::search_params::*;
 use crate::zobrist::*;
 
 /// TTFlag: determines the type of value stored in the field

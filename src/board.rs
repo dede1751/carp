@@ -26,7 +26,7 @@ pub struct Board {
     pub hash: ZHash,
 
     // Various information used for evaluation and move generation
-    pub game_phase: i32,
+    pub big_piece_count: u32,
     diag_pins: BitBoard,
     hv_pins: BitBoard,
     pinned: BitBoard,
@@ -112,7 +112,10 @@ impl FromStr for Board {
                     }
                 }
                 _ => {
-                    board.set_piece(Piece::try_from(token)?, Square::from_coords(file, rank));
+                    board.modify_piece::<true>(
+                        Piece::try_from(token)?,
+                        Square::from_coords(file, rank),
+                    );
                     file = file.right();
                     token_count += 1;
                 }
@@ -214,6 +217,9 @@ impl Board {
     }
 }
 
+const SET: bool = true;
+const REMOVE: bool = false;
+
 /// Implement board modification
 impl Board {
     pub const fn new() -> Board {
@@ -227,7 +233,7 @@ impl Board {
             halfmoves: 0,
             hash: NULL_HASH,
 
-            game_phase: 0,
+            big_piece_count: 0,
             diag_pins: EMPTY_BB,
             hv_pins: EMPTY_BB,
             pinned: EMPTY_BB,
@@ -238,28 +244,24 @@ impl Board {
         }
     }
 
-    const GAME_PHASE_INCREMENT: [i32; 12] = [0, 0, 1, 1, 1, 1, 2, 2, 4, 4, 0, 0];
-
     /// Set/remove piece while managing occupancy boards (remove first, set later)
-    fn remove_piece(&mut self, piece: Piece, square: Square) {
+    fn modify_piece<const SET: bool>(&mut self, piece: Piece, square: Square) {
+        const BIG_PIECE_DELTA: [u32; 12] = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0];
         let p = piece as usize;
         let c = piece.color() as usize;
 
-        self.pieces[p] = self.pieces[piece as usize].pop_bit(square);
-        self.occupancy = self.occupancy.pop_bit(square);
-        self.side_occupancy[c] = self.side_occupancy[c].pop_bit(square);
+        if SET {
+            self.pieces[p] = self.pieces[p].set_bit(square);
+            self.occupancy = self.occupancy.set_bit(square);
+            self.side_occupancy[c] = self.side_occupancy[c].set_bit(square);
+            self.big_piece_count += BIG_PIECE_DELTA[p];
+        } else {
+            self.pieces[p] = self.pieces[piece as usize].pop_bit(square);
+            self.occupancy = self.occupancy.pop_bit(square);
+            self.side_occupancy[c] = self.side_occupancy[c].pop_bit(square);
+            self.big_piece_count -= BIG_PIECE_DELTA[p];
+        }
         self.hash.toggle_piece(piece, square);
-        self.game_phase -= Board::GAME_PHASE_INCREMENT[p];
-    }
-    fn set_piece(&mut self, piece: Piece, square: Square) {
-        let p = piece as usize;
-        let c = piece.color() as usize;
-
-        self.pieces[p] = self.pieces[p].set_bit(square);
-        self.occupancy = self.occupancy.set_bit(square);
-        self.side_occupancy[c] = self.side_occupancy[c].set_bit(square);
-        self.hash.toggle_piece(piece, square);
-        self.game_phase += Board::GAME_PHASE_INCREMENT[p];
     }
 
     /// Makes (legal) move on the board
@@ -272,7 +274,7 @@ impl Board {
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
         new.hash = self.hash;
-        new.game_phase = self.game_phase;
+        new.big_piece_count = self.big_piece_count;
 
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = m.get_piece();
@@ -280,7 +282,7 @@ impl Board {
 
         new.halfmoves = self.halfmoves + 1;
 
-        new.remove_piece(piece, src);
+        new.modify_piece::<REMOVE>(piece, src);
         if m.is_capture() || piece == Piece::WP || piece == Piece::BP {
             new.halfmoves = 0
         }
@@ -288,21 +290,21 @@ impl Board {
         if m.is_enpassant() {
             let ep_target = PUSH[!self.side as usize][tgt as usize];
 
-            new.remove_piece(m.get_capture(), ep_target);
+            new.modify_piece::<REMOVE>(m.get_capture(), ep_target);
         } else if m.is_capture() {
-            new.remove_piece(m.get_capture(), tgt);
+            new.modify_piece::<REMOVE>(m.get_capture(), tgt);
         } else if m.is_castle() {
             let rook = self.side.rook();
             let (rook_src, rook_tgt) = ROOK_CASTLING_MOVE[tgt as usize];
 
-            new.remove_piece(rook, rook_src);
-            new.set_piece(rook, rook_tgt);
+            new.modify_piece::<REMOVE>(rook, rook_src);
+            new.modify_piece::<SET>(rook, rook_tgt);
         }
 
         if m.is_promotion() {
-            new.set_piece(promotion, tgt);
+            new.modify_piece::<SET>(promotion, tgt);
         } else {
-            new.set_piece(piece, tgt);
+            new.modify_piece::<SET>(piece, tgt);
         }
 
         if let Some(square) = self.en_passant {
@@ -341,7 +343,7 @@ impl Board {
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
         new.hash = self.hash;
-        new.game_phase = self.game_phase;
+        new.big_piece_count = self.big_piece_count;
 
         // add new accumulator
         nnue_state.push();
@@ -352,7 +354,7 @@ impl Board {
 
         new.halfmoves = self.halfmoves + 1;
 
-        new.remove_piece(piece, src);
+        new.modify_piece::<REMOVE>(piece, src);
         if m.is_capture() || piece == Piece::WP || piece == Piece::BP {
             new.halfmoves = 0
         }
@@ -361,28 +363,28 @@ impl Board {
             let ep_target = PUSH[!self.side as usize][tgt as usize];
             let capture = m.get_capture();
 
-            new.remove_piece(capture, ep_target);
+            new.modify_piece::<REMOVE>(capture, ep_target);
             nnue_state.manual_update::<OFF>(capture, ep_target);
         } else if m.is_capture() {
             let capture = m.get_capture();
 
-            new.remove_piece(capture, tgt);
+            new.modify_piece::<REMOVE>(capture, tgt);
             nnue_state.manual_update::<OFF>(capture, tgt);
         } else if m.is_castle() {
             let rook = self.side.rook();
             let (rook_src, rook_tgt) = ROOK_CASTLING_MOVE[tgt as usize];
 
-            new.remove_piece(rook, rook_src);
-            new.set_piece(rook, rook_tgt);
+            new.modify_piece::<REMOVE>(rook, rook_src);
+            new.modify_piece::<SET>(rook, rook_tgt);
             nnue_state.move_update(rook, rook_src, rook_tgt);
         }
 
         if m.is_promotion() {
-            new.set_piece(promotion, tgt);
+            new.modify_piece::<SET>(promotion, tgt);
             nnue_state.manual_update::<OFF>(piece, src);
             nnue_state.manual_update::<ON>(promotion, tgt);
         } else {
-            new.set_piece(piece, tgt);
+            new.modify_piece::<SET>(piece, tgt);
             nnue_state.move_update(piece, src, tgt);
         }
 
@@ -421,7 +423,7 @@ impl Board {
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
         new.hash = self.hash;
-        new.game_phase = self.game_phase;
+        new.big_piece_count = self.big_piece_count;
 
         new.side = !self.side;
         new.hash.toggle_side();

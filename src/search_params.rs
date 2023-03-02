@@ -1,8 +1,14 @@
 /// Save search parameters in a single module
 /// Used to simplify engine testing and future tuning.
-use crate::evaluation::*;
 
+pub type Eval = i16;
+pub const MAX: Eval = 30000; // score upper bound
 pub const MAX_DEPTH: usize = 128; // max depth to search at
+
+/// Returns true if the opponent is checkmated
+pub fn is_mate(eval: Eval) -> bool {
+    ((MAX - MAX_DEPTH as i16)..MAX).contains(&eval)
+}
 
 pub const HISTORY_LOWER_LIMIT: usize = 3; // minimum depth at which history updates happen
 
@@ -35,3 +41,4 @@ pub const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
 
 pub const QS_DELTA_MARGIN: Eval = 1100; // highest queen value possible
 pub const QS_FUTILITY_MARGIN: Eval = 200; // overhead we allow for captures in qs
+pub const QS_PIECE_VALUES: [Eval; 6] = [161, 446, 464, 705, 1322, 0]; // qs fp piece values

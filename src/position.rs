@@ -2,14 +2,12 @@ use std::{cmp::min, str::FromStr};
 
 use crate::bitboard::*;
 use crate::board::*;
-use crate::evaluation::*;
 use crate::move_list::*;
 use crate::move_sorter::*;
 use crate::moves::*;
 use crate::nnue::*;
+use crate::search_params::*;
 use crate::zobrist::*;
-
-const USE_NNUE: bool = true;
 
 /// Position, represents a Board's evolution along the search tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -108,11 +106,7 @@ impl Position {
 
     /// Makes the given move
     pub fn make_move(&mut self, m: Move) {
-        let new = if USE_NNUE {
-            self.board.make_move_nnue(m, &mut self.nnue_state)
-        } else {
-            self.board.make_move(m)
-        };
+        let new = self.board.make_move_nnue(m, &mut self.nnue_state);
 
         self.sorter.followup_move = self.sorter.counter_move;
         self.sorter.counter_move = Some(m);
@@ -126,10 +120,7 @@ impl Position {
     /// Passes turn to opponent (this resets the ply_from_null clock)
     pub fn make_null(&mut self) {
         let new = self.board.make_null();
-
-        if USE_NNUE {
-            self.nnue_state.push();
-        }
+        self.nnue_state.push();
 
         self.sorter.followup_move = None;
         self.sorter.counter_move = None;
@@ -145,10 +136,7 @@ impl Position {
     /// Panics if the history vector is empty!
     pub fn undo_move(&mut self) {
         let (old_board, _, old_ply) = self.history.pop().unwrap();
-
-        if USE_NNUE {
-            self.nnue_state.pop();
-        }
+        self.nnue_state.pop();
 
         self.board = old_board;
         self.ply -= 1;
@@ -191,16 +179,12 @@ impl Position {
 
     /// Only king and pawns are on the board. Used to rule out null move pruning
     pub fn only_king_pawns_left(&self) -> bool {
-        self.board.game_phase == 0
+        self.board.big_piece_count == 0
     }
 
     /// Returns current position's eval
     pub fn evaluate(&self) -> Eval {
-        if USE_NNUE {
-            self.nnue_state.evaluate(self.board.side) as i16
-        } else {
-            eval(&self.board)
-        }
+        self.nnue_state.evaluate(self.board.side)
     }
 
     /// Checks if position is a rule-based draw

@@ -1,7 +1,6 @@
 use std::cmp::{max, min};
 
 use crate::clock::*;
-use crate::evaluation::*;
 use crate::move_sorter::*;
 use crate::moves::*;
 use crate::position::*;
@@ -399,7 +398,7 @@ impl<'a> Search<'a> {
                 }
 
                 // futility pruning
-                let move_value = stand_pat + eval_piece(&self.position.board, m.get_capture());
+                let move_value = stand_pat + QS_PIECE_VALUES[m.get_capture() as usize / 2];
                 if !m.is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha {
                     continue;
                 }
