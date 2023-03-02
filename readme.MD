@@ -26,23 +26,16 @@ enabled, even in complex blitz midgames.
 
 ## NNUE
 
-Carp uses a 768->256->1 perspective net trained with MarlinFlow.
+Carp uses a 768->(256x2)->1 perspective net trained with MarlinFlow.
 It fully relies on its own self-play data for training the network, and a datagen script (for windows, as its
 my more capable machine) for fen generation. All utilities for training the network are found in the Scripts
-directory.
-
-Carp is temporarily making use of Viridithas's first net to debug inference, kindly handed to me by Viri's
-author. Once data generation and net training is completed it will move to its own first net (most likely
-much weaker). For this reason, NNUE is currently toggleable, though hundreds of elo stronger compared to
-the HCE.
+directory. As of Carp 2.0, NNUE has compltely replaced the old HCE.
 
 ## Implemented optimizations
 
 * Fully legal move generation with Fixed Shift Black Magic Bitboards
 * Fail-Hard Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
-* NNUE: (768->256)x2->1
-* HCE: PeSTO + various optimizations (doubled/passed/isolated pawns, mobility, king safety)
 * Move Ordering:
   - MVV-LVA with Static Exchange Evaluation
   - Killers

@@ -3,12 +3,17 @@
 │ Network  │         Params         │                SPRT                 │                    Notes                     │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0000 │ 100M d8 self-play fens │    518.2 +/- 208.1, LOS: 100.0 %    │ First unique network! Completely curshes HCE │
-│          │ 768->256->1 arch       │                                     │ SPRT took ~80 games just because it wouldn't │
-│          │ lr=1e-2    wdl=0.1     │                                     │ lose                                         │
+│          │ 256 hidden nodes       │                                     │ SPRT took ~80 games just because it wouldn't │
+│  (CURR)  │ lr=1e-2    wdl=0.1     │                                     │ lose                                         │
 │          │ 80 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0001 │ 100M d8 self-play fens │                                     │ Testing 384-node hidden layers               │
-│          │ 768->384->1 arch       │                                     │                                              │
-│          │ lr=1e-2    wdl=0.1     │                                     │                                              │
+│ carp0001 │ 100M d8 self-play fens │     -9.2 (lost full output)         │ Testing 384-node hidden layers               │
+│          │ 384 hidden nodes       │                                     │ Data is probably not enough, maybe tweak     │
+│          │ lr=1e-2    wdl=0.1     │                                     │ params                                       │
 │          │ 80 epoch, drop at 30   │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0002 │                        │                                     │                                              │
+│          │                        │                                     │                                              │
+│          │                        │                                     │                                              │
+│          │                        │                                     │                                              │
 └──────────┴────────────────────────┴─────────────────────────────────────┴──────────────────────────────────────────────┘

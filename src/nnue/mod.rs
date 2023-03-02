@@ -220,18 +220,18 @@ mod tests {
         assert_eq!(s1.current_acc, s2.current_acc);
     }
 
-    // #[test]
-    // fn test_nnue_index() {
-    //     let idx1 = nnue_index(Piece::WP, Square::A8);
-    //     let idx2 = nnue_index(Piece::WP, Square::H1);
-    //     let idx3 = nnue_index(Piece::BP, Square::A1);
-    //     let idx4 = nnue_index(Piece::WK, Square::E1);
+    #[test]
+    fn test_nnue_index() {
+        let idx1 = nnue_index(Piece::WP, Square::A8);
+        let idx2 = nnue_index(Piece::WP, Square::H1);
+        let idx3 = nnue_index(Piece::BP, Square::A1);
+        let idx4 = nnue_index(Piece::WK, Square::E1);
 
-    //     assert_eq!(idx1, (21504, 147456));
-    //     assert_eq!(idx2, (2688, 171648));
-    //     assert_eq!(idx3, (147456, 21504));
-    //     assert_eq!(idx4, (124416, 293376));
-    // }
+        assert_eq!(idx1, (14336, 98304));
+        assert_eq!(idx2, (1792, 114432));
+        assert_eq!(idx3, (98304, 14336));
+        assert_eq!(idx4, (82944, 195584));
+    }
 
     #[test]
     fn test_manual_update() {
