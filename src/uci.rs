@@ -19,7 +19,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
 const ENGINE_OPTIONS: &str = "
-option name Hash type spin default 256 min 1 max 65536 
+option name Hash type spin default 32 min 1 max 65536 
 option name Threads type spin default 1 min 1 max 512";
 
 /// UCI controller responsible of reading input and command the main engine thread
@@ -227,11 +227,12 @@ impl UCIEngine {
 
                 let mut worker_search = Search::new(worker_pos, worker_tc, &self.tt);
 
-                worker_handles.push(scope.spawn(move || worker_search.iterative_search::<false>()));
+                worker_handles
+                    .push(scope.spawn(move || worker_search.iterative_search::<NO_INFO>()));
             }
 
             // Deploy main search in this thread
-            results.push(main_search.iterative_search::<true>());
+            results.push(main_search.iterative_search::<INFO>());
 
             for handle in worker_handles {
                 match handle.join() {

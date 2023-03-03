@@ -8,12 +8,15 @@ use crate::search_params::*;
 use crate::tables::*;
 use crate::tt::*;
 
+pub const INFO: bool = true;
+pub const NO_INFO: bool = false;
+
 /// Search the move tree, starting at the given position
 pub struct Search<'a> {
     position: Position,
     clock: Clock,
     tt: &'a TT,
-    nodes: u64,
+    pub nodes: u64,
     seldepth: usize,
     stop: bool,
 }
@@ -496,7 +499,7 @@ mod performance_tests {
 
         let mut search: Search = Search::new(position, clock, &tt);
         let start = Instant::now();
-        let (best_move, _) = search.iterative_search::<true>();
+        let (best_move, _) = search.iterative_search::<INFO>();
         let duration = start.elapsed();
 
         println!(
