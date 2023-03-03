@@ -20,6 +20,8 @@ pub mod nnue;
 pub mod search;
 pub mod search_params;
 pub mod tt;
+
+pub mod tools;
 pub mod uci;
 
 use crate::uci::UCIController;
