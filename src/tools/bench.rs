@@ -64,7 +64,7 @@ const TEST_POSITIONS: [&str; 50] = [
 
 
 /// Runs benchmark positions to depth 13
-pub fn bench() {
+pub fn run_benchmark() {
     let mut nodes = 0;
     let mut time = 0;
 

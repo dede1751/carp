@@ -1,4 +1,3 @@
-use std::alloc;
 /// NNUE Implementation
 /// Carp uses a 768->256->1 perspective net architecture, fully trained on self play data.
 /// Network is initialized at compile time from the binary files in the net folder.
@@ -6,7 +5,9 @@ use std::alloc;
 ///
 /// Huge thanks to Cosmo, author of Viridithas, for the help. The code here is heavily inspired by
 /// his engine.
+
 use std::mem;
+use std::alloc;
 
 use crate::board::*;
 use crate::piece::*;
