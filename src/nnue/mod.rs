@@ -5,9 +5,8 @@
 ///
 /// Huge thanks to Cosmo, author of Viridithas, for the help. The code here is heavily inspired by
 /// his engine.
-
-use std::mem;
 use std::alloc;
+use std::mem;
 
 use crate::board::*;
 use crate::piece::*;

@@ -227,7 +227,8 @@ impl UCIEngine {
 
                 let mut worker_search = Search::new(worker_pos, worker_tc, &self.tt);
 
-                worker_handles.push(scope.spawn(move || worker_search.iterative_search::<NO_INFO>()));
+                worker_handles
+                    .push(scope.spawn(move || worker_search.iterative_search::<NO_INFO>()));
             }
 
             // Deploy main search in this thread

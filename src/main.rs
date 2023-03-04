@@ -46,6 +46,6 @@ macro_rules! from {
 fn main() {
     tables::init_all_tables();
     tools::parse_cli();
-    
+
     UCIController::default().run();
 }
