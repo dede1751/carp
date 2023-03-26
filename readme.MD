@@ -17,7 +17,7 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 ## Rating Lists
 
-| **Version** | [**CCRL 40/15**]([ccrl-link]) | [**MCERL**]([mcerl-link]) |
+| **Version** | [**CCRL 40/15**][ccrl-link] | [**MCERL**][mcerl-link] |
 |-------------|----------------|-----------|
 | 2.0.0       | 3097           | 3117      | 
 | 1.3.0       | N/a            | 2675      | 
@@ -26,7 +26,7 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 ## Performance
 
-Move generation is fully legal, inspired by [this article]([movegen-link])
+Move generation is fully legal, inspired by [this article][movegen-link]
 and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
 Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
