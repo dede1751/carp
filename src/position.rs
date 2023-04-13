@@ -6,6 +6,7 @@ use crate::move_list::*;
 use crate::move_sorter::*;
 use crate::moves::*;
 use crate::nnue::*;
+use crate::piece::*;
 use crate::search_params::*;
 use crate::zobrist::*;
 
@@ -86,6 +87,11 @@ impl Position {
     /// Returns the current board's hash
     pub fn hash(&self) -> ZHash {
         self.board.hash
+    }
+
+    /// Returns true if it's white to move
+    pub fn white_to_move(&self) -> bool {
+        self.board.side == Color::White
     }
 
     /// Generate a sorted list of captures
@@ -234,6 +240,58 @@ impl Position {
                 (knight_count == bishop_count && one_each && !king_in_corner) // knvkb, king not in corner
             }
             _ => false,
+        }
+    }
+}
+
+/// Game result, used for datagen
+/// The bool refers to the game being adjudicated
+#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+pub enum GameResult {
+    Ongoing,
+    WhiteWin(bool),
+    BlackWin(bool),
+    Draw(bool),
+}
+pub const ADJ: bool = true;
+pub const NO_ADJ: bool = false;
+
+/// Datagen-specific implementations
+impl Position {
+    /// Push the move without updating search-specific data.
+    /// Accumulator is refreshed to avoid overflows
+    pub fn push_move(&mut self, m: Move) {
+        let new = self.board.make_move(m);
+
+        self.sorter = MoveSorter::default();
+        self.history.push((self.board, m, self.ply_from_null));
+
+        self.age += 1;
+        self.ply = 0;
+        self.ply_from_null += 1;
+
+        self.nnue_state.refresh(&new);
+        self.board = new;
+    }
+
+    /// Checks if the game is over and returns the result
+    pub fn check_result(&self) -> GameResult {
+        let move_list = self.board.gen_moves::<true>();
+
+        if move_list.is_empty() {
+            if self.king_in_check() {
+                if self.white_to_move() {
+                    GameResult::BlackWin(NO_ADJ)
+                } else {
+                    GameResult::WhiteWin(NO_ADJ)
+                }
+            } else {
+                GameResult::Draw(NO_ADJ)
+            }
+        } else if self.is_draw() {
+            GameResult::Draw(NO_ADJ)
+        } else {
+            GameResult::Ongoing
         }
     }
 }
