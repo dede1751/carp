@@ -9,7 +9,6 @@ use std::{
 
 use crate::clock::*;
 use crate::moves::*;
-use crate::piece::*;
 use crate::position::*;
 use crate::search::*;
 use crate::tt::*;
@@ -212,11 +211,7 @@ impl UCIEngine {
             // Start making main search with master clock
             let mut main_search = Search::new(
                 self.position.clone(),
-                Clock::new(
-                    tc,
-                    self.stop.clone(),
-                    self.position.board.side == Color::White,
-                ),
+                Clock::new(tc, self.stop.clone(), self.position.white_to_move()),
                 &self.tt,
             );
 
@@ -241,11 +236,11 @@ impl UCIEngine {
                 }
             }
 
-            let highest_depth = results.iter().max_by_key(|(_, d)| d).unwrap().1;
+            let highest_depth = results.iter().max_by_key(|(_, d, _)| d).unwrap().1;
 
             results
                 .into_iter()
-                .filter_map(|(m, d)| if d == highest_depth { Some(m) } else { None })
+                .filter_map(|(m, d, _)| if d == highest_depth { Some(m) } else { None })
                 .fold(
                     std::collections::HashMap::<Move, u8>::new(),
                     |mut map, x| {

@@ -12,3 +12,9 @@ debug-assertions = false
 codegen-units = 1
 lto = true
 panic = "abort"
+
+[dependencies]
+clap = { version = "4.2.1", features = ["derive"] }
+chrono = "0.4"
+fastrand = "1.9.0"
+ctrlc = "3.2.5"

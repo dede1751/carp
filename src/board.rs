@@ -162,6 +162,59 @@ impl FromStr for Board {
     }
 }
 
+/// Convert board state to FEN string
+impl Board {
+    pub fn to_fen(&self) -> String {
+        let mut fen = String::new();
+
+        for rank in ALL_RANKS {
+            let mut empty = 0;
+
+            for file in ALL_FILES {
+                let square = Square::from_coords(file, rank);
+
+                let piece = ALL_PIECES
+                    .iter()
+                    .find(|&p| self.pieces[*p as usize].get_bit(square));
+
+                if let Some(p) = piece {
+                    if empty > 0 {
+                        fen.push_str(&empty.to_string());
+                        empty = 0;
+                    }
+                    fen.push(p.to_char())
+                } else {
+                    empty += 1;
+                }
+            }
+
+            if empty > 0 {
+                fen.push_str(&empty.to_string());
+            }
+            if rank != Rank::First {
+                fen.push('/');
+            }
+        }
+
+        match self.side {
+            Color::White => fen.push_str(" w "),
+            Color::Black => fen.push_str(" b "),
+        }
+
+        fen.push_str(&self.castling_rights.to_string());
+
+        if let Some(square) = self.en_passant {
+            fen.push_str(&format!(" {square}"));
+        } else {
+            fen.push_str(" -");
+        }
+
+        fen.push_str(&format!(" {} 1", self.halfmoves));
+
+        fen
+    }
+}
+
 /// Default to starting position
 impl Default for Board {
     fn default() -> Self {

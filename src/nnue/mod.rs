@@ -140,6 +140,20 @@ impl NNUEState {
         boxed
     }
 
+    /// Refresh the accumulator stack to the given board
+    pub fn refresh(&mut self, board: &Board) {
+        // reset the accumulator stack
+        self.current_acc = 0;
+        self.accumulator_stack[self.current_acc] = Accumulator::default();
+
+        // update the first accumulator
+        for piece in ALL_PIECES {
+            for sq in board.pieces[piece as usize] {
+                self.manual_update::<ON>(piece, sq);
+            }
+        }
+    }
+
     /// Add a new accumulator to the stack by copying the previous top
     pub fn push(&mut self) {
         self.accumulator_stack[self.current_acc + 1] = self.accumulator_stack[self.current_acc];
