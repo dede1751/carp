@@ -36,8 +36,9 @@ impl<'a> Search<'a> {
     /// Iteratively searches the board at increasing depth
     /// After the shallower depths, we start doing reduced-window searches and eventually reopen
     /// each "side" of the window in case of fail-high or fail-low
-    pub fn iterative_search<const INFO: bool>(&mut self) -> (Move, usize) {
+    pub fn iterative_search<const INFO: bool>(&mut self) -> (Move, Eval, usize) {
         let mut best_move = NULL_MOVE;
+        let mut best_eval = -MAX;
         let mut temp_best: Move;
         let mut alpha = -MAX;
         let mut beta = MAX;
@@ -63,12 +64,13 @@ impl<'a> Search<'a> {
                         self.seldepth = 0;
                     }
                     best_move = temp_best;
+                    best_eval = eval;
                     depth += 1;
                 }
             }
         }
 
-        (best_move, depth - 1)
+        (best_move, best_eval, depth - 1)
     }
 
     // Separate function for searching the root. Saves temporary tt entries for root moves and
@@ -499,7 +501,7 @@ mod performance_tests {
 
         let mut search: Search = Search::new(position, clock, &tt);
         let start = Instant::now();
-        let (best_move, _) = search.iterative_search::<INFO>();
+        let (best_move, _, _) = search.iterative_search::<INFO>();
         let duration = start.elapsed();
 
         println!(
