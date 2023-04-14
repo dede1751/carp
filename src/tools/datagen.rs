@@ -9,18 +9,12 @@ use std::{
     time::Instant,
 };
 
+use super::*;
 use crate::clock::*;
 use crate::position::*;
 use crate::search::*;
 use crate::search_params::*;
 use crate::tt::TT;
-
-const DEFAULT: &str = "\x1b[0m";
-const WHITE: &str = "\x1b[38;5;15m";
-const ORANGE: &str = "\x1b[38;5;208m";
-const GREEN: &str = "\x1b[38;5;40m";
-const RED: &str = "\x1b[38;5;196m";
-const CYAN: &str = "\x1b[38;5;51m";
 
 static STOP_FLAG: AtomicBool = AtomicBool::new(false);
 static FENS: AtomicU64 = AtomicU64::new(0);
@@ -120,7 +114,19 @@ pub fn run_datagen(options: DatagenOptions) {
                 datagen_thread(id, games_per_thread, tc, path);
             });
         }
-    })
+    });
+
+    // After all threads are finished, merge and dedup all the data into a single file
+    match merge::merge(data_dir) {
+        Ok(()) => {
+            if STOP_FLAG.load(Ordering::SeqCst) {
+                println!("\n\t{ORANGE}Data generation stopped prematurely.{DEFAULT}");
+            } else {
+                println!("\n\t{GREEN}Data generation completed successfully.{DEFAULT}");
+            }
+        }
+        Err(e) => println!("{ORANGE}MERGE ERROR{DEFAULT}: {}", e),
+    }
 }
 
 /// Run a single datagen thread
@@ -140,7 +146,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
 
     'main: for games_played in 0..games {
         // Main thread logging
-        if id == 0 && games_played != 0 && games_played % 64 == 0 {
+        if id == 0 && games_played != 0 && games_played % 6 == 0 {
             let fens = FENS.load(Ordering::Relaxed);
             let elapsed = timer.elapsed().as_secs_f64();
             let fens_per_sec = fens as f64 / elapsed;
@@ -157,13 +163,17 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
 
             let time_per_game = elapsed / games_played as f64;
             let etr = (games - games_played) as f64 * time_per_game;
+            let ecd = chrono::Local::now()
+                .checked_add_signed(chrono::Duration::seconds(etr as i64))
+                .unwrap()
+                .format("%d/%m/%Y %H:%M:%S");
 
-            println!("\n+ {GREEN}Generated {DEFAULT}{fens} FENs [{fens_per_sec:.2} FEN/s]");
-            println!("├─> {GREEN}Time per game: {DEFAULT}{time_per_game:.2}s.");
-            println!("├─> In total: {tot_games} [{percentage:.2}%] games are done.");
-            println!("├─> {CYAN}Full Games    --{DEFAULT}   White win: {ww: >8}, Black win: {bw: >8}, Draw: {dr: >8}");
-            println!("├─> {CYAN}Adjudications --{DEFAULT}   White win: {wwa: >8}, Black win: {bwa: >8}, Draw: {dra: >8}");
-            println!("└─> Elapsed time: {elapsed:.2}s. {RED}ETR: {etr:.2}s{DEFAULT}");
+            println!("\n O {GREEN}Generated {DEFAULT}{fens} FENs [{fens_per_sec:.2} FEN/s]");
+            println!(" |-> {GREEN}Time per game: {DEFAULT}{time_per_game:.2}s.");
+            println!(" |-> In total: {tot_games} [{percentage:.2}%] games are done.");
+            println!(" |-> Full Games    --   W: {ww: >8}, B: {bw: >8}, D: {dr: >8}");
+            println!(" |-> Adjudications --   W: {wwa: >8}, B: {bwa: >8}, D: {dra: >8}");
+            println!(" *-> Elapsed time: {elapsed:.2}s. {RED}ETR: {etr:.2}s on {ecd}{DEFAULT}");
 
             stdout().flush().unwrap();
         }
@@ -231,6 +241,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
                 game_buffer.push((eval, position.board.to_fen()));
             }
 
+            // Increment adjudication counters
             let abs_eval = eval.abs();
             if abs_eval >= 2000 {
                 win_adj_counter += 1;
