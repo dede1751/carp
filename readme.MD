@@ -17,12 +17,12 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 ## Rating Lists
 
-| **Version** | [**CCRL 40/15**][ccrl-link] | [**MCERL**][mcerl-link] |
-|-------------|----------------|-----------|
-| 2.0.0       | 3097           | 3117      | 
-| 1.3.0       | N/a            | 2675      | 
-| 1.2.0       | N/a            | 2488      | 
-| 1.1.0       | N/a            | 2164      | 
+| **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**MCERL**][mcerl-link] |
+|-------------|----------------|-----------|-----------|
+| 2.0.0       | 3087           | 3159      | 3117      | 
+| 1.3.0       | N/a            | N/a       | 2675      | 
+| 1.2.0       | N/a            | N/a       | 2488      | 
+| 1.1.0       | N/a            | N/a       | 2164      | 
 
 ## Performance
 
@@ -33,9 +33,11 @@ Newer versions added much more aggressive pruning techniques, which have brought
 time to depth and reduced the branching factor greatly. Carp will easily push depth 20-22 with NNUE
 enabled, even in complex blitz midgames.
 
+Carp is rigorously tested with SPRT, and has recently joined the [Engine Programming OB instance][ob-link].
+
 ## NNUE
 
-Carp uses a 768->(256x2)->1 perspective net trained with MarlinFlow.
+Carp uses a 768->(384x2)->1 perspective net trained with MarlinFlow.
 It fully relies on its own self-play data for training the network, and a datagen script (for windows, as its
 my more capable machine) for fen generation. All utilities for training the network are found in the Scripts
 directory. As of Carp 2.0, NNUE has compltely replaced the old HCE.
@@ -75,16 +77,20 @@ None of these are necessary to run the engine, but they are vital for developmen
 
 * [Cutechess-Cli](https://github.com/cutechess/cutechess)
 * [MarlinFlow](https://github.com/dsekercioglu/marlinflow)
+* [OpenBench](https://github.com/AndyGrant/OpenBench)
 
 ## Credits
 * [CMK's chess engine in C series](https://www.youtube.com/watch?v=QUNP-UjujBM&list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs)
 * [Chess Programming Wiki](https://www.chessprogramming.org/Main_Page)
 * Bruce Moreland's [Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)
 * Cosmo, author of [Viridithas](https://github.com/cosmobobak/viridithas), for a lot of help with NNUE
+* Crippa, author of [Svart](https://github.com/crippa1337/svart) for hosting the OB instance Carp is tested with.
 * Malu's [Asymptote](https://github.com/malu/asymptote) engine to better understand search heuristics
 * The entire chess programming community, for countless awesome resources
 
-[ccrl-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?class=None&only_best_in_class=on&num_best_in_class=1&family=Carp&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no
+[ob-link]:https://engineprogramming.pythonanywhere.com/
+[ccrl-blitz-link]:https://ccrl.chessdom.com/ccrl/404/cgi/engine_details.cgi?print=Details&each_game=1&eng=Carp%202.0.0%2064-bit#Carp_2_0_0_64-bit
+[ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?class=None&only_best_in_class=on&num_best_in_class=1&family=Carp&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no
 [mcerl-link]:https://www.chessengeria.com/mcerl
 [movegen-link]:https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator
 
