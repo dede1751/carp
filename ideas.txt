@@ -1,0 +1,14 @@
+- Refactor search:
+    * Const generic node type
+    * Change how a search is started?
+- Read magics from file
+- BETTER TIME MANAGEMENT!!!!
+- Improve search:
+    * Better Aspiration loop
+    * Better reopening scheme
+    * Fail Soft
+- Heuristics:
+    * Improving
+    * SEE pruning in normal search
+    * Razoring?
+- Speedup Datagen!!!

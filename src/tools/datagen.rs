@@ -93,7 +93,7 @@ pub fn run_datagen(options: DatagenOptions) {
 
     let run_id = format!(
         "run_{}_{options}",
-        chrono::Local::now().format("%d-%m-%Y_%H:%M:%S")
+        chrono::Local::now().format("%d-%m-%Y_%H-%M-%S")
     );
     println!("Data is being saved to {WHITE}data/{run_id}{DEFAULT}");
 
