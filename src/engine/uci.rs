@@ -7,11 +7,13 @@ use std::{
     thread,
 };
 
-use crate::clock::*;
-use crate::moves::*;
-use crate::position::*;
-use crate::search::*;
-use crate::tt::*;
+use crate::chess::moves::*;
+use crate::engine::{
+    clock::*,
+    position::*,
+    search::*,
+    tt::*,
+};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");

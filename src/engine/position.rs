@@ -1,14 +1,18 @@
 use std::{cmp::min, str::FromStr};
 
-use crate::bitboard::*;
-use crate::board::*;
-use crate::move_list::*;
-use crate::move_sorter::*;
-use crate::moves::*;
-use crate::nnue::*;
-use crate::piece::*;
-use crate::search_params::*;
-use crate::zobrist::*;
+use crate::chess::{
+    board::*,
+    bitboard::*,
+    move_list::*,
+    moves::*,
+    piece::*,
+    zobrist::*,
+};
+use crate::engine::{
+    move_sorter::*,
+    nnue::*,
+    search_params::*,
+};
 
 /// Position, represents a Board's evolution along the search tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -298,7 +302,7 @@ impl Position {
 
 #[cfg(test)]
 mod tests {
-    use crate::tables::init_all_tables;
+    use crate::chess::init_all_tables;
 
     use super::*;
 

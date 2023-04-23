@@ -1,8 +1,10 @@
 use std::fmt;
 
 use crate::from;
-use crate::piece::*;
-use crate::square::*;
+use crate::chess::{
+    piece::*,
+    square::*,
+};
 
 /// Indexed by color, rank at which each side's pawns promote
 pub const PROMOTION_RANKS: [Rank; 2] = [Rank::Seventh, Rank::Second];

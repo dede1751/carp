@@ -10,11 +10,13 @@ use std::{
 };
 
 use super::*;
-use crate::clock::*;
-use crate::position::*;
-use crate::search::*;
-use crate::search_params::*;
-use crate::tt::TT;
+use crate::engine::{
+    clock::*,
+    position::*,
+    search::*,
+    search_params::*,
+    tt::*,
+};
 
 static STOP_FLAG: AtomicBool = AtomicBool::new(false);
 static FENS: AtomicU64 = AtomicU64::new(0);

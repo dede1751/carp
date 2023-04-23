@@ -1,9 +1,3 @@
-use crate::board::*;
-use crate::castle::*;
-use crate::piece::*;
-use crate::square::*;
-use crate::tables::*;
-
 /// Zobrist hash, an incremental hash for a board position using random keys (in constants mod)
 ///
 /// Didactic note:
@@ -12,6 +6,14 @@ use crate::tables::*;
 /// ZH(C(A)) == ZH(C(B))   <=>     ZH(B) is obtained from ZH(A) through some sequence of moves.
 ///
 /// Building ZH(A) and ZH(B) independently by summing material score WILL NOT produce the same hash
+use crate::chess::{
+    board::*,
+    castle::*,
+    piece::*,
+    square::*,
+    tables::*,
+};
+
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct ZHash(pub u64);
 
@@ -75,7 +77,8 @@ impl ZHash {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{moves::Move, position::Position};
+    use crate::chess::moves::Move;
+    use crate::engine::position::Position;
 
     #[test]
     pub fn test_hash_init() {

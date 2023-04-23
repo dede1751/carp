@@ -1,12 +1,16 @@
 use std::cmp::min;
 
-use crate::board::*;
-use crate::move_list::*;
-use crate::moves::*;
-use crate::piece::*;
-use crate::position::*;
-use crate::search_params::*;
-use crate::square::*;
+use crate::chess::{
+    board::*,
+    piece::*,
+    square::*,
+    move_list::*,
+    moves::*,
+};
+use crate::engine::{
+    position::*,
+    search_params::*,
+};
 
 type CMHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
 type FUHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];

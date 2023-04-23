@@ -1,5 +1,5 @@
 use crate::from;
-use crate::square::*;
+use crate::chess::square::*;
 use std::fmt;
 
 /// Bitboard implemented as a simple tuple struct.

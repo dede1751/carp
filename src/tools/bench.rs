@@ -3,10 +3,13 @@
 use std::sync::{atomic::AtomicBool, Arc};
 use std::time::Instant;
 
-use crate::clock::*;
-use crate::position::*;
-use crate::search::*;
-use crate::tt::*;
+use crate::chess::piece::*;
+use crate::engine::{
+    clock::*,
+    position::*,
+    search::*,
+    tt::*,
+};
 
 const TEST_POSITIONS: [&str; 50] = [
     "fen r3k2r/2pb1ppp/2pp1q2/p7/1nP1B3/1P2P3/P2N1PPP/R2QK2R w KQkq a6 0 14",
@@ -72,7 +75,7 @@ pub fn run_benchmark() {
         let clock = Clock::new(
             TimeControl::FixedDepth(13),
             Arc::new(AtomicBool::new(false)),
-            position.board.side == crate::piece::Color::White,
+            position.board.side == Color::White,
         );
 
         let mut search: Search = Search::new(position, clock, &tt);

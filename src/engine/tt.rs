@@ -3,10 +3,14 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::moves::*;
-use crate::position::*;
-use crate::search_params::*;
-use crate::zobrist::*;
+use crate::chess::{
+    moves::*,
+    zobrist::*,
+};
+use crate::engine::{
+    position::*,
+    search_params::*,
+};
 
 /// TTFlag: determines the type of value stored in the field
 #[repr(u8)]

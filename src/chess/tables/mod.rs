@@ -20,10 +20,12 @@ use attacks::*;
 pub use constants::*;
 use magics::*;
 
-use crate::bitboard::*;
-use crate::piece::*;
-use crate::search_params::*;
-use crate::square::*;
+use crate::chess::{
+    bitboard::*,
+    piece::*,
+    square::*,
+};
+use crate::engine::search_params::{LMR_BASE, LMR_FACTOR};
 
 /// Precalculated attack tables for leaper pieces
 struct Tables {

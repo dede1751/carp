@@ -1,12 +1,16 @@
 use std::cmp::{max, min};
 
-use crate::clock::*;
-use crate::move_sorter::*;
-use crate::moves::*;
-use crate::position::*;
-use crate::search_params::*;
-use crate::tables::*;
-use crate::tt::*;
+use crate::chess::{
+    moves::*,
+    tables::*,
+};
+use crate::engine::{
+    clock::*,
+    position::*,
+    move_sorter::*,
+    search_params::*,
+    tt::*,
+};
 
 pub const INFO: bool = true;
 pub const NO_INFO: bool = false;
@@ -485,7 +489,7 @@ mod performance_tests {
     use std::sync::{atomic::AtomicBool, Arc};
     use std::time::Instant;
 
-    use crate::piece::*;
+    use crate::chess::piece::*;
 
     fn search_driver(fen: &str, depth: usize) {
         init_all_tables();

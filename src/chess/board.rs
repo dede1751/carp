@@ -2,15 +2,18 @@ use std::cmp::max;
 use std::time::Instant;
 use std::{fmt, str::FromStr};
 
-use crate::bitboard::*;
-use crate::castle::*;
-use crate::move_list::*;
-use crate::moves::*;
-use crate::nnue::*;
-use crate::piece::*;
-use crate::square::*;
-use crate::tables::*;
-use crate::zobrist::*;
+use crate::chess::{
+    bitboard::*,
+    castle::*,
+    move_list::*,
+    moves::*,
+    piece::*,
+    square::*,
+    tables::*,
+    zobrist::*,
+};
+
+use crate::engine::nnue::*;
 
 /// Piece-centric board representation
 /// Any board without a king for each player (and with more than one for either) is UB!
