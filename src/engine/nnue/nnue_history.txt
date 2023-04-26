@@ -4,7 +4,7 @@
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0000 │ 100M d8 self-play fens │           518.2 +/- 208.1           │ First unique network! Completely curshes HCE │
 │          │ 256 hidden nodes       │                                     │ SPRT took ~80 games just because it wouldn't │
-│  (CURR)  │ lr=1e-2    wdl=0.1     │                                     │ lose                                         │
+│ (MASTER) │ lr=1e-2    wdl=0.1     │                                     │ lose                                         │
 │          │ 80 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0001 │ 100M d8 self-play fens │     -9.2 (lost full output)         │ Testing 384-node hidden layers               │
@@ -27,12 +27,32 @@
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0005 │ 230M d8 self-play fens │                                     │                                              │
-│          │ 512 hidden nodes       │                                     │                                              │
+│ carp0005 │ 230M d8 self-play fens │           -13.53 +- 9.55            │ Not enough data for 512 nodes yeat           │
+│          │ 512 hidden nodes       │               vs 0004               │                                              │
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0006 │                        │                                     │                                              │
+│ carp0006 │ 460M d8 self-play fens │             8.80 +- 6.12            │ Added 230M fresh positions with same params  │
+│          │ 384 hidden nodes       │                                     │ as net0004                                   │
+│  (CURR)  │ lr=1e-3    wdl=0.3     │                                     │                                              │
+│          │ 65 epoch, drop at 30   │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0007 │ 460M d8 self-play fens │                                     │ Trying 512 nodes with the extra positions,   │
+│          │ 512 hidden nodes       │                                     │ probably still worse.                        │
+│          │ lr=1e-3    wdl=0.3     │                                     │                                              │
+│          │ 65 epoch, drop at 30   │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0008 │ 370M d8 self-play fens │                                     │ Trying to remove the first batch of ~90M     │
+│          │ 384 hidden nodes       │                                     │ since I am not able to deduplicate them.     │
+│          │ lr=1e-3    wdl=0.3     │                                     │                                              │
+│          │ 65 epoch, drop at 30   │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0009 │ 370M d8 self-play fens │                                     │                                              │
+│          │ 384 hidden nodes       │                                     │                                              │
+│          │ lr=1e-3    wdl=0.3     │                                     │                                              │
+│          │ 65 epoch, drop at 30   │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0010 │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
