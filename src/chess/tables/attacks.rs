@@ -1,11 +1,7 @@
 /// Slow attack generation to initialize tables
 use super::constants::BETWEEN;
 
-use crate::chess::{
-    bitboard::*,
-    piece::*,
-    square::*,
-};
+use crate::chess::{bitboard::*, piece::*, square::*};
 
 /// Generate bitboard for pawn attacks from square
 pub fn mask_pawn_attacks(src: Square, color: Color) -> BitBoard {

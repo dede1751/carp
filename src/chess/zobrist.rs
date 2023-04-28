@@ -6,13 +6,7 @@
 /// ZH(C(A)) == ZH(C(B))   <=>     ZH(B) is obtained from ZH(A) through some sequence of moves.
 ///
 /// Building ZH(A) and ZH(B) independently by summing material score WILL NOT produce the same hash
-use crate::chess::{
-    board::*,
-    castle::*,
-    piece::*,
-    square::*,
-    tables::*,
-};
+use crate::chess::{board::*, castle::*, piece::*, square::*, tables::*};
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct ZHash(pub u64);
@@ -78,7 +72,6 @@ impl ZHash {
 mod tests {
     use super::*;
     use crate::chess::moves::Move;
-    use crate::engine::position::Position;
 
     #[test]
     pub fn test_hash_init() {
@@ -161,17 +154,16 @@ mod tests {
     #[test]
     pub fn test_hash_null() {
         // testing null move
-        let mut pos: Position =
-            "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
-                .parse()
-                .unwrap();
-        let mut z1 = pos.board.hash;
+        let b: Board = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
+            .parse()
+            .unwrap();
+        let mut z1 = b.hash;
 
         z1.toggle_ep(Square::E6);
         z1.toggle_side();
-        pos.make_null();
+        b.make_null();
 
         // z1 is the same as we obtained through incremental hash updates in make move
-        assert_eq!(z1, pos.board.hash);
+        assert_eq!(z1, b.hash);
     }
 }

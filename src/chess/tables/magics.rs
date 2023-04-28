@@ -1,10 +1,7 @@
 /// Magic numbers and helper functions
 /// Process for finding them is documented in https://www.chessprogramming.org/Looking_for_Magics
 use super::attacks::*;
-use crate::chess::{
-    bitboard::*,
-    square::*,
-};
+use crate::chess::{bitboard::*, square::*};
 
 /// All attacks are stored in the same buffer, each square for bishop/rook gets its slice of this
 static mut ATTACKS: [BitBoard; 87988] = [EMPTY_BB; 87988];

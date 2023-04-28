@@ -1,18 +1,7 @@
 use std::{cmp::min, str::FromStr};
 
-use crate::chess::{
-    board::*,
-    bitboard::*,
-    move_list::*,
-    moves::*,
-    piece::*,
-    zobrist::*,
-};
-use crate::engine::{
-    move_sorter::*,
-    nnue::*,
-    search_params::*,
-};
+use crate::chess::{bitboard::*, board::*, move_list::*, moves::*, piece::*};
+use crate::engine::{move_sorter::*, nnue::*, search::*};
 
 /// Position, represents a Board's evolution along the search tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -20,11 +9,8 @@ use crate::engine::{
 pub struct Position {
     pub board: Board,
     pub age: u8,
-    pub ply: usize,
-    ply_from_null: usize,
-    history: Vec<(Board, Move, usize)>,
-    sorter: MoveSorter,
-    nnue_state: Box<NNUEState>,
+    pub history: Vec<Board>,
+    pub nnue_state: Box<NNUEState>,
 }
 
 /// Get position from uci position string
@@ -47,19 +33,16 @@ impl FromStr for Position {
             _ => return Err("Invalid position"),
         };
 
-        let mut ply_from_null = 0;
         let mut history = Vec::new();
-
         if let Some("moves") = tokens.next() {
             for move_str in tokens {
                 let new = board.find_move(move_str);
 
                 match new {
                     Some(m) => {
-                        history.push((board, m, ply_from_null));
+                        history.push(board);
 
                         board = board.make_move(m);
-                        ply_from_null += 1;
                     }
                     None => eprintln!("Move is not legal!"),
                 };
@@ -69,10 +52,7 @@ impl FromStr for Position {
         let res = Position {
             board,
             age: history.len() as u8 + 1,
-            ply: 0,
-            ply_from_null,
             history,
-            sorter: MoveSorter::default(),
             nnue_state: NNUEState::from_board(&board),
         };
 
@@ -88,9 +68,56 @@ impl Default for Position {
 }
 
 impl Position {
-    /// Returns the current board's hash
-    pub fn hash(&self) -> ZHash {
-        self.board.hash
+    /// Generate a sorted list of captures
+    pub fn generate_captures(&self, sorter: &MoveSorter) -> MoveList {
+        let mut move_list = self.board.gen_moves::<CAPTURES>();
+
+        sorter.score_captures(&self.board, &mut move_list);
+        move_list
+    }
+
+    /// Generate a sorted list of moves
+    pub fn generate_moves(&self, ply: usize, sorter: &MoveSorter) -> MoveList {
+        let mut move_list = self.board.gen_moves::<QUIETS>();
+
+        sorter.score_moves(&self.board, ply, &mut move_list);
+        move_list
+    }
+
+    /// Makes the given move within the game tree
+    pub fn make_move(&mut self, m: Move, info: &mut SearchInfo) {
+        let new = self.board.make_move_nnue(m, &mut self.nnue_state);
+        self.history.push(self.board);
+        self.board = new;
+
+        info.search_stack[info.ply] = (m, info.ply_from_null);
+        info.ply += 1;
+        info.ply_from_null += 1;
+        info.nodes += 1;
+    }
+
+    /// Passes turn to opponent (this resets the ply_from_null clock in the search info)
+    pub fn make_null(&mut self, info: &mut SearchInfo) {
+        let new = self.board.make_null();
+        self.nnue_state.push();
+        self.history.push(self.board);
+        self.board = new;
+
+        info.search_stack[info.ply] = (NULL_MOVE, info.ply_from_null);
+        info.ply += 1;
+        info.ply_from_null = 0;
+        info.nodes += 1;
+    }
+
+    /// Pops the current board, going back to previous history entry
+    /// Panics if the history vector is empty!
+    pub fn undo_move(&mut self, info: &mut SearchInfo) {
+        let old_board = self.history.pop().unwrap();
+        self.nnue_state.pop();
+        self.board = old_board;
+
+        info.ply -= 1;
+        info.ply_from_null = info.search_stack[info.ply].1;
     }
 
     /// Returns true if it's white to move
@@ -98,114 +125,27 @@ impl Position {
         self.board.side == Color::White
     }
 
-    /// Generate a sorted list of captures
-    pub fn generate_captures(&self) -> MoveList {
-        let mut move_list = self.board.gen_moves::<CAPTURES>();
-
-        self.sorter.score_captures(&self.board, &mut move_list);
-        move_list
-    }
-
-    /// Generate a sorted list of moves
-    pub fn generate_moves(&self) -> MoveList {
-        let mut move_list = self.board.gen_moves::<QUIETS>();
-
-        self.sorter.score_moves(self, &mut move_list);
-        move_list
-    }
-
-    /// Makes the given move
-    pub fn make_move(&mut self, m: Move) {
-        let new = self.board.make_move_nnue(m, &mut self.nnue_state);
-
-        self.sorter.followup_move = self.sorter.counter_move;
-        self.sorter.counter_move = Some(m);
-
-        self.history.push((self.board, m, self.ply_from_null));
-        self.board = new;
-        self.ply += 1;
-        self.ply_from_null += 1;
-    }
-
-    /// Passes turn to opponent (this resets the ply_from_null clock)
-    pub fn make_null(&mut self) {
-        let new = self.board.make_null();
-        self.nnue_state.push();
-
-        self.sorter.followup_move = None;
-        self.sorter.counter_move = None;
-
-        self.history
-            .push((self.board, NULL_MOVE, self.ply_from_null));
-        self.board = new;
-        self.ply += 1;
-        self.ply_from_null = 0;
-    }
-
-    /// Pops the current board, going back to previous history entry
-    /// Panics if the history vector is empty!
-    pub fn undo_move(&mut self) {
-        let (old_board, _, old_ply) = self.history.pop().unwrap();
-        self.nnue_state.pop();
-
-        self.board = old_board;
-        self.ply -= 1;
-        self.ply_from_null = old_ply;
-
-        let len = self.history.len();
-
-        self.sorter.counter_move = if self.ply_from_null > 0 {
-            self.history.get(len - 1).map(|t| t.1)
-        } else {
-            None
-        };
-
-        self.sorter.followup_move = if self.ply_from_null > 1 {
-            self.history.get(len - 2).map(|t| t.1)
-        } else {
-            None
-        };
-    }
-
-    /// Returns true if the tt move has been set
-    pub fn found_tt_move(&self) -> bool {
-        self.sorter.tt_move.is_some()
-    }
-
-    /// Sets the current tt move in the move sorter
-    pub fn set_tt_move(&mut self, m: Option<Move>) {
-        self.sorter.tt_move = m;
-    }
-
-    pub fn update_sorter(&mut self, m: Move, depth: usize, searched: Vec<Move>) {
-        self.sorter
-            .update(m, depth, self.ply, self.board.side as usize, searched);
-    }
-
     /// Checks whether the current side's king is in check
     pub fn king_in_check(&self) -> bool {
         self.board.checkers != EMPTY_BB
     }
 
-    /// Only king and pawns are on the board. Used to rule out null move pruning
+    /// Only king and pawns are on the board for the side to move. Possible Zugzwang.
     pub fn only_king_pawns_left(&self) -> bool {
-        self.board.big_piece_count == 0
-    }
-
-    /// Returns current position's eval
-    pub fn evaluate(&self) -> Eval {
-        self.nnue_state.evaluate(self.board.side)
+        (self.board.own_occupancy() ^ self.board.own_king() ^ self.board.own_pawns()) == EMPTY_BB
     }
 
     /// Checks if position is a rule-based draw
-    pub fn is_draw(&self) -> bool {
-        self.board.halfmoves >= 100 || self.is_repetition() || self.insufficient_material()
+    pub fn is_draw(&self, ply_from_null: usize) -> bool {
+        self.board.halfmoves >= 100
+            || self.is_repetition(ply_from_null)
+            || self.insufficient_material()
     }
 
     /// Check for repetitions in hash history.
     /// We stop at the first occurrence of the position and consider that a draw.
-    fn is_repetition(&self) -> bool {
-        let rollback = min(self.board.halfmoves, self.ply_from_null);
+    fn is_repetition(&self, ply_from_null: usize) -> bool {
+        let rollback = min(self.board.halfmoves, ply_from_null);
 
         self.history
             .iter()
@@ -213,7 +153,7 @@ impl Position {
             .take(rollback + 1) // only check elements in the rollback
             .skip(1) // first element is opponent, skip.
             .step_by(2) // don't check opponent moves
-            .any(|(b, _, _)| b.hash == self.board.hash) // stop at first repetition
+            .any(|b| b.hash == self.board.hash) // stop at first repetition
     }
 
     /// Draw by insufficient material (strictly for when it is impossible to mate):
@@ -241,7 +181,8 @@ impl Position {
                 (bishop_count == 2 && (
                     (bishops & WHITE_SQUARES).count_bits() != 1 || // same color bishops
                     (one_each && !king_in_corner))) ||  // one bishop each, king not in corner
-                (knight_count == bishop_count && one_each && !king_in_corner) // knvkb, king not in corner
+                (knight_count == 1 && bishop_count == 1 && one_each && !king_in_corner)
+                // knvkb, king not in corner
             }
             _ => false,
         }
@@ -266,16 +207,11 @@ impl Position {
     /// Accumulator is refreshed to avoid overflows
     pub fn push_move(&mut self, m: Move) {
         let new = self.board.make_move(m);
-
-        self.sorter = MoveSorter::default();
-        self.history.push((self.board, m, self.ply_from_null));
-
-        self.age += 1;
-        self.ply = 0;
-        self.ply_from_null += 1;
+        self.history.push(self.board);
+        self.board = new;
 
         self.nnue_state.refresh(&new);
-        self.board = new;
+        self.age += 1;
     }
 
     /// Checks if the game is over and returns the result
@@ -292,7 +228,7 @@ impl Position {
             } else {
                 GameResult::Draw(NO_ADJ)
             }
-        } else if self.is_draw() {
+        } else if self.is_draw(self.board.halfmoves) {
             GameResult::Draw(NO_ADJ)
         } else {
             GameResult::Ongoing

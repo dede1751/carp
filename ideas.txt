@@ -6,9 +6,10 @@
 - Improve search:
     * Better Aspiration loop
     * Better reopening scheme
-    * Fail Soft
 - Heuristics:
     * Improving
     * SEE pruning in normal search
     * Razoring?
+    * Staged Movegen
+    * Best move only for beating alpha?
 - Speedup Datagen!!!

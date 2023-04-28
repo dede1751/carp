@@ -1,12 +1,12 @@
+pub mod bitboard;
+pub mod board;
+pub mod castle;
+pub mod move_list;
+pub mod moves;
+pub mod piece;
+pub mod square;
 /// Chess module contains all structures to fully represent the game of chess
 pub mod tables;
-pub mod bitboard;
-pub mod square;
-pub mod piece;
-pub mod moves;
-pub mod move_list;
-pub mod castle;
-pub mod board;
 pub mod zobrist;
 
 pub use tables::init_all_tables;

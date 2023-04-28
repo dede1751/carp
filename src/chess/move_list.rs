@@ -1,8 +1,4 @@
-use crate::chess::{
-    moves::*,
-    piece::*,
-    square::*,
-};
+use crate::chess::{moves::*, piece::*, square::*};
 
 /// Taken from Pleco, adapted to 32b moves.
 /// Assuming we have 8 cache lines, which should be 512B, we use up enough to fill a single

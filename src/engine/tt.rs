@@ -3,19 +3,14 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::chess::{
-    moves::*,
-    zobrist::*,
-};
-use crate::engine::{
-    position::*,
-    search_params::*,
-};
+use crate::chess::{moves::*, zobrist::*};
+use crate::engine::{position::*, search_params::*};
 
 /// TTFlag: determines the type of value stored in the field
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum TTFlag {
+    None,
     Lower,
     Upper,
     Exact,
@@ -84,7 +79,7 @@ impl Default for TTField {
     fn default() -> Self {
         TTField {
             key: 0,
-            flag: TTFlag::Lower,
+            flag: TTFlag::None,
             best_move: NULL_MOVE,
             value: 0,
             depth: 0,
@@ -101,15 +96,16 @@ impl TTField {
         best_move: Move,
         mut value: Eval,
         depth: usize,
+        ply: usize,
     ) -> TTField {
-        if is_mate(value) {
-            value += position.ply as Eval;
-        } else if is_mate(-value) {
-            value -= position.ply as Eval;
+        if value >= MATE_IN_PLY {
+            value += ply as Eval;
+        } else if value <= -MATE_IN_PLY {
+            value -= ply as Eval;
         };
 
         TTField {
-            key: position.hash().0,
+            key: position.board.hash.0,
             best_move,
             depth: depth as u8,
             age: position.age,
@@ -138,9 +134,9 @@ impl TTField {
         let eval = self.value as Eval;
         let ply = ply as Eval;
 
-        if is_mate(eval - ply) {
+        if eval >= MATE_IN_PLY {
             eval - ply
-        } else if is_mate(-(eval + ply)) {
+        } else if eval <= -MATE_IN_PLY {
             eval + ply
         } else {
             eval

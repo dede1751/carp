@@ -10,13 +10,7 @@ use std::{
 };
 
 use super::*;
-use crate::engine::{
-    clock::*,
-    position::*,
-    search::*,
-    search_params::*,
-    tt::*,
-};
+use crate::engine::{clock::*, position::*, search_params::*, tt::*};
 
 static STOP_FLAG: AtomicBool = AtomicBool::new(false);
 static FENS: AtomicU64 = AtomicU64::new(0);
@@ -188,7 +182,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
         for _ in 0..12 {
             let move_list = position.board.gen_moves::<true>();
 
-            if move_list.is_empty() || position.is_draw() {
+            if move_list.is_empty() || position.is_draw(position.board.halfmoves) {
                 continue 'main;
             }
 
@@ -198,13 +192,12 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
 
         // Avoid positions that are too unbalanced
         let clock = Clock::new(
-            TimeControl::FixedDepth(8),
+            TimeControl::FixedDepth(10),
             Arc::new(AtomicBool::new(false)),
             true,
         );
-        let (_, eval, _) =
-            Search::new(position.clone(), clock, &TT::new(16)).iterative_search::<NO_INFO>();
-        if eval.abs() >= 1000 {
+        let exit_eval = position.iterative_search::<false>(clock, &TT::new(16)).eval;
+        if exit_eval.abs() >= 1000 {
             continue 'main;
         }
 
@@ -224,14 +217,15 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
                 Arc::new(AtomicBool::new(false)),
                 position.white_to_move(),
             );
-            let (m, mut eval, _) =
-                Search::new(position.clone(), clock, &tt).iterative_search::<NO_INFO>();
+
+            let search_result = position.iterative_search::<false>(clock, &tt);
+            let (mut eval, best_move) = (search_result.eval, search_result.best_move);
 
             // filter noisy positions
             if !position.king_in_check()
-                && !is_mate(eval.abs())
-                && !m.is_capture()
-                && !m.is_promotion()
+                && eval.abs() < MATE_IN_PLY
+                && !best_move.is_capture()
+                && !best_move.is_promotion()
             {
                 // Always report scores from white's perspective
                 eval = if position.white_to_move() {
@@ -270,7 +264,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
                 break GameResult::Draw(ADJ);
             }
 
-            position.push_move(m);
+            position.push_move(best_move);
         };
 
         // Always report wins from white's perspective

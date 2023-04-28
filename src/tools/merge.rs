@@ -58,7 +58,10 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
     let start_time = std::time::Instant::now();
     let dir = fs::read_dir(&input_dir)?;
 
-    println!("\nMerged data is being saved to {WHITE}{}{DEFAULT}", output.display());
+    println!(
+        "\nMerged data is being saved to {WHITE}{}{DEFAULT}",
+        output.display()
+    );
 
     // read all txt files in the data dir into memory
     for path in dir {

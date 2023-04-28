@@ -8,12 +8,7 @@ use std::{
 };
 
 use crate::chess::moves::*;
-use crate::engine::{
-    clock::*,
-    position::*,
-    search::*,
-    tt::*,
-};
+use crate::engine::{clock::*, position::*, tt::*};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -179,10 +174,26 @@ impl UCIEngine {
                     self.position.board.perft(d);
                 }
 
-                UCICommand::Position(position) => self.position = *position,
+                UCICommand::Position(position) => {
+                    self.position = *position;
+                }
 
                 UCICommand::Go(tc) => {
-                    let best_move = self.parse_go(tc);
+                    self.stop.store(false, Ordering::Relaxed);
+
+                    let move_list = self.position.board.gen_moves::<true>();
+                    let move_count = move_list.len();
+
+                    let best_move = if move_count == 0 {
+                        NULL_MOVE
+                    } else if move_count == 1 {
+                        move_list.moves[0]
+                    } else {
+                        let main_clock =
+                            Clock::new(tc, self.stop.clone(), self.position.white_to_move());
+                        self.position
+                            .smp_search(self.worker_count, main_clock, &self.tt)
+                    };
 
                     println!("\nbestmove {best_move}");
                 }
@@ -190,70 +201,5 @@ impl UCIEngine {
                 _ => eprintln!("Unexpected UCI command!"),
             }
         }
-    }
-
-    /// Deploys multithreaded search.
-    /// Among the results, we pick the one which occurs the most at the highest depth
-    fn parse_go(&self, tc: TimeControl) -> Move {
-        self.stop.store(false, Ordering::Relaxed);
-
-        let move_list = self.position.board.gen_moves::<true>();
-        let move_count = move_list.len();
-
-        if move_count == 0 {
-            return NULL_MOVE;
-        } else if move_count == 1 {
-            return move_list.moves[0];
-        }
-
-        thread::scope(|scope| {
-            let mut worker_handles = Vec::with_capacity(self.worker_count);
-            let mut results = Vec::with_capacity(self.worker_count + 1);
-
-            // Start making main search with master clock
-            let mut main_search = Search::new(
-                self.position.clone(),
-                Clock::new(tc, self.stop.clone(), self.position.white_to_move()),
-                &self.tt,
-            );
-
-            // Deploy all worker search threads.
-            for _ in 1..self.worker_count {
-                let worker_pos = self.position.clone();
-                let worker_tc = Clock::new(TimeControl::Infinite, self.stop.clone(), true);
-
-                let mut worker_search = Search::new(worker_pos, worker_tc, &self.tt);
-
-                worker_handles
-                    .push(scope.spawn(move || worker_search.iterative_search::<NO_INFO>()));
-            }
-
-            // Deploy main search in this thread
-            results.push(main_search.iterative_search::<INFO>());
-
-            for handle in worker_handles {
-                match handle.join() {
-                    Ok(result) => results.push(result),
-                    Err(e) => eprintln!("{e:?}"),
-                }
-            }
-
-            let highest_depth = results.iter().max_by_key(|(_, d, _)| d).unwrap().1;
-
-            results
-                .into_iter()
-                .filter_map(|(m, d, _)| if d == highest_depth { Some(m) } else { None })
-                .fold(
-                    std::collections::HashMap::<Move, u8>::new(),
-                    |mut map, x| {
-                        *map.entry(x).or_default() += 1;
-                        map
-                    },
-                )
-                .into_iter()
-                .max_by_key(|(_, value)| *value)
-                .unwrap()
-                .0 // always at least one search, impossible panic
-        })
     }
 }

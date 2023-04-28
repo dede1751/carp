@@ -3,14 +3,7 @@ use std::time::Instant;
 use std::{fmt, str::FromStr};
 
 use crate::chess::{
-    bitboard::*,
-    castle::*,
-    move_list::*,
-    moves::*,
-    piece::*,
-    square::*,
-    tables::*,
-    zobrist::*,
+    bitboard::*, castle::*, move_list::*, moves::*, piece::*, square::*, tables::*, zobrist::*,
 };
 
 use crate::engine::nnue::*;
@@ -29,7 +22,6 @@ pub struct Board {
     pub hash: ZHash,
 
     // Various information used for evaluation and move generation
-    pub big_piece_count: u32,
     diag_pins: BitBoard,
     hv_pins: BitBoard,
     pinned: BitBoard,
@@ -289,7 +281,6 @@ impl Board {
             halfmoves: 0,
             hash: NULL_HASH,
 
-            big_piece_count: 0,
             diag_pins: EMPTY_BB,
             hv_pins: EMPTY_BB,
             pinned: EMPTY_BB,
@@ -302,7 +293,6 @@ impl Board {
 
     /// Set/remove piece while managing occupancy boards (remove first, set later)
     fn modify_piece<const SET: bool>(&mut self, piece: Piece, square: Square) {
-        const BIG_PIECE_DELTA: [u32; 12] = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0];
         let p = piece as usize;
         let c = piece.color() as usize;
 
@@ -310,12 +300,10 @@ impl Board {
             self.pieces[p] = self.pieces[p].set_bit(square);
             self.occupancy = self.occupancy.set_bit(square);
             self.side_occupancy[c] = self.side_occupancy[c].set_bit(square);
-            self.big_piece_count += BIG_PIECE_DELTA[p];
         } else {
             self.pieces[p] = self.pieces[piece as usize].pop_bit(square);
             self.occupancy = self.occupancy.pop_bit(square);
             self.side_occupancy[c] = self.side_occupancy[c].pop_bit(square);
-            self.big_piece_count -= BIG_PIECE_DELTA[p];
         }
         self.hash.toggle_piece(piece, square);
     }
@@ -330,7 +318,6 @@ impl Board {
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
         new.hash = self.hash;
-        new.big_piece_count = self.big_piece_count;
 
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = m.get_piece();
@@ -399,7 +386,6 @@ impl Board {
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
         new.hash = self.hash;
-        new.big_piece_count = self.big_piece_count;
 
         // add new accumulator
         nnue_state.push();
@@ -479,7 +465,6 @@ impl Board {
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
         new.hash = self.hash;
-        new.big_piece_count = self.big_piece_count;
 
         new.side = !self.side;
         new.hash.toggle_side();

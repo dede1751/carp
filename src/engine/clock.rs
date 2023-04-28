@@ -123,6 +123,17 @@ impl Clock {
         }
     }
 
+    /// Returns a child clock with the same stop flag,to be given to parallel threads
+    pub fn get_child_clock(&self) -> Clock {
+        Clock {
+            stop: self.stop.clone(),
+            time_control: TimeControl::Infinite,
+            start_time: Instant::now(),
+            end_time: Duration::ZERO,
+            check_count: 0,
+        }
+    }
+
     /// Returns time elapsed from clock start
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()

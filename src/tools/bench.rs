@@ -4,12 +4,7 @@ use std::sync::{atomic::AtomicBool, Arc};
 use std::time::Instant;
 
 use crate::chess::piece::*;
-use crate::engine::{
-    clock::*,
-    position::*,
-    search::*,
-    tt::*,
-};
+use crate::engine::{clock::*, position::*, tt::*};
 
 const TEST_POSITIONS: [&str; 50] = [
     "fen r3k2r/2pb1ppp/2pp1q2/p7/1nP1B3/1P2P3/P2N1PPP/R2QK2R w KQkq a6 0 14",
@@ -70,7 +65,7 @@ pub fn run_benchmark() {
     let mut time = 0;
 
     for fen in TEST_POSITIONS {
-        let position: Position = fen.parse().unwrap();
+        let mut position: Position = fen.parse().unwrap();
         let tt = TT::default();
         let clock = Clock::new(
             TimeControl::FixedDepth(13),
@@ -78,11 +73,10 @@ pub fn run_benchmark() {
             position.board.side == Color::White,
         );
 
-        let mut search: Search = Search::new(position, clock, &tt);
         let start = Instant::now();
-        search.iterative_search::<NO_INFO>();
+        let res = position.iterative_search::<false>(clock, &tt);
 
-        nodes += search.nodes;
+        nodes += res.nodes;
         time += start.elapsed().as_micros() as u64;
     }
 

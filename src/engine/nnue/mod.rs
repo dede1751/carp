@@ -8,12 +8,8 @@
 use std::alloc;
 use std::mem;
 
-use crate::chess::{
-    board::*,
-    piece::*,
-    square::*,
-};
 use super::search_params::*;
+use crate::chess::{board::*, piece::*, square::*};
 
 // network arch
 const FEATURES: usize = 768;

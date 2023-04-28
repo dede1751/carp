@@ -1,16 +1,7 @@
 use std::cmp::min;
 
-use crate::chess::{
-    board::*,
-    piece::*,
-    square::*,
-    move_list::*,
-    moves::*,
-};
-use crate::engine::{
-    position::*,
-    search_params::*,
-};
+use crate::chess::{board::*, move_list::*, moves::*, piece::*, square::*};
+use crate::engine::search_params::*;
 
 type CMHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
 type FUHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
@@ -117,7 +108,17 @@ impl MoveSorter {
     }
 
     /// Update killer and history values for sorting quiet moves after a beta cutoff
-    pub fn update(&mut self, m: Move, depth: usize, ply: usize, side: usize, searched: Vec<Move>) {
+    #[allow(clippy::too_many_arguments)]
+    pub fn update(
+        &mut self,
+        m: Move,
+        counter: Option<Move>,
+        followup: Option<Move>,
+        ply: usize,
+        depth: usize,
+        side: Color,
+        searched: Vec<Move>,
+    ) {
         let first_killer = self.killer_moves[ply][0];
 
         if first_killer != m {
@@ -133,15 +134,15 @@ impl MoveSorter {
         // history bonus is Stockfish's "gravity"
         let bonus = min(depth * depth, 400) as i32;
 
-        self.update_history(m, bonus, side, &searched);
+        self.update_history(m, bonus, side as usize, &searched);
 
         // countermove and followup history
         const CMH: bool = true;
         const FUH: bool = false;
-        if let Some(counter_move) = self.counter_move {
+        if let Some(counter_move) = counter {
             self.update_double::<CMH>(m, counter_move, bonus, &searched);
 
-            if let Some(followup_move) = self.followup_move {
+            if let Some(followup_move) = followup {
                 self.update_double::<FUH>(m, followup_move, bonus, &searched);
             }
         }
@@ -183,7 +184,7 @@ const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
 /// Move Scoring
 impl MoveSorter {
     /// Score individual captures.
-    fn score_capture(&self, board: &Board, m: Move) -> i32 {
+    fn score_capture(&self, m: Move, board: &Board) -> i32 {
         if m.is_enpassant() {
             EP_SCORE
         } else {
@@ -205,7 +206,7 @@ impl MoveSorter {
             move_list.scores[i] = if m.is_promotion() {
                 PROMOTION_SCORES[m.get_promotion() as usize]
             } else {
-                self.score_capture(board, m)
+                self.score_capture(m, board)
             };
         }
     }
@@ -237,24 +238,24 @@ impl MoveSorter {
     }
 
     /// Score any type of move
-    fn score_move(&self, pos: &Position, m: Move) -> i32 {
+    fn score_move(&self, m: Move, board: &Board, ply: usize) -> i32 {
         if m.is_promotion() {
             PROMOTION_SCORES[m.get_promotion() as usize]
         } else if m.is_capture() {
-            self.score_capture(&pos.board, m)
+            self.score_capture(m, board)
         } else if m.is_castle() {
             CASTLE_SCORE
-        } else if m == self.killer_moves[pos.ply][0] {
+        } else if m == self.killer_moves[ply][0] {
             FIRST_KILLER
-        } else if m == self.killer_moves[pos.ply][1] {
+        } else if m == self.killer_moves[ply][1] {
             SECOND_KILLER
         } else {
-            self.score_history(m, pos.board.side as usize)
+            self.score_history(m, board.side as usize)
         }
     }
 
     /// Sort all moves in the movelist
-    pub fn score_moves(&self, pos: &Position, move_list: &mut MoveList) {
+    pub fn score_moves(&self, board: &Board, ply: usize, move_list: &mut MoveList) {
         match self.tt_move {
             Some(tt_move) => {
                 for i in 0..move_list.len() {
@@ -263,14 +264,14 @@ impl MoveSorter {
                     move_list.scores[i] = if m == tt_move {
                         TT_SCORE
                     } else {
-                        self.score_move(pos, m)
+                        self.score_move(m, board, ply)
                     }
                 }
             }
 
             None => {
                 for i in 0..move_list.len() {
-                    move_list.scores[i] = self.score_move(pos, move_list.moves[i]);
+                    move_list.scores[i] = self.score_move(move_list.moves[i], board, ply);
                 }
             }
         };
