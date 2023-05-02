@@ -108,17 +108,7 @@ impl MoveSorter {
     }
 
     /// Update killer and history values for sorting quiet moves after a beta cutoff
-    #[allow(clippy::too_many_arguments)]
-    pub fn update(
-        &mut self,
-        m: Move,
-        counter: Option<Move>,
-        followup: Option<Move>,
-        ply: usize,
-        depth: usize,
-        side: Color,
-        searched: Vec<Move>,
-    ) {
+    pub fn update(&mut self, m: Move, ply: usize, depth: usize, side: Color, searched: Vec<Move>) {
         let first_killer = self.killer_moves[ply][0];
 
         if first_killer != m {
@@ -139,10 +129,10 @@ impl MoveSorter {
         // countermove and followup history
         const CMH: bool = true;
         const FUH: bool = false;
-        if let Some(counter_move) = counter {
+        if let Some(counter_move) = self.counter_move {
             self.update_double::<CMH>(m, counter_move, bonus, &searched);
 
-            if let Some(followup_move) = followup {
+            if let Some(followup_move) = self.followup_move {
                 self.update_double::<FUH>(m, followup_move, bonus, &searched);
             }
         }

@@ -10,7 +10,6 @@ use crate::engine::{position::*, search_params::*};
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum TTFlag {
-    None,
     Lower,
     Upper,
     Exact,
@@ -79,7 +78,7 @@ impl Default for TTField {
     fn default() -> Self {
         TTField {
             key: 0,
-            flag: TTFlag::None,
+            flag: TTFlag::Upper,
             best_move: NULL_MOVE,
             value: 0,
             depth: 0,
@@ -98,9 +97,9 @@ impl TTField {
         depth: usize,
         ply: usize,
     ) -> TTField {
-        if value >= MATE_IN_PLY {
+        if is_mate(value) {
             value += ply as Eval;
-        } else if value <= -MATE_IN_PLY {
+        } else if is_mate(-value) {
             value -= ply as Eval;
         };
 
@@ -134,9 +133,9 @@ impl TTField {
         let eval = self.value as Eval;
         let ply = ply as Eval;
 
-        if eval >= MATE_IN_PLY {
+        if is_mate(eval - ply) {
             eval - ply
-        } else if eval <= -MATE_IN_PLY {
+        } else if is_mate(-(eval + ply)) {
             eval + ply
         } else {
             eval

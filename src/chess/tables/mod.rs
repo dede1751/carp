@@ -124,7 +124,7 @@ pub fn queen_attacks(square: Square, blockers: BitBoard) -> BitBoard {
 /// Gets the lmr reduction given depth and move count
 pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
     let d = min(depth, 63);
-    let m = min(move_count.max(1), 63);
+    let m = min(move_count, 63);
     unsafe { *LMR_TABLE.reductions.get_unchecked(d).get_unchecked(m) }
 }
 

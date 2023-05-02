@@ -142,7 +142,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
 
     'main: for games_played in 0..games {
         // Main thread logging
-        if id == 0 && games_played != 0 && games_played % 6 == 0 {
+        if id == 0 && games_played != 0 && games_played % 64 == 0 {
             let fens = FENS.load(Ordering::Relaxed);
             let elapsed = timer.elapsed().as_secs_f64();
             let fens_per_sec = fens as f64 / elapsed;
@@ -223,7 +223,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
 
             // filter noisy positions
             if !position.king_in_check()
-                && eval.abs() < MATE_IN_PLY
+                && !is_mate(eval.abs())
                 && !best_move.is_capture()
                 && !best_move.is_promotion()
             {

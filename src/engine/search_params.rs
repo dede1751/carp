@@ -2,15 +2,18 @@
 /// Used to simplify engine testing and future tuning.
 
 pub type Eval = i16;
+pub const MAX: Eval = 30000; // score upper bound
 pub const MAX_DEPTH: usize = 128; // max depth to search at
-pub const INFINITY: Eval = 30001; // score upper bound
-pub const MATE: Eval = 30000; // mate in 0 moves
-pub const MATE_IN_PLY: Eval = MATE - MAX_DEPTH as i16; // mate in x moves
+
+/// Returns true if the opponent is checkmated
+pub fn is_mate(eval: Eval) -> bool {
+    ((MAX - MAX_DEPTH as i16)..MAX).contains(&eval)
+}
 
 pub const HISTORY_LOWER_LIMIT: usize = 3; // minimum depth at which history updates happen
 
 pub const LMR_THRESHOLD: usize = 2; // moves to execute before any reduction
-pub const LMR_LOWER_LIMIT: usize = 3; // stop applying lmr near leaves
+pub const LMR_LOWER_LIMIT: usize = 2; // stop applying lmr near leaves
 pub const LMR_BASE: f32 = 0.75; // increase to reduce every move more
 pub const LMR_FACTOR: f32 = 2.0; // increase to reduce less further in the movelist
 

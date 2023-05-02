@@ -7,7 +7,6 @@ use std::{
     thread,
 };
 
-use crate::chess::moves::*;
 use crate::engine::{clock::*, position::*, tt::*};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -180,20 +179,11 @@ impl UCIEngine {
 
                 UCICommand::Go(tc) => {
                     self.stop.store(false, Ordering::Relaxed);
-
-                    let move_list = self.position.board.gen_moves::<true>();
-                    let move_count = move_list.len();
-
-                    let best_move = if move_count == 0 {
-                        NULL_MOVE
-                    } else if move_count == 1 {
-                        move_list.moves[0]
-                    } else {
-                        let main_clock =
-                            Clock::new(tc, self.stop.clone(), self.position.white_to_move());
+                    let main_clock =
+                        Clock::new(tc, self.stop.clone(), self.position.white_to_move());
+                    let best_move =
                         self.position
-                            .smp_search(self.worker_count, main_clock, &self.tt)
-                    };
+                            .smp_search(self.worker_count, main_clock, &self.tt);
 
                     println!("\nbestmove {best_move}");
                 }

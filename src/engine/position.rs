@@ -41,7 +41,6 @@ impl FromStr for Position {
                 match new {
                     Some(m) => {
                         history.push(board);
-
                         board = board.make_move(m);
                     }
                     None => eprintln!("Move is not legal!"),
@@ -90,10 +89,7 @@ impl Position {
         self.history.push(self.board);
         self.board = new;
 
-        info.search_stack[info.ply] = (m, info.ply_from_null);
-        info.ply += 1;
-        info.ply_from_null += 1;
-        info.nodes += 1;
+        info.push_move(m);
     }
 
     /// Passes turn to opponent (this resets the ply_from_null clock in the search info)
@@ -103,10 +99,7 @@ impl Position {
         self.history.push(self.board);
         self.board = new;
 
-        info.search_stack[info.ply] = (NULL_MOVE, info.ply_from_null);
-        info.ply += 1;
-        info.ply_from_null = 0;
-        info.nodes += 1;
+        info.push_null();
     }
 
     /// Pops the current board, going back to previous history entry
@@ -116,8 +109,7 @@ impl Position {
         self.nnue_state.pop();
         self.board = old_board;
 
-        info.ply -= 1;
-        info.ply_from_null = info.search_stack[info.ply].1;
+        info.pop_move();
     }
 
     /// Returns true if it's white to move
