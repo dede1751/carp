@@ -37,22 +37,17 @@
 │  (CURR)  │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0007 │ 460M d8 self-play fens │                                     │ Trying 512 nodes with the extra positions,   │
-│          │ 512 hidden nodes       │                                     │ probably still worse.                        │
-│          │ lr=1e-3    wdl=0.3     │                                     │                                              │
-│          │ 65 epoch, drop at 30   │                                     │                                              │
-├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0008 │ 370M d8 self-play fens │                                     │ Trying to remove the first batch of ~90M     │
+│ carp0007 │ 370M d8 self-play fens │           -12.99 +- 9.08            │ Trying to remove the first batch of ~90M     │
 │          │ 384 hidden nodes       │                                     │ since I am not able to deduplicate them.     │
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0009 │ 370M d8 self-play fens │                                     │                                              │
+│ carp0008 │ 460M d8 self-play fens │                                     │                                              │
 │          │ 384 hidden nodes       │                                     │                                              │
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0010 │                        │                                     │                                              │
+│ carp0009 │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │

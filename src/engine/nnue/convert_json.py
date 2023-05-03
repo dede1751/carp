@@ -50,13 +50,13 @@ with open(json_file, 'r') as file:
 for key, value in data.items():
     if key == "ft.weight":
         weights = convert_weight(value, HIDDEN, HIDDEN * FEATURES, QA, True)
-        write_bytes(weights, "../src/nnue/net/feature_weights.bin")
+        write_bytes(weights, "net/feature_weights.bin")
     elif key == "ft.bias":
         biases = convert_bias(value, QA)
-        write_bytes(biases, "../src/nnue/net/feature_bias.bin")
+        write_bytes(biases, "net/feature_bias.bin")
     elif key == "out.weight":
         weights = convert_weight(value, HIDDEN * 2, HIDDEN * 2, QB, False)
-        write_bytes(weights, "../src/nnue/net/output_weights.bin")
+        write_bytes(weights, "net/output_weights.bin")
     elif key == "out.bias":
         biases = convert_bias(value, QAB)    
-        write_bytes(biases, "../src/nnue/net/output_bias.bin")
+        write_bytes(biases, "net/output_bias.bin")

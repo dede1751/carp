@@ -1,6 +1,5 @@
 /// Module to encapsulate various cli utilities for engine development
 /// Will get expanded as more functionality is introduced
-mod bench;
 mod datagen;
 mod merge;
 
@@ -24,10 +23,6 @@ struct Cli {
     /// Merge and dedup all datagen files in the given directory
     #[clap(short, long, value_parser, value_name = "PATH")]
     pub merge: Option<std::path::PathBuf>,
-
-    /// Run node benchmark for OpenBench
-    #[clap(subcommand)]
-    pub bench: Option<Bench>,
 }
 
 #[derive(Parser, Debug)]
@@ -38,11 +33,6 @@ enum Bench {
 
 pub fn parse_cli() {
     let args = Cli::parse();
-
-    if args.bench.is_some() {
-        bench::run_benchmark();
-        std::process::exit(0);
-    }
 
     if let Some(option_string) = args.datagen {
         match option_string.parse() {
