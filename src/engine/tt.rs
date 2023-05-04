@@ -6,7 +6,7 @@ use std::{
 use crate::chess::{moves::*, zobrist::*};
 use crate::engine::{position::*, search_params::*};
 
-/// TTFlag: determines the type of value stored in the field
+/// TTFlag: determines the type of eval stored in the field
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum TTFlag {
@@ -25,7 +25,7 @@ pub struct TTField {
     key: u64,        // 8B
     flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually of note
     best_move: Move, // 4B -- only the rightmost 28 bits are actually of note
-    value: u16,      // 2B
+    eval: u16,       // 2B
     depth: u8,       // 1B
     age: u8,         // 1B
 }
@@ -45,7 +45,7 @@ impl From<TTField> for (u64, u64) {
     fn from(field: TTField) -> Self {
         let data: u64 = field.age as u64
             | (field.depth as u64) << DEPTH_OFFSET
-            | (field.value as u64) << EVAL_OFFSET
+            | (field.eval as u64) << EVAL_OFFSET
             | (field.best_move.0 as u64) << MOVE_OFFSET
             | (field.flag as u64) << FLAG_OFFSET;
 
@@ -58,7 +58,7 @@ impl From<(u64, u64)> for TTField {
     fn from((key, data): (u64, u64)) -> Self {
         let age = (data & AGE_MASK) as u8;
         let depth = ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8;
-        let value = ((data & EVAL_MASK) >> EVAL_OFFSET) as u16;
+        let eval = ((data & EVAL_MASK) >> EVAL_OFFSET) as u16;
         let best_move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u32);
         let flag = unsafe { transmute((data >> FLAG_OFFSET) as u8) };
 
@@ -66,7 +66,7 @@ impl From<(u64, u64)> for TTField {
             key,
             flag,
             best_move,
-            value,
+            eval,
             depth,
             age,
         }
@@ -80,7 +80,7 @@ impl Default for TTField {
             key: 0,
             flag: TTFlag::Upper,
             best_move: NULL_MOVE,
-            value: 0,
+            eval: 0,
             depth: 0,
             age: 0,
         }
@@ -93,14 +93,14 @@ impl TTField {
         position: &Position,
         flag: TTFlag,
         best_move: Move,
-        mut value: Eval,
+        mut eval: Eval,
         depth: usize,
         ply: usize,
     ) -> TTField {
-        if is_mate(value) {
-            value += ply as Eval;
-        } else if is_mate(-value) {
-            value -= ply as Eval;
+        if eval >= MATE_IN_PLY {
+            eval += ply as Eval;
+        } else if eval <= -MATE_IN_PLY {
+            eval -= ply as Eval;
         };
 
         TTField {
@@ -108,7 +108,7 @@ impl TTField {
             best_move,
             depth: depth as u8,
             age: position.age,
-            value: value as u16,
+            eval: eval as u16,
             flag,
         }
     }
@@ -128,14 +128,14 @@ impl TTField {
         self.best_move
     }
 
-    /// Gets value while normalizing mate scores
-    pub fn get_value(&self, ply: usize) -> Eval {
-        let eval = self.value as Eval;
+    /// Gets eval while normalizing mate scores
+    pub fn get_eval(&self, ply: usize) -> Eval {
+        let eval = self.eval as Eval;
         let ply = ply as Eval;
 
-        if is_mate(eval - ply) {
+        if eval >= MATE_IN_PLY {
             eval - ply
-        } else if is_mate(-(eval + ply)) {
+        } else if eval <= -MATE_IN_PLY {
             eval + ply
         } else {
             eval
@@ -143,10 +143,10 @@ impl TTField {
     }
 
     /// Update field contents for search
-    pub fn update_data(&mut self, flag: TTFlag, best_move: Move, value: Eval) {
+    pub fn update_data(&mut self, flag: TTFlag, best_move: Move, eval: Eval) {
         self.flag = flag;
         self.best_move = best_move;
-        self.value = value as u16;
+        self.eval = eval as u16;
     }
 }
 
@@ -275,7 +275,7 @@ mod tests {
             key: tt.bitmask,
             flag: TTFlag::Exact,
             best_move: Move(25625038),
-            value: 100,
+            eval: 100,
             depth: 1,
             age: 0,
         };
@@ -284,7 +284,7 @@ mod tests {
             key: tt.bitmask,
             flag: TTFlag::Exact,
             best_move: Move(25625038),
-            value: 100,
+            eval: 100,
             depth: 2,
             age: 0,
         };
@@ -308,7 +308,7 @@ mod tests {
             key: 65537,
             flag: TTFlag::Exact,
             best_move: NULL_MOVE,
-            value: 100,
+            eval: 100,
             depth: 1,
             age: 0,
         };
@@ -317,7 +317,7 @@ mod tests {
             key: 1,
             flag: TTFlag::Exact,
             best_move: NULL_MOVE,
-            value: 100,
+            eval: 100,
             depth: 2,
             age: 0,
         };

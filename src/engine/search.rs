@@ -109,23 +109,23 @@ impl Position {
 
         let mut result = SearchResult {
             best_move: NULL_MOVE,
-            eval: -MAX,
+            eval: -INFINITY,
             depth: 0,
             nodes: 0,
         };
 
         let mut depth = 1;
-        let mut alpha = -MAX;
-        let mut beta = MAX;
+        let mut alpha = -INFINITY;
+        let mut beta = INFINITY;
         let mut eval;
 
         while !info.stop && info.clock.start_check(depth, info.nodes) && depth < MAX_DEPTH {
             eval = self.negamax(&mut info, alpha, beta, depth);
 
             if eval <= alpha {
-                alpha = -MAX;
+                alpha = -INFINITY;
             } else if eval >= beta {
-                beta = MAX;
+                beta = INFINITY;
             } else {
                 if depth >= ASPIRATION_THRESHOLD {
                     alpha = eval - ASPIRATION_WINDOW;
@@ -177,8 +177,8 @@ impl Position {
 
         // Mate distance pruning (it's a bit faster to do this before draw detection)
         if !root_node {
-            alpha = alpha.max(-MAX + info.ply as Eval);
-            beta = beta.min(MAX - info.ply as Eval - 1);
+            alpha = alpha.max(-MATE + info.ply as Eval);
+            beta = beta.min(MATE - info.ply as Eval - 1);
             if alpha >= beta {
                 return alpha;
             }
@@ -196,10 +196,10 @@ impl Position {
 
                 if pv_node {
                     if !root_node && depth == 1 && entry.get_flag() == TTFlag::Exact {
-                        return entry.get_value(info.ply);
+                        return entry.get_eval(info.ply);
                     }
                 } else if entry.get_depth() >= depth {
-                    let tt_eval = entry.get_value(info.ply);
+                    let tt_eval = entry.get_eval(info.ply);
 
                     match entry.get_flag() {
                         TTFlag::Exact => return tt_eval,
@@ -230,7 +230,7 @@ impl Position {
             if depth <= RFP_THRESHOLD {
                 stand_pat = self.nnue_state.evaluate(self.board.side); // this remains valid for efp
 
-                if !is_mate(beta.abs()) && stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
+                if stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
                     return beta;
                 }
             }
@@ -245,7 +245,7 @@ impl Position {
                 self.undo_move(info);
 
                 // cutoff above beta and not for mate scores!
-                if eval >= beta && !is_mate(eval.abs()) {
+                if eval >= beta {
                     return beta;
                 }
             }
@@ -262,7 +262,7 @@ impl Position {
         // Mate or stalemate. Don't save in the TT, simply return early
         if move_list.is_empty() {
             if in_check {
-                return -MAX + info.ply as Eval;
+                return -MATE + info.ply as Eval;
             } else {
                 return 0;
             }
@@ -280,7 +280,7 @@ impl Position {
             let is_quiet = !m.is_capture() && !m.is_promotion();
 
             // Quiet move pruning
-            if !pv_node && !in_check && is_quiet && !is_check && !is_mate(alpha.abs()) {
+            if !pv_node && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
                 let mut prune = false;
 
                 // History leaf pruning
@@ -498,8 +498,8 @@ impl<'a> SearchInfo<'a> {
 
     /// Print UCI score info
     fn print(&self, board: Board, eval: Eval, depth: usize) {
-        let score = if is_mate(eval.abs()) {
-            let moves_to_mate = (MAX - eval.abs() + 1) / 2;
+        let score = if eval.abs() >= MATE_IN_PLY {
+            let moves_to_mate = (MATE - eval.abs() + 1) / 2;
             if eval > 0 {
                 format!("mate {} ", moves_to_mate)
             } else {
