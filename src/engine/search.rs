@@ -190,34 +190,31 @@ impl Position {
         }
 
         // Probe tt for eval and best move (for pv, only cutoff at leaves)
-        match info.tt.probe(self.board.hash) {
+        let tt_move = match info.tt.probe(self.board.hash) {
             Some(entry) => {
                 let tt_move = entry.get_move();
 
-                if pv_node {
-                    if !root_node && depth == 1 && entry.get_flag() == TTFlag::Exact {
-                        return entry.get_eval(info.ply);
-                    }
-                } else if entry.get_depth() >= depth {
+                if entry.get_depth() >= depth {
                     let tt_eval = entry.get_eval(info.ply);
+                    let tt_flag = entry.get_flag();
 
-                    match entry.get_flag() {
-                        TTFlag::Exact => return tt_eval,
-                        TTFlag::Upper => beta = beta.min(tt_eval),
-                        TTFlag::Lower => alpha = alpha.max(tt_eval),
-                    }
-
-                    // Upper/Lower flags can cause indirect cutoffs!
-                    if alpha >= beta {
+                    if !root_node && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
                         return tt_eval;
+                    } else if !pv_node {
+                        match tt_flag {
+                            TTFlag::Exact => return tt_eval,
+                            TTFlag::Lower if tt_eval >= beta => return beta,
+                            TTFlag::Upper if tt_eval <= alpha => return alpha,
+                            _ => (),
+                        }
                     }
                 }
-                info.sorter.tt_move = Some(tt_move);
+
+                Some(tt_move)
             }
 
-            None => info.sorter.tt_move = None,
+            None => None,
         };
-        let tt_hit = info.sorter.tt_move.is_some();
 
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
@@ -254,10 +251,11 @@ impl Position {
 
         // Internal Iterative Reduction
         // When no TT Move is found in any node, apply a 1-ply reduction
-        if !root_node && !tt_hit && depth >= IIR_LOWER_LIMIT {
+        if !root_node && tt_move.is_none() && depth >= IIR_LOWER_LIMIT {
             depth -= 1;
         }
 
+        info.sorter.tt_move = tt_move;
         let move_list = self.generate_moves(info.ply, &info.sorter);
 
         // Mate or stalemate. Don't save in the TT, simply return early
