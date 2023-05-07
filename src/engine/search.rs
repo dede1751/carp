@@ -217,6 +217,7 @@ impl Position {
 
             None => info.sorter.tt_move = None,
         };
+        let tt_hit = info.sorter.tt_move.is_some();
 
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
@@ -253,7 +254,7 @@ impl Position {
 
         // Internal Iterative Reduction
         // When no TT Move is found in any node, apply a 1-ply reduction
-        if !root_node && depth >= IIR_LOWER_LIMIT && info.sorter.tt_move.is_none() {
+        if !root_node && !tt_hit && depth >= IIR_LOWER_LIMIT {
             depth -= 1;
         }
 
