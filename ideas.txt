@@ -1,15 +1,15 @@
-- Refactor search:
-    * Const generic node type
-    * Change how a search is started?
-- Read magics from file
+- Read magics from file?
+- Move LMR from chess module to engine module somehow
 - BETTER TIME MANAGEMENT!!!!
 - Improve search:
     * Better Aspiration loop
     * Better reopening scheme
+    * Get fail soft to finally work
+    * TT in qsearch
 - Heuristics:
     * Improving
     * SEE pruning in normal search
-    * Razoring?
+    * Tune SEE margin
+    * Razoring
     * Staged Movegen
-    * Best move only for beating alpha?
 - Speedup Datagen!!!

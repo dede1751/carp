@@ -223,7 +223,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
 
             // filter noisy positions
             if !position.king_in_check()
-                && !is_mate(eval.abs())
+                && eval.abs() < MATE_IN_PLY
                 && !best_move.is_capture()
                 && !best_move.is_promotion()
             {

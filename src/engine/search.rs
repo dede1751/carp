@@ -165,18 +165,23 @@ impl Position {
         let root_node = info.ply == 0;
         let pv_node = alpha != beta - 1; // False when searching with a null window
         let in_check = self.king_in_check();
+        info.seldepth = info.seldepth.max(info.ply);
 
         // Check extension
         if in_check {
             depth += 1;
         }
 
+        // Quiescence search
         if depth == 0 {
             return self.quiescence(info, alpha, beta);
         }
 
-        // Mate distance pruning (it's a bit faster to do this before draw detection)
         if !root_node {
+            // Mate distance pruning
+            // Shrink the window based on the best/worst possible outcomes, which are being mated
+            // now or mating in the next ply. Prune if even these extreme situations would not
+            // produce a line better than the PV
             alpha = alpha.max(-MATE + info.ply as Eval);
             beta = beta.min(MATE - info.ply as Eval - 1);
             if alpha >= beta {
@@ -387,6 +392,7 @@ impl Position {
         alpha
     }
 
+    /// Quiescence search: only search captures to avoid the horizon effect
     fn quiescence(&mut self, info: &mut SearchInfo, mut alpha: Eval, beta: Eval) -> Eval {
         if info.stop || !info.clock.mid_check() {
             info.stop = true;
@@ -397,27 +403,26 @@ impl Position {
 
         // Stand pat and delta pruning
         let stand_pat = self.nnue_state.evaluate(self.board.side);
-
-        if info.ply >= MAX_DEPTH {
+        if info.ply >= MAX_DEPTH
+            || stand_pat >= beta
+            || stand_pat + QS_DELTA_MARGIN < alpha
+        {
             return stand_pat;
         }
 
-        if stand_pat >= beta {
-            return beta;
-        }
-        if stand_pat < alpha - QS_DELTA_MARGIN {
-            return alpha;
-        }
+        let in_check = self.king_in_check();
         alpha = alpha.max(stand_pat);
 
-        let in_check = self.king_in_check();
         for (m, s) in self.generate_captures(&info.sorter) {
             if !in_check {
+                // SEE pruning
+                // Avoid searching captures with bad static evaluation
                 if s < GOOD_CAPTURE {
-                    break; // we reached negative see, it's probably not worth searching
+                    break;
                 }
 
-                // futility pruning
+                // Futility Pruning
+                // Avoid searching captures that, even with an extra margin, would not raise alpha
                 let move_value = stand_pat + QS_PIECE_VALUES[m.get_capture() as usize / 2];
                 if !m.is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha {
                     continue;

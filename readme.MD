@@ -24,6 +24,16 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 | 1.2.0       | N/a            | N/a       | 2488      | 
 | 1.1.0       | N/a            | N/a       | 2164      | 
 
+## Building Carp
+
+Carp can either be build through Cargo with ```cargo run --release```, and the Tools module can be
+conditionally compiled with the flag ```--features tools```.
+
+The Cargo build will automatically target the native architecture. To get the various [microarchitecture
+levels][arch-link] for the running OS build Carp using the Makefile provided with ```make release```.
+These are the executables provided within releases.
+
+
 ## Performance
 
 Move generation is fully legal, inspired by [this article][movegen-link]
@@ -38,9 +48,11 @@ Carp is rigorously tested with SPRT, and has recently joined the [Engine Program
 ## NNUE
 
 Carp uses a 768->(384x2)->1 perspective net trained with MarlinFlow.
-It fully relies on its own self-play data for training the network, and a datagen script (for windows, as its
-my more capable machine) for fen generation. All utilities for training the network are found in the Scripts
-directory. As of Carp 2.0, NNUE has compltely replaced the old HCE.
+It fully relies on its own self-play data for training the network. Data can be generated with the
+utilities provided in the Tools module, which can be conditionally compiled by passing the tools 
+feature to Cargo.
+
+As of Carp 2.0, NNUE has compltely replaced the old HCE.
 
 ## Implemented optimizations
 
@@ -67,7 +79,6 @@ directory. As of Carp 2.0, NNUE has compltely replaced the old HCE.
 Of course it is still lacking many optimizations, most notably:
 
 * Pondering for Lichess bot games
-* Opening book (although UCI let's you do this in the gui)
 * Endgame tablebases
 * Various other heuristics (probcut, razoring, search extensions...)
 * Continuous net improvements
@@ -88,7 +99,8 @@ None of these are necessary to run the engine, but they are vital for developmen
 * Malu's [Asymptote](https://github.com/malu/asymptote) engine to better understand search heuristics
 * The entire chess programming community, for countless awesome resources
 
-[ob-link]:https://engineprogramming.pythonanywhere.com/
+[ob-link]:https://chess.swehosting.se/
+[arch-link]:https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels
 [ccrl-blitz-link]:https://ccrl.chessdom.com/ccrl/404/cgi/engine_details.cgi?print=Details&each_game=1&eng=Carp%202.0.0%2064-bit#Carp_2_0_0_64-bit
 [ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?class=None&only_best_in_class=on&num_best_in_class=1&family=Carp&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no
 [mcerl-link]:https://www.chessengeria.com/mcerl
