@@ -267,7 +267,6 @@ impl Position {
             }
         };
 
-        let mut eval: Eval;
         let mut searched_quiets = Vec::with_capacity(20);
         let mut tt_field = TTField::new(self, TTFlag::Upper, NULL_MOVE, alpha, depth, info.ply);
 
@@ -313,36 +312,42 @@ impl Position {
                 }
             }
 
-            if move_count == 0 {
-                // full depth search on first move
-                eval = -self.negamax(info, -beta, -alpha, depth - 1);
-                tt_field.update_data(TTFlag::Upper, m, alpha); // always save at least one move
-            } else {
-                // reduce depth for all moves beyond first
-                let reduced_depth =
-                    if !root_node && move_count >= LMR_THRESHOLD && depth >= LMR_LOWER_LIMIT && is_quiet {
-                        let lmr_red = lmr_reduction(depth, move_count) as i32;
-                        let lmr_ext = is_check as i32 + in_check as i32 + pv_node as i32;
+            // Principal Variation Search + Late Move Reductions
+            // Before most searches, we run a "verification" search on a null window to prove it
+            // fails high on alpha. If it doesn't, it's likely a cutnode.
+            // We reduce the depth of these searches the further in the move list we go.
+            let mut eval = -INFINITY;
+            let full_depth_search =
+                if depth >= LMR_LOWER_LIMIT
+                    && move_count >= LMR_THRESHOLD + pv_node as usize
+                {
+                    let r = if is_quiet {
+                        let mut r = lmr_reduction(depth, move_count) as i32;
 
-                        (depth as i32 + lmr_ext - lmr_red).clamp(1, depth as i32) as usize
+                        r += !pv_node as i32; // reduce more in non-pv nodes
+                        r -= in_check as i32 + is_check as i32; // reduce less when in check/checking the opponent
+
+                        r.clamp(1, (depth - 1) as i32) as usize
                     } else {
-                        depth
+                        1
                     };
 
-                // do reduced depth pvs search, and eventually fall back to full window
-                eval = -self.negamax(info, -alpha - 1, -alpha, reduced_depth - 1);
-                if eval > alpha && pv_node && !info.stop {
-                    eval = -self.negamax(info, -beta, -alpha, reduced_depth - 1);
-                }
+                    // Reduced depth null window search
+                    eval = -self.negamax(info, -alpha - 1, -alpha, depth - r);
+                    eval > alpha && r > 1
+                } else {
+                    !pv_node || move_count > 0
+                };
 
-                // fall back to full depth if lmr failed
-                if reduced_depth < depth && eval > alpha && !info.stop {
-                    eval = -self.negamax(info, -alpha - 1, -alpha, depth - 1);
-                    if eval > alpha && pv_node && !info.stop {
-                        eval = -self.negamax(info, -beta, -alpha, depth - 1);
-                    }
-                }
-            };
+            // Full depth null window search when lmr fails or when using pvs
+            if full_depth_search {
+                eval = -self.negamax(info, -alpha - 1, -alpha, depth - 1);
+            }
+
+            // Full depth full window search for the first move of all PV nodes and when pvs fails
+            if pv_node && (move_count == 0 || eval > alpha) {
+                eval = -self.negamax(info, -beta, -alpha, depth - 1);
+            }
 
             self.undo_move(info);
 
