@@ -271,6 +271,10 @@ impl Position {
         let mut tt_field = TTField::new(self, TTFlag::Upper, NULL_MOVE, alpha, depth, info.ply);
 
         for (move_count, (m, s)) in move_list.enumerate() {
+            if move_count == 0 {
+                tt_field.update_data(TTFlag::Upper, m, alpha);
+            }
+            
             self.make_move(m, info);
 
             // Flag for moves checking the opponent
@@ -304,10 +308,6 @@ impl Position {
                 // even when all moves get pruned, save something to the tt
                 if prune {
                     self.undo_move(info);
-
-                    if move_count == 0 {
-                        tt_field.update_data(TTFlag::Upper, m, alpha);
-                    }
                     break;
                 }
             }
