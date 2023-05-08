@@ -246,9 +246,10 @@ impl TT {
         let old_slot = unsafe { self.table.get_unchecked(tt_index) };
         let old  = old_slot.read_unchecked();
 
-        if  new.age > old.age || ( // always replace old entries
-            (old.flag != TTFlag::Exact && (new.flag == TTFlag::Exact || new.depth >= old.depth)) ||
-            (old.flag == TTFlag::Exact && new.flag == TTFlag::Exact && new.depth > old.depth))
+        if  new.age > old.age  // always replace old entries
+            || old.depth == 0  // always replace qsearch entries
+            || ((old.flag != TTFlag::Exact && (new.flag == TTFlag::Exact || new.depth >= old.depth))
+            || (old.flag == TTFlag::Exact && new.flag == TTFlag::Exact && new.depth > old.depth))
         {
             old_slot.write(new);
         }

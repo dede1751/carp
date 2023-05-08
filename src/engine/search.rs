@@ -401,19 +401,40 @@ impl Position {
 
         info.seldepth = info.seldepth.max(info.ply);
 
+        // Return early when reaching max depth
+        if info.ply >= MAX_DEPTH {
+            return self.nnue_state.evaluate(self.board.side);
+        }
+
+        // Probe tt for evaluation
+        if let Some(entry) = info.tt.probe(self.board.hash) {
+            let tt_eval = entry.get_eval(info.ply);
+                let tt_flag = entry.get_flag();
+
+                match tt_flag {
+                    TTFlag::Exact => return tt_eval,
+                    TTFlag::Lower if tt_eval >= beta => return beta,
+                    TTFlag::Upper if tt_eval <= alpha => return alpha,
+                    _ => (),
+                }
+        }
+
         // Stand pat and delta pruning
         let stand_pat = self.nnue_state.evaluate(self.board.side);
-        if info.ply >= MAX_DEPTH
-            || stand_pat >= beta
-            || stand_pat + QS_DELTA_MARGIN < alpha
-        {
+        if stand_pat >= beta || stand_pat + QS_DELTA_MARGIN < alpha {
             return stand_pat;
         }
 
         let in_check = self.king_in_check();
+        let old_alpha = alpha;
+        let mut best_move = NULL_MOVE;
         alpha = alpha.max(stand_pat);
 
-        for (m, s) in self.generate_captures(&info.sorter) {
+        for (move_count, (m, s)) in self.generate_captures(&info.sorter).enumerate() {
+            if move_count == 0 {
+                best_move = m;
+            }
+
             if !in_check {
                 // SEE pruning
                 // Avoid searching captures with bad static evaluation
@@ -438,11 +459,28 @@ impl Position {
             }
 
             if eval > alpha {
+                best_move = m;
+                
                 if eval >= beta {
-                    return beta;
+                    alpha = beta;
+                    break;
                 }
                 alpha = eval;
             }
+        }
+
+        if !info.stop {
+            let tt_flag = if alpha >= beta {
+                TTFlag::Lower
+            } else if alpha > old_alpha {
+                TTFlag::Exact
+            } else {
+                TTFlag::Upper
+            };
+
+            info.tt.insert(
+                TTField::new(self, tt_flag, best_move, alpha, 0, info.ply)
+            );
         }
 
         alpha
