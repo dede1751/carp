@@ -46,7 +46,6 @@
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-<<<<<<< HEAD
 │ carp0009 │ 670M d8 self-play fens │            12.84 +- 7.45            │ Same as 0008 but with extra hidden nodes     │
 │          │ 512 hidden nodes       │               vs 0006               │ Hopefully now's a big enough dataset for 512 │
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
@@ -54,15 +53,6 @@
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0010 │ 670M d8 self-play fens │             4.71 +- 3.73            │ Trying SquaredReLu activation                │
 │  (CURR)  │ 512 hidden nodes       │               vs 0009               │                                              │
-=======
-│ carp0009 │ 670M d8 self-play fens │                                     │ Same as 0008 but with extra hidden nodes     │
-│          │ 512 hidden nodes       │                                     │ Hopefully now's a big enough dataset for 512 │
-│          │ lr=1e-3    wdl=0.3     │                                     │                                              │
-│          │ 65 epoch, drop at 30   │                                     │                                              │
-├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0010 │ 670M d8 self-play fens │                                     │ Trying SquaredReLu activation                │
-│          │ 512 hidden nodes       │                                     │                                              │
->>>>>>> b06e517 (Net0008)
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
