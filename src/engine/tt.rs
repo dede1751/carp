@@ -141,13 +141,6 @@ impl TTField {
             eval
         }
     }
-
-    /// Update field contents for search
-    pub fn update_data(&mut self, flag: TTFlag, best_move: Move, eval: Eval) {
-        self.flag = flag;
-        self.best_move = best_move;
-        self.eval = eval as u16;
-    }
 }
 
 /// Actual TTField, compressed down to 16B

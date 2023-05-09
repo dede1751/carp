@@ -272,12 +272,14 @@ impl Position {
             }
         };
 
+        let old_alpha = alpha;
+        let mut best_move = NULL_MOVE;
+        let mut best_eval = -INFINITY;
         let mut searched_quiets = Vec::with_capacity(20);
-        let mut tt_field = TTField::new(self, TTFlag::Upper, NULL_MOVE, alpha, depth, info.ply);
 
         for (move_count, (m, s)) in move_list.enumerate() {
             if move_count == 0 {
-                tt_field.update_data(TTFlag::Upper, m, alpha);
+                best_move = m;
             }
             
             self.make_move(m, info);
@@ -360,19 +362,22 @@ impl Position {
                 return 0;
             }
 
-            if eval > alpha {
+            if eval > best_eval {
+                best_eval = eval;
+                best_move = m;
+
+                if eval > alpha {
+                    alpha = eval;
+                }
+
                 if eval >= beta {
                     if is_quiet {
                         info.sorter.update(m, info.ply, depth, self.board.side, searched_quiets);
                     };
-
+                    
                     alpha = beta;
-                    tt_field.update_data(TTFlag::Lower, m, beta);
                     break;
                 }
-
-                alpha = eval;
-                tt_field.update_data(TTFlag::Exact, m, eval);
             }
 
             // save searched quiets that didn't cause a cutoff for negative history score
@@ -382,11 +387,21 @@ impl Position {
         }
 
         if !info.stop {
-            info.tt.insert(tt_field);
+            let tt_flag = if best_eval >= beta {
+                TTFlag::Lower
+            } else if best_eval > old_alpha {
+                TTFlag::Exact
+            } else {
+                TTFlag::Upper
+            };
+
+            info.tt.insert(
+                TTField::new(self, tt_flag, best_move, alpha, depth, info.ply)
+            );
         }
 
         if root_node {
-            info.best_move = tt_field.get_move();
+            info.best_move = best_move;
         }
 
         alpha
@@ -409,26 +424,29 @@ impl Position {
         // Probe tt for evaluation
         if let Some(entry) = info.tt.probe(self.board.hash) {
             let tt_eval = entry.get_eval(info.ply);
-                let tt_flag = entry.get_flag();
+            let tt_flag = entry.get_flag();
 
-                match tt_flag {
-                    TTFlag::Exact => return tt_eval,
-                    TTFlag::Lower if tt_eval >= beta => return beta,
-                    TTFlag::Upper if tt_eval <= alpha => return alpha,
-                    _ => (),
-                }
+            match tt_flag {
+                TTFlag::Exact => return tt_eval,
+                TTFlag::Lower if tt_eval >= beta => return beta,
+                TTFlag::Upper if tt_eval <= alpha => return alpha,
+                _ => (),
+            }
         }
 
-        // Stand pat and delta pruning
+        // Run the static evaluation and raise alpha if needed.
         let stand_pat = self.nnue_state.evaluate(self.board.side);
+        let old_alpha = alpha;
+        alpha = alpha.max(stand_pat);
+        
+        // Stand pat and delta pruning
         if stand_pat >= beta || stand_pat + QS_DELTA_MARGIN < alpha {
             return stand_pat;
         }
 
         let in_check = self.king_in_check();
-        let old_alpha = alpha;
         let mut best_move = NULL_MOVE;
-        alpha = alpha.max(stand_pat);
+        let mut best_eval = stand_pat;
 
         for (move_count, (m, s)) in self.generate_captures(&info.sorter).enumerate() {
             if move_count == 0 {
@@ -458,21 +476,25 @@ impl Position {
                 return 0;
             }
 
-            if eval > alpha {
+            if eval > best_eval {
+                best_eval = eval;
                 best_move = m;
-                
+
+                if eval > alpha {
+                    alpha = eval;
+                }
+
                 if eval >= beta {
                     alpha = beta;
                     break;
                 }
-                alpha = eval;
             }
         }
 
         if !info.stop {
-            let tt_flag = if alpha >= beta {
+            let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
-            } else if alpha > old_alpha {
+            } else if best_eval > old_alpha {
                 TTFlag::Exact
             } else {
                 TTFlag::Upper
