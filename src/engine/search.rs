@@ -448,11 +448,7 @@ impl Position {
         let mut best_move = NULL_MOVE;
         let mut best_eval = stand_pat;
 
-        for (move_count, (m, s)) in self.generate_captures(&info.sorter).enumerate() {
-            if move_count == 0 {
-                best_move = m;
-            }
-
+        for (m, s) in self.generate_captures(&info.sorter) {
             if !in_check {
                 // SEE pruning
                 // Avoid searching captures with bad static evaluation
@@ -491,7 +487,8 @@ impl Position {
             }
         }
 
-        if !info.stop {
+        // Save to TT if we at least improved on the static eval.
+        if !info.stop && best_move != NULL_MOVE {
             let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
             } else if best_eval > old_alpha {
