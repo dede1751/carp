@@ -221,33 +221,37 @@ impl Position {
             None => None,
         };
 
+        let stand_pat = if !in_check {
+            self.nnue_state.evaluate(self.board.side)
+        } else {
+            -INFINITY
+        };
+
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
         // need any further deep search.
-        let mut stand_pat = 0;
-
         if !pv_node && !in_check {
             // Reverse Futility Pruning (static eval pruning)
             // At pre-frontier nodes, check if the static eval minus a safety margin is enough to
             // produce a beta cutoff.
-            if depth <= RFP_THRESHOLD {
-                stand_pat = self.nnue_state.evaluate(self.board.side); // this remains valid for efp
-
-                if stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
-                    return beta;
-                }
+            if depth <= RFP_THRESHOLD && stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
+                return beta;
             }
 
             // Null Move Pruning (reduction value from CounterGO)
             // Give the opponent a "free shot" and see if that improves beta.
-            if depth > NMP_LOWER_LIMIT && !self.only_king_pawns_left() {
-                let reduction = NMP_BASE_R + depth / NMP_FACTOR;
+            if depth > NMP_LOWER_LIMIT
+                && stand_pat >= beta
+                && info.ply_from_null > 0
+                && !self.only_king_pawns_left()
+            {
+                let r = (NMP_BASE_R + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(info);
-                let eval = -self.negamax(info, -beta, -beta + 1, depth.saturating_sub(reduction));
+                let eval = -self.negamax(info, -beta, -beta + 1, depth - r);
                 self.undo_move(info);
 
-                // cutoff above beta and not for mate scores!
+                // cutoff above beta
                 if eval >= beta {
                     return beta;
                 }
