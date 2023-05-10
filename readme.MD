@@ -40,14 +40,14 @@ Move generation is fully legal, inspired by [this article][movegen-link]
 and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
 
 Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
-time to depth and reduced the branching factor greatly. Carp will easily push depth 20-22 with NNUE
-enabled, even in complex blitz midgames.
+time to depth and reduced the branching factor greatly. During search, Carp will usually run at ~1.5 MNodes/s on a single
+core.
 
 Carp is rigorously tested with SPRT, and has recently joined the [Engine Programming OB instance][ob-link].
 
 ## NNUE
 
-Carp uses a 768->(384x2)->1 perspective net trained with MarlinFlow.
+Carp uses a 768->(512x2)->1 perspective net trained with MarlinFlow.
 It fully relies on its own self-play data for training the network. Data can be generated with the
 utilities provided in the Tools module, which can be conditionally compiled by passing the tools 
 feature to Cargo.
@@ -60,7 +60,7 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
 * Fail-Hard Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
 * Move Ordering:
-  - MVV-LVA with Static Exchange Evaluation
+  - MVV-LVA with Threshold Static Exchange Evaluation
   - Killers
   - History / Counter Move History / Followup History
 * Multithreading with Lazy-SMP

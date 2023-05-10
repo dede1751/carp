@@ -1,5 +1,5 @@
 /// NNUE Implementation
-/// Carp uses a 768->256->1 perspective net architecture, fully trained on self play data.
+/// Carp uses a 768->512->1 perspective net architecture, fully trained on self play data.
 /// Network is initialized at compile time from the binary files in the net folder.
 /// A new net can be loaded by running the convert_json.py script in the scripts folder.
 ///
@@ -20,6 +20,7 @@ const CR_MIN: i16 = 0;
 const CR_MAX: i16 = 255;
 
 // quantization factor
+const QA: i32 = 255;
 const QAB: i32 = 255 * 64;
 
 // eval scale factor
@@ -180,8 +181,9 @@ impl NNUEState {
 
     /// Evaluate the nn from the current accumulator
     /// Concatenates the accumulators based on the side to move, computes the activation function
-    /// with Clipped ReLu and multiplies activation by weight. The result is the sum of all these
-    /// with the bias
+    /// with Squared CReLu and multiplies activation by weight. The result is the sum of all these
+    /// with the bias.
+    /// Since we are squaring activations, we need an extra quantization pass with QA.
     pub fn evaluate(&self, side: Color) -> Eval {
         let acc = &self.accumulator_stack[self.current_acc];
 
@@ -192,13 +194,13 @@ impl NNUEState {
 
         let mut out = MODEL.output_bias as i32;
         for (&value, &weight) in us.zip(&MODEL.output_weights[..HIDDEN]) {
-            out += (value.clamp(CR_MIN, CR_MAX) as i32) * (weight as i32);
+            out += squared_crelu(value) * (weight as i32);
         }
         for (&value, &weight) in them.zip(&MODEL.output_weights[HIDDEN..]) {
-            out += (value.clamp(CR_MIN, CR_MAX) as i32) * (weight as i32);
+            out += squared_crelu(value) * (weight as i32);
         }
 
-        (out * SCALE / QAB) as Eval
+        ((out / QA) * SCALE / QAB) as Eval
     }
 }
 
@@ -213,6 +215,13 @@ fn nnue_index(piece: Piece, sq: Square) -> (usize, usize) {
     let black_idx = (1 ^ c) * COLOR_STRIDE + p * PIECE_STRIDE + sq as usize;
 
     (white_idx * HIDDEN, black_idx * HIDDEN)
+}
+
+/// Squared Clipped ReLu activation function
+fn squared_crelu(value: i16) -> i32 {
+    let v = value.clamp(CR_MIN, CR_MAX) as i32;
+    
+    v * v
 }
 
 #[cfg(test)]
