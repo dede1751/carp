@@ -179,8 +179,8 @@ impl MoveSorter {
             EP_SCORE
         } else {
             let mut score = MVV_LVA[m.get_piece() as usize][m.get_capture() as usize];
-
-            if board.see(m) >= 0 {
+            
+            if board.see(m, 0) {
                 score += GOOD_CAPTURE
             }
 

@@ -38,4 +38,7 @@ pub const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
 
 pub const QS_DELTA_MARGIN: Eval = 1100; // highest queen value possible
 pub const QS_FUTILITY_MARGIN: Eval = 200; // overhead we allow for captures in qs
-pub const QS_PIECE_VALUES: [Eval; 6] = [161, 446, 464, 705, 1322, 0]; // qs fp piece values
+
+pub const PIECE_VALUES: [Eval; 12] = [ // piece values for static evaluations
+    161, 161, 446, 446, 464, 464, 705, 705, 1322, 1322, 0, 0
+];

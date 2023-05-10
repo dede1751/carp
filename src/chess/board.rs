@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::time::Instant;
 use std::{fmt, str::FromStr};
 
@@ -6,7 +5,10 @@ use crate::chess::{
     bitboard::*, castle::*, move_list::*, moves::*, piece::*, square::*, tables::*, zobrist::*,
 };
 
-use crate::engine::nnue::*;
+use crate::engine::{
+    nnue::*,
+    search_params::*,
+};
 
 /// Piece-centric board representation
 /// Any board without a king for each player (and with more than one for either) is UB!
@@ -834,17 +836,6 @@ impl Board {
             | self.kings() & king_attacks(square)
     }
 
-    /// Maps sliding attackers assuming the occupancy is that given by the occs bitboard
-    /// Used in see to add xray attackers to the attacker bitboard after making a capture.
-    /// There is definitely a more efficient way.
-    fn remap_xray(&self, square: Square, occs: BitBoard) -> BitBoard {
-        let diagonal_sliders = (self.bishops() | self.queens()) & occs;
-        let orthogonal_sliders = (self.rooks() | self.queens()) & occs;
-
-        diagonal_sliders & bishop_attacks(square, occs)
-            | orthogonal_sliders & rook_attacks(square, occs)
-    }
-
     /// Returns the least valuable of the attackers within the attacker map
     fn get_lva(&self, attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
         for piece in PIECES[side as usize] {
@@ -858,61 +849,92 @@ impl Board {
         None
     }
 
-    /// Returns the static exchange evaluation of the given move in the position
-    /// Note that the see score is a much less usesful sorting metric compared to mvv-lva. We only
-    /// use it when a capture is losing material to quantify how much, not when it's winning.
-    ///
-    /// TODO: move to a simple boolean see, since the value returned is not used
-    pub fn see(&self, m: Move) -> i16 {
-        const SEE_VALUES: [i16; PIECE_COUNT] = [1, 1, 3, 3, 3, 3, 5, 5, 9, 9, 20, 20];
-        let mut swap_list: [i16; 32] = [0; 32];
-        swap_list[0] = SEE_VALUES[m.get_capture() as usize];
-
-        let mut swap_piece = m.get_piece();
-        let mut src = m.get_src();
+    /// Checks if the static exchange after a move is enough to beat the given threshold
+    /// This can be used for both captures and quiet moves.
+    /// This implementation is basically that seen in Viri, which in turn is that of Ethereal
+    pub fn see(&self, m: Move, threshold: Eval) -> bool {
+        let src = m.get_src();
         let tgt = m.get_tgt();
 
-        let possible_xray = self.pawns() | self.bishops() | self.rooks() | self.queens();
+        // Piece being swapped off is the promoted piece
+        let victim = if m.is_promotion() {
+            m.get_promotion()
+        } else {
+            m.get_piece()
+        };
 
-        let mut side = !self.side;
-        let mut occs = self.occupancy;
-        let mut attackers = self.map_all_attackers(tgt);
+        // Get the static move value (also works for quiets)
+        let mut move_value = if m.is_capture() {
+            PIECE_VALUES[m.get_capture() as usize]
+        } else {
+            0
+        };
+        if m.is_promotion() {
+            move_value += PIECE_VALUES[victim as usize] - PIECE_VALUES[0];
+        }
 
-        let mut depth = 1;
+        // Lose if the balance is already in our opponent's favor and it's their turn
+        let mut balance = move_value - threshold;
+        if balance < 0 {
+            return false;
+        }
+
+        // Win if the balance is still in our favor even if we lose the capturing piece
+        balance -= PIECE_VALUES[victim as usize];
+        if balance > 0 {
+            return true;
+        }
+
+        let diagonal_sliders = self.bishops() | self.queens();
+        let orthogonal_sliders = self.rooks() | self.queens();
+
+        // Updated occupancy map after capture
+        let mut occs = self.occupancy.pop_bit(src).set_bit(tgt);
+        if m.is_enpassant() {
+            occs = occs.pop_bit(self.en_passant.unwrap()); // guaranteed to be Some
+        }
+
+        // Get all pieces covering the exchange square and start exchanging
+        let mut attackers = self.map_all_attackers(tgt) & occs;
+        let mut turn = !self.side;
+
         loop {
-            // score assuming capturing piece is lost afterwards
-            swap_list[depth] = SEE_VALUES[swap_piece as usize] - swap_list[depth - 1];
-
-            // early stand pat pruning
-            if max(-swap_list[depth - 1], swap_list[depth]) < 0 {
+            // SEE terminates when no recapture is possible.
+            let own_attackers = attackers & self.side_occupancy[turn as usize];
+            if own_attackers == EMPTY_BB {
                 break;
             }
 
-            // remove capturing piece and add back xray attackers
-            attackers = attackers.pop_bit(src);
-            occs = occs.pop_bit(src);
-            if possible_xray.get_bit(src) {
-                attackers |= self.remap_xray(tgt, occs);
+            // Get the least valuable attacker and simulate the recapture
+            let (attacker_square, attacker) = self.get_lva(own_attackers, turn).unwrap(); // attackers are at least one
+            occs = occs.pop_bit(attacker_square);
+            
+            // Diagonal recaptures uncover bishops/queens
+            if attacker == turn.pawn() || attacker == turn.bishop() || attacker == turn.queen() {
+                attackers |= bishop_attacks(tgt, occs) & diagonal_sliders;
             }
 
-            match self.get_lva(attackers, side) {
-                Some((sq, p)) => {
-                    src = sq;
-                    swap_piece = p;
-
-                    side = !side;
-                    depth += 1;
+            // Orthogonal recaptures uncover rooks/queens
+            if attacker == turn.rook() || attacker == turn.queen() {
+                attackers |= rook_attacks(tgt, occs) & orthogonal_sliders;
+            }
+            attackers &= occs;
+            
+            // Negamax the balance, cutoff if losing our attacker would still win the exchange
+            turn = !turn;
+            balance = -balance - 1 - PIECE_VALUES[attacker as usize];
+            if balance >= 0 {
+                // If the opponent recaptured with the king, we win if we have other attackers
+                if attacker == (!turn).king() && attackers != EMPTY_BB {
+                    return self.side == turn;
                 }
 
-                None => break,
+                break;
             }
         }
 
-        // negamax the results
-        for d in (1..depth).rev() {
-            swap_list[d - 1] = -max(swap_list[d], -swap_list[d - 1]);
-        }
-        swap_list[0]
+        // Whoever is left without recaptures, loses
+        self.side != turn
     }
 }
 
@@ -1047,14 +1069,6 @@ mod tests {
 
         assert!(att2.get_bit(Square::E2));
         assert!(!att2.get_bit(Square::E1));
-
-        let occs = b2.occupancy.pop_bit(Square::E2);
-        let remap = b2.remap_xray(Square::E5, occs);
-
-        println!("{remap}");
-
-        assert!(remap.get_bit(Square::E1));
-        assert!(!remap.get_bit(Square::E2));
     }
 
     #[test]
@@ -1076,9 +1090,9 @@ mod tests {
         let m2 = b2.find_move("d3e5").unwrap();
         let m3 = b3.find_move("g2h3").unwrap();
 
-        assert_eq!(b1.see(m1), 1);
-        assert_eq!(b2.see(m2), -2);
-        assert_eq!(b3.see(m3), 1);
+        assert!(b1.see(m1, 0));
+        assert!(!b2.see(m2, 0));
+        assert!(b3.see(m3, 0));
     }
 
     #[rustfmt::skip]

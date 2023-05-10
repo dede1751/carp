@@ -462,7 +462,7 @@ impl Position {
 
                 // Futility Pruning
                 // Avoid searching captures that, even with an extra margin, would not raise alpha
-                let move_value = stand_pat + QS_PIECE_VALUES[m.get_capture() as usize / 2];
+                let move_value = stand_pat + PIECE_VALUES[m.get_capture() as usize];
                 if !m.is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha {
                     continue;
                 }
