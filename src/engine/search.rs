@@ -15,6 +15,7 @@ pub struct SearchInfo<'a> {
 
     pub best_move: Move,
     pub search_stack: [(Move, usize); MAX_DEPTH],
+    pub eval_stack: [Eval; MAX_DEPTH],
     pub stop: bool,
 }
 
@@ -104,6 +105,7 @@ impl Position {
             ply_from_null: 0,
             best_move: NULL_MOVE,
             search_stack: [(NULL_MOVE, 0); MAX_DEPTH],
+            eval_stack: [0; MAX_DEPTH],
             stop: false,
         };
 
@@ -187,7 +189,7 @@ impl Position {
             if alpha >= beta {
                 return alpha;
             }
-    
+
             // Stop searching if the position is a rule-based draw
             if self.is_draw(info.ply_from_null) {
                 return 0;
@@ -227,6 +229,13 @@ impl Position {
             -INFINITY
         };
 
+        info.eval_stack[info.ply] = stand_pat;
+
+        // Improving is true when the current static eval is better than that of a move ago
+        // Assuming this trend continues down this branch, we can prune high more aggressively,
+        // while we should be less aggressive when pruning low.
+        let improving = !in_check && info.ply > 1 && stand_pat > info.eval_stack[info.ply - 2];
+
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
         // need any further deep search.
@@ -234,14 +243,16 @@ impl Position {
             // Reverse Futility Pruning (static eval pruning)
             // At pre-frontier nodes, check if the static eval minus a safety margin is enough to
             // produce a beta cutoff.
-            if depth <= RFP_THRESHOLD && stand_pat - RFP_MARGIN * (depth as Eval) >= beta {
+            let rfp_margin =
+                RFP_MARGIN * (depth as Eval) - RFP_IMPROVING_MARGIN * (improving as Eval);
+            if depth <= RFP_THRESHOLD && stand_pat - rfp_margin >= beta {
                 return beta;
             }
 
             // Null Move Pruning (reduction value from CounterGO)
             // Give the opponent a "free shot" and see if that improves beta.
             if depth > NMP_LOWER_LIMIT
-                && stand_pat >= beta
+                && stand_pat + NMP_IMPROVING_MARGIN * (improving as Eval) >= beta
                 && info.ply_from_null > 0
                 && !self.only_king_pawns_left()
             {
@@ -285,7 +296,7 @@ impl Position {
             if move_count == 0 {
                 best_move = m;
             }
-            
+
             self.make_move(m, info);
 
             // Flag for moves checking the opponent
@@ -329,9 +340,7 @@ impl Position {
             // We reduce the depth of these searches the further in the move list we go.
             let mut eval = -INFINITY;
             let full_depth_search =
-                if depth >= LMR_LOWER_LIMIT
-                    && move_count >= LMR_THRESHOLD + pv_node as usize
-                {
+                if depth >= LMR_LOWER_LIMIT && move_count >= LMR_THRESHOLD + pv_node as usize {
                     let r = if is_quiet {
                         let mut r = lmr_reduction(depth, move_count) as i32;
 
@@ -376,9 +385,10 @@ impl Position {
 
                 if eval >= beta {
                     if is_quiet {
-                        info.sorter.update(m, info.ply, depth, self.board.side, searched_quiets);
+                        info.sorter
+                            .update(m, info.ply, depth, self.board.side, searched_quiets);
                     };
-                    
+
                     alpha = beta;
                     break;
                 }
@@ -399,9 +409,9 @@ impl Position {
                 TTFlag::Upper
             };
 
-            info.tt.insert(
-                TTField::new(self, tt_flag, best_move, alpha, depth, info.ply)
-            );
+            info.tt.insert(TTField::new(
+                self, tt_flag, best_move, alpha, depth, info.ply,
+            ));
         }
 
         if root_node {
@@ -442,7 +452,7 @@ impl Position {
         let stand_pat = self.nnue_state.evaluate(self.board.side);
         let old_alpha = alpha;
         alpha = alpha.max(stand_pat);
-        
+
         // Stand pat and delta pruning
         if stand_pat >= beta || stand_pat + QS_DELTA_MARGIN < alpha {
             return stand_pat;
@@ -501,9 +511,8 @@ impl Position {
                 TTFlag::Upper
             };
 
-            info.tt.insert(
-                TTField::new(self, tt_flag, best_move, alpha, 0, info.ply)
-            );
+            info.tt
+                .insert(TTField::new(self, tt_flag, best_move, alpha, 0, info.ply));
         }
 
         alpha

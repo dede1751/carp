@@ -220,7 +220,7 @@ fn nnue_index(piece: Piece, sq: Square) -> (usize, usize) {
 /// Squared Clipped ReLu activation function
 fn squared_crelu(value: i16) -> i32 {
     let v = value.clamp(CR_MIN, CR_MAX) as i32;
-    
+
     v * v
 }
 

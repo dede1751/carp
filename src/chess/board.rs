@@ -5,10 +5,7 @@ use crate::chess::{
     bitboard::*, castle::*, move_list::*, moves::*, piece::*, square::*, tables::*, zobrist::*,
 };
 
-use crate::engine::{
-    nnue::*,
-    search_params::*,
-};
+use crate::engine::{nnue::*, search_params::*};
 
 /// Piece-centric board representation
 /// Any board without a king for each player (and with more than one for either) is UB!
@@ -908,7 +905,7 @@ impl Board {
             // Get the least valuable attacker and simulate the recapture
             let (attacker_square, attacker) = self.get_lva(own_attackers, turn).unwrap(); // attackers are at least one
             occs = occs.pop_bit(attacker_square);
-            
+
             // Diagonal recaptures uncover bishops/queens
             if attacker == turn.pawn() || attacker == turn.bishop() || attacker == turn.queen() {
                 attackers |= bishop_attacks(tgt, occs) & diagonal_sliders;
@@ -919,7 +916,7 @@ impl Board {
                 attackers |= rook_attacks(tgt, occs) & orthogonal_sliders;
             }
             attackers &= occs;
-            
+
             // Negamax the balance, cutoff if losing our attacker would still win the exchange
             turn = !turn;
             balance = -balance - 1 - PIECE_VALUES[attacker as usize];

@@ -16,8 +16,10 @@ pub const LMR_FACTOR: f32 = 2.0; // increase to reduce less further in the movel
 
 pub const RFP_THRESHOLD: usize = 8; // depth at which rfp kicks in
 pub const RFP_MARGIN: Eval = 130; // multiplier for eval safety margin for rfp cutoffs
+pub const RFP_IMPROVING_MARGIN: Eval = 50; // multiplier for improving flag
 
 pub const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
+pub const NMP_IMPROVING_MARGIN: Eval = 70; // multiplier for improving flag
 pub const NMP_BASE_R: usize = 4; // null move pruning reduced depth
 pub const NMP_FACTOR: usize = 4; // increase to reduce more at higher depths
 
@@ -39,6 +41,7 @@ pub const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
 pub const QS_DELTA_MARGIN: Eval = 1100; // highest queen value possible
 pub const QS_FUTILITY_MARGIN: Eval = 200; // overhead we allow for captures in qs
 
-pub const PIECE_VALUES: [Eval; 12] = [ // piece values for static evaluations
-    161, 161, 446, 446, 464, 464, 705, 705, 1322, 1322, 0, 0
+pub const PIECE_VALUES: [Eval; 12] = [
+    // piece values for static evaluations
+    161, 161, 446, 446, 464, 464, 705, 705, 1322, 1322, 0, 0,
 ];
