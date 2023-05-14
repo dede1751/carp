@@ -75,20 +75,25 @@ impl FromStr for TimeControl {
 
 // number of nodes between clock checks
 const CHECK_FREQUENCY: u64 = 2048;
+const OVERHEAD: u64 = 5;
 
 #[derive(Clone, Debug)]
 pub struct Clock {
     stop: Arc<AtomicBool>,
     time_control: TimeControl,
     start_time: Instant,
-    end_time: Duration,
+    opt_time: Duration,
+    max_time: Duration,
     check_count: u64,
 }
 
 impl Clock {
     pub fn new(time_control: TimeControl, stop: Arc<AtomicBool>, white_to_move: bool) -> Clock {
-        let end_time: Duration = match time_control {
-            TimeControl::FixedTime(time) => Duration::from_millis(time),
+        let (opt_time, max_time) = match time_control {
+            TimeControl::FixedTime(time) => (
+                Duration::from_millis(time - OVERHEAD),
+                Duration::from_millis(time - OVERHEAD),
+            ),
             TimeControl::Variable {
                 wtime,
                 btime,
@@ -96,7 +101,7 @@ impl Clock {
                 binc,
                 movestogo,
             } => {
-                let (time, increment) = if white_to_move {
+                let (time, inc) = if white_to_move {
                     match winc {
                         Some(inc) => (wtime, inc),
                         None => (wtime, 0),
@@ -107,18 +112,35 @@ impl Clock {
                         None => (btime, 0),
                     }
                 };
+                let time = time - OVERHEAD;
+                
+                // This time allocation formula is taken from Svart by Crippa
+                let (opt, max) = if let Some(moves) = movestogo {
+                    let scale = 0.7 / (moves.min(50) as f64);
+                    let eight = 0.8 * time as f64;
 
-                // divide current time by movestogo, if not provided default to 35.
-                Duration::from_millis(time / movestogo.unwrap_or(20) + increment / 2)
+                    let opt_time = (scale * time as f64).min(eight);
+                    (opt_time, (5. * opt_time).min(eight))
+                } else {
+                    let total = ((time / 20) + (inc / 2)) as f64;
+
+                    (0.6 * total, (2. * total).min(time as f64))
+                };
+
+                (
+                    Duration::from_millis(opt as u64),
+                    Duration::from_millis(max as u64),
+                )
             }
-            _ => Duration::ZERO,
+            _ => (Duration::ZERO, Duration::ZERO),
         };
 
         Clock {
             stop,
             time_control,
             start_time: Instant::now(),
-            end_time,
+            opt_time,
+            max_time,
             check_count: 0,
         }
     }
@@ -129,7 +151,8 @@ impl Clock {
             stop: self.stop.clone(),
             time_control: TimeControl::Infinite,
             start_time: Instant::now(),
-            end_time: Duration::ZERO,
+            opt_time: Duration::ZERO,
+            max_time: Duration::ZERO,
             check_count: 0,
         }
     }
@@ -154,12 +177,9 @@ impl Clock {
             TimeControl::FixedDepth(d) => depth <= d,
             TimeControl::FixedNodes(n) => nodes <= n,
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
-                let time = self.start_time.elapsed();
-
-                // the deepest search takes the majority of the time, need at least half the full time
-                time < (self.end_time / 2)
+                self.start_time.elapsed() < self.opt_time
             }
-            _ => true, // FixedNodes/Infinite do not depend on start check
+            _ => true, // Infinite tc does not depend on start check
         };
 
         // global stop
@@ -183,7 +203,7 @@ impl Clock {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 // check elapsed time only every CHECK_FREQUENCY checks
                 if self.check_count % CHECK_FREQUENCY == 0 {
-                    self.start_time.elapsed() < self.end_time
+                    self.start_time.elapsed() < self.max_time
                 } else {
                     true
                 }
