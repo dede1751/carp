@@ -14,7 +14,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
 const ENGINE_OPTIONS: &str = "
-option name Hash type spin default 32 min 1 max 65536 
+option name Hash type spin default 16 min 1 max 65536 
 option name Threads type spin default 1 min 1 max 512";
 
 /// UCI controller responsible of reading input and command the main engine thread
@@ -124,7 +124,6 @@ impl FromStr for UCICommand {
 struct UCIEngine {
     position: Position,
     tt: TT,
-    tt_size: usize,
     controller_rx: mpsc::Receiver<UCICommand>,
     stop: Arc<AtomicBool>,
     worker_count: usize,
@@ -135,7 +134,6 @@ impl UCIEngine {
         UCIEngine {
             position: Position::default(),
             tt: TT::default(),
-            tt_size: DEFAULT_SIZE,
             controller_rx: rx,
             stop,
             worker_count: 0,
@@ -149,21 +147,16 @@ impl UCIEngine {
             match command {
                 UCICommand::UciNewGame => {
                     self.position = Position::default();
-                    self.tt = TT::new(self.tt_size);
+                    self.tt.clear();
                 }
 
                 UCICommand::Option(name, value) => match &name[..] {
                     "Hash" => match value.parse::<usize>() {
-                        Ok(size) => {
-                            self.tt_size = size;
-                            self.tt = TT::new(size);
-                        }
+                        Ok(size) => self.tt.resize(size),
                         Err(_) => eprintln!("Could not parse hash option value!"),
                     },
                     "Threads" => match value.parse::<usize>() {
-                        Ok(size) => {
-                            self.worker_count = size;
-                        }
+                        Ok(size) => self.worker_count = size,
                         Err(_) => eprintln!("Could not parse threads option value!"),
                     },
                     _ => eprintln!("Unsupported option command!"),
@@ -179,6 +172,7 @@ impl UCIEngine {
 
                 UCICommand::Go(tc) => {
                     self.stop.store(false, Ordering::Relaxed);
+                    self.tt.increment_age();
                     let main_clock =
                         Clock::new(tc, self.stop.clone(), self.position.white_to_move());
                     let best_move =

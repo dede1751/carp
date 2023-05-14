@@ -409,9 +409,8 @@ impl Position {
                 TTFlag::Upper
             };
 
-            info.tt.insert(TTField::new(
-                self, tt_flag, best_move, alpha, depth, info.ply,
-            ));
+            info.tt
+                .insert(self.board.hash, tt_flag, best_move, alpha, depth, info.ply);
         }
 
         if root_node {
@@ -512,7 +511,7 @@ impl Position {
             };
 
             info.tt
-                .insert(TTField::new(self, tt_flag, best_move, alpha, 0, info.ply));
+                .insert(self.board.hash, tt_flag, best_move, alpha, 0, info.ply);
         }
 
         alpha

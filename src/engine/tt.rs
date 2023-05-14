@@ -4,12 +4,14 @@ use std::{
 };
 
 use crate::chess::{moves::*, zobrist::*};
-use crate::engine::{position::*, search_params::*};
+use crate::engine::search_params::*;
 
 /// TTFlag: determines the type of eval stored in the field
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash, Default)]
 pub enum TTFlag {
+    #[default]
+    None,
     Lower,
     Upper,
     Exact,
@@ -20,7 +22,7 @@ pub enum TTFlag {
 /// Can compress to 128b by using only 3b for the flag and 29 for the move.
 /// Mate scores are normalized within the tt for retrieval at different plies: within the tree, we
 /// normalize them to the root-distance, while in the tt they are normalized to node-distance
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash, Default)]
 pub struct TTField {
     key: u64,        // 8B
     flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually of note
@@ -73,46 +75,7 @@ impl From<(u64, u64)> for TTField {
     }
 }
 
-/// Default empty field to fill table.
-impl Default for TTField {
-    fn default() -> Self {
-        TTField {
-            key: 0,
-            flag: TTFlag::Upper,
-            best_move: NULL_MOVE,
-            eval: 0,
-            depth: 0,
-            age: 0,
-        }
-    }
-}
-
 impl TTField {
-    /// Initialize tt entry with normalized score
-    pub fn new(
-        position: &Position,
-        flag: TTFlag,
-        best_move: Move,
-        mut eval: Eval,
-        depth: usize,
-        ply: usize,
-    ) -> TTField {
-        if eval >= MATE_IN_PLY {
-            eval += ply as Eval;
-        } else if eval <= -MATE_IN_PLY {
-            eval -= ply as Eval;
-        };
-
-        TTField {
-            key: position.board.hash.0,
-            best_move,
-            depth: depth as u8,
-            age: position.age,
-            eval: eval as u16,
-            flag,
-        }
-    }
-
     /// Returns entry depth
     pub fn get_depth(&self) -> usize {
         self.depth as usize
@@ -144,15 +107,8 @@ impl TTField {
 }
 
 /// Actual TTField, compressed down to 16B
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct AtomicField(AtomicU64, AtomicU64);
-
-/// Default empty field
-impl Default for AtomicField {
-    fn default() -> Self {
-        AtomicField(AtomicU64::new(0), AtomicU64::new(0))
-    }
-}
 
 impl AtomicField {
     /// Atomic read from table to a TTField, checking that the checksum is correct
@@ -189,28 +145,48 @@ impl AtomicField {
 pub struct TT {
     table: Vec<AtomicField>,
     bitmask: u64,
+    age: u8,
 }
-pub const DEFAULT_SIZE: usize = 256;
+pub const DEFAULT_SIZE: usize = 16;
 
-// Default to 256 MiB size
+// Default to 16 MiB size
 impl Default for TT {
     fn default() -> Self {
-        TT::new(DEFAULT_SIZE)
+        let mut tt = TT {
+            table: Vec::new(),
+            bitmask: 0,
+            age: 0,
+        };
+        tt.resize(DEFAULT_SIZE);
+
+        tt
     }
 }
 
 impl TT {
-    pub fn new(mb_size: usize) -> TT {
+    /// Resize the tt to the given size in MiB
+    pub fn resize(&mut self, mb_size: usize) {
         let max_size = (mb_size << 20) / size_of::<AtomicField>() + 1;
         let actual_size = max_size.next_power_of_two() / 2; // ensures table size is power of 2
-        let bitmask = actual_size as u64 - 1;
 
-        let mut table: Vec<AtomicField> = Vec::with_capacity(actual_size);
+        self.bitmask = actual_size as u64 - 1;
+        self.table = Vec::with_capacity(actual_size);
         for _ in 0..actual_size {
-            table.push(AtomicField::default())
+            self.table.push(AtomicField::default())
         }
+    }
 
-        TT { table, bitmask }
+    /// Reset the tt to empty entries
+    pub fn clear(&mut self) {
+        self.age = 0;
+        for entry in self.table.iter_mut() {
+            *entry = AtomicField::default();
+        }
+    }
+
+    /// Increase current age. Entries with older age will be overwritten more easily.
+    pub fn increment_age(&mut self) {
+        self.age = self.age.wrapping_add(1);
     }
 
     /// Probe tt for entry
@@ -234,16 +210,41 @@ impl TT {
     /// Conditions are explained here:
     /// https://stackoverflow.com/questions/37782131/chess-extracting-the-principal-variation-from-the-transposition-table
     #[rustfmt::skip]
-    pub fn insert(&self, new: TTField) {
-        let tt_index = (new.key & self.bitmask) as usize;
+    pub fn insert(
+        &self,
+        key: ZHash,
+        flag: TTFlag,
+        best_move: Move,
+        eval: Eval,
+        depth: usize,
+        ply: usize
+    ) {
+        let tt_index = (key.0 & self.bitmask) as usize;
         let old_slot = unsafe { self.table.get_unchecked(tt_index) };
         let old  = old_slot.read_unchecked();
 
-        if  new.age > old.age  // always replace old entries
-            || old.depth == 0  // always replace qsearch entries
-            || ((old.flag != TTFlag::Exact && (new.flag == TTFlag::Exact || new.depth >= old.depth))
-            || (old.flag == TTFlag::Exact && new.flag == TTFlag::Exact && new.depth > old.depth))
+        if  self.age > old.age  // always replace old entries
+            || old.depth == 0  // always replace qsearch/empty entries
+            || ((old.flag != TTFlag::Exact && (flag == TTFlag::Exact || depth >= old.depth as usize))
+            || (old.flag == TTFlag::Exact && flag == TTFlag::Exact && depth > old.depth as usize))
         {
+            let eval = if eval >= MATE_IN_PLY {
+                (eval + ply as Eval) as u16
+            } else if eval <= -MATE_IN_PLY {
+                (eval - ply as Eval) as u16
+            } else {
+                eval as u16
+            };
+
+            let new = TTField {
+                key: key.0,
+                flag,
+                best_move,
+                eval,
+                depth: depth as u8,
+                age: self.age
+            };
+
             old_slot.write(new);
         }
     }
@@ -255,7 +256,8 @@ mod tests {
 
     #[test]
     fn test_tt_init() {
-        let tt = TT::new(1); // 1 MiB table -> 2^20 / 2^4 = 2^16 slot
+        let mut tt = TT::default();
+        tt.resize(1); // 1 MiB table -> 2^20 / 2^4 = 2^16 slot
 
         assert_eq!(16, size_of::<AtomicField>());
         assert_eq!(65536, tt.table.len());
@@ -264,62 +266,29 @@ mod tests {
     #[test]
     fn test_tt_insert() {
         let tt = TT::default();
+        let z = ZHash(tt.bitmask);
 
-        let field1 = TTField {
-            key: tt.bitmask,
-            flag: TTFlag::Exact,
-            best_move: Move(25625038),
-            eval: 100,
-            depth: 1,
-            age: 0,
-        };
+        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 1, 0); // insert in empty field
+        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 2, 0); // replace
+        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 1, 0); // do not replace
 
-        let field2 = TTField {
-            key: tt.bitmask,
-            flag: TTFlag::Exact,
-            best_move: Move(25625038),
-            eval: 100,
-            depth: 2,
-            age: 0,
-        };
-
-        tt.insert(field1); // insert in empty field
-        tt.insert(field2); // replace
-        tt.insert(field1); // do not replace
-
-        let target1 = tt.probe(ZHash(field2.key)).unwrap();
+        let target1 = tt.probe(z).unwrap();
         let target2 = tt.probe(ZHash(8));
 
-        assert_eq!(field2, target1);
+        assert_eq!(2, target1.get_depth());
         assert!(target2.is_none());
     }
 
     #[test]
     fn test_tt_collision() {
-        let tt = TT::new(1);
+        let mut tt = TT::default();
+        tt.resize(1);
 
-        let field1 = TTField {
-            key: 65537,
-            flag: TTFlag::Exact,
-            best_move: NULL_MOVE,
-            eval: 100,
-            depth: 1,
-            age: 0,
-        };
+        // 65537 is 2^16 + 1, so it will collide with 1. checksum should prevent reading
+        tt.insert(ZHash(65537), TTFlag::Exact, NULL_MOVE, 100, 1, 0); // insert field 1
+        tt.insert(ZHash(1), TTFlag::Exact, NULL_MOVE, 100, 2, 0); // insert field 2 in same slot as field 1, replacing it
 
-        let field2 = TTField {
-            key: 1,
-            flag: TTFlag::Exact,
-            best_move: NULL_MOVE,
-            eval: 100,
-            depth: 2,
-            age: 0,
-        };
-
-        tt.insert(field1); // insert field 1
-        tt.insert(field2); // insert field 2 in same slot as field 1, replacing it
         let new = tt.probe(ZHash(65537)); // check no match on first hash
-
         assert!(new.is_none());
     }
 }

@@ -196,7 +196,9 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
             Arc::new(AtomicBool::new(false)),
             true,
         );
-        let exit_eval = position.iterative_search::<false>(clock, &TT::new(16)).eval;
+        let exit_eval = position
+            .iterative_search::<false>(clock, &TT::default())
+            .eval;
         if exit_eval.abs() >= 1000 {
             continue 'main;
         }
@@ -204,7 +206,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
         // Play out the game
         let mut win_adj_counter = 0;
         let mut draw_adj_counter = 0;
-        let tt = TT::new(16);
+        let mut tt = TT::default();
 
         let game_result = loop {
             let result = position.check_result();
@@ -212,6 +214,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
                 break result;
             }
 
+            tt.increment_age();
             let clock = Clock::new(
                 tc.clone(),
                 Arc::new(AtomicBool::new(false)),

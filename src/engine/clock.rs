@@ -113,7 +113,7 @@ impl Clock {
                     }
                 };
                 let time = time - OVERHEAD;
-                
+
                 // This time allocation formula is taken from Svart by Crippa
                 let (opt, max) = if let Some(moves) = movestogo {
                     let scale = 0.7 / (moves.min(50) as f64);

@@ -3,12 +3,11 @@ use std::{cmp::min, str::FromStr};
 use crate::chess::{bitboard::*, board::*, move_list::*, moves::*, piece::*};
 use crate::engine::{move_sorter::*, nnue::*, search::*};
 
-/// Position, represents a Board's evolution along the search tree.
+/// Position, represents a Board's evolution along the game tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
 #[derive(Clone, Debug)]
 pub struct Position {
     pub board: Board,
-    pub age: u8,
     pub history: Vec<Board>,
     pub nnue_state: Box<NNUEState>,
 }
@@ -50,7 +49,6 @@ impl FromStr for Position {
 
         let res = Position {
             board,
-            age: history.len() as u8 + 1,
             history,
             nnue_state: NNUEState::from_board(&board),
         };
@@ -203,7 +201,6 @@ impl Position {
         self.board = new;
 
         self.nnue_state.refresh(&new);
-        self.age += 1;
     }
 
     /// Checks if the game is over and returns the result
