@@ -189,6 +189,22 @@ impl TT {
         self.age = self.age.wrapping_add(1);
     }
 
+    /// Prefetch a cache line containing the entry for the given hash
+    /// Implementation from Viridithas
+    pub fn prefetch(&self, hash: ZHash) {
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+
+            // get a reference to the entry in the table:
+            let tt_index = (hash.0 & self.bitmask) as usize;
+            let entry = self.table.get_unchecked(tt_index);
+
+            // prefetch the entry:
+            _mm_prefetch((entry as *const AtomicField).cast::<i8>(), _MM_HINT_T0);
+        }
+    }
+
     /// Probe tt for entry
     ///
     /// UB: since bitmask and tables cannot be externally modified, it is impossible for get

@@ -298,6 +298,7 @@ impl Position {
             }
 
             self.make_move(m, info);
+            info.tt.prefetch(self.board.hash); // prefetch next hash
 
             // Flag for moves checking the opponent
             let is_check = self.king_in_check();
@@ -478,6 +479,7 @@ impl Position {
             }
 
             self.make_move(m, info);
+            info.tt.prefetch(self.board.hash); // prefetch next hash
             let eval = -self.quiescence(info, -beta, -alpha);
             self.undo_move(info);
 
