@@ -92,8 +92,6 @@ impl Position {
     }
 
     /// Iteratively searches the position at increasing depth
-    /// After the shallower depths, we start doing reduced-window searches and eventually reopen
-    /// each "side" of the window in case of fail-high or fail-low
     pub fn iterative_search<const INFO: bool>(&mut self, clock: Clock, tt: &TT) -> SearchResult {
         let mut info = SearchInfo {
             clock,
@@ -116,39 +114,72 @@ impl Position {
             nodes: 0,
         };
 
-        let mut depth = 1;
-        let mut alpha = -INFINITY;
-        let mut beta = INFINITY;
-        let mut eval;
+        for d in 1..MAX_DEPTH {
+            if !info.clock.start_check(d, info.nodes) {
+                break;
+            }
 
-        while !info.stop && info.clock.start_check(depth, info.nodes) && depth < MAX_DEPTH {
-            eval = self.negamax(&mut info, alpha, beta, depth);
+            let eval = self.aspiration_window(&mut info, result.eval, d);
+            
+            if !info.stop {
+                result.best_move = info.best_move;
+                result.eval = eval;
+                result.depth = d;
 
-            if eval <= alpha {
-                alpha = -INFINITY;
-            } else if eval >= beta {
-                beta = INFINITY;
-            } else {
-                if depth >= ASPIRATION_THRESHOLD {
-                    alpha = eval - ASPIRATION_WINDOW;
-                    beta = eval + ASPIRATION_WINDOW;
-                }
-
-                if !info.stop {
-                    if INFO {
-                        info.print(self.board, eval, depth);
-                        info.seldepth = 0;
-                    }
-                    result.best_move = info.best_move;
-                    result.eval = eval;
-                    result.depth = depth;
-                    depth += 1;
+                if INFO {
+                    info.print(self.board, eval, d);
                 }
             }
         }
 
         result.nodes = info.nodes;
         result
+    }
+
+    /// Aspiration Window loop
+    /// Run searches on progressively wider windows until we find a value within the window.
+    fn aspiration_window(&mut self, info: &mut SearchInfo, prev: Eval, mut depth: usize) -> Eval {
+        let base_depth = depth;
+
+        // Setup aspiration window when searching a sufficient depth
+        let mut alpha = -INFINITY;
+        let mut beta = INFINITY;
+        let mut delta = ASPIRATION_WINDOW;
+        if depth >= ASPIRATION_THRESHOLD {
+            alpha = (-INFINITY).max(prev - delta);
+            beta = (INFINITY).min(prev + delta);
+        }
+
+        loop {
+            let eval = self.negamax(info, alpha, beta, depth);
+            if info.stop {
+                return 0;
+            }
+
+            if eval <= alpha {
+                // Fail-low, reset search depth, widen window down 
+                beta = (alpha + beta) / 2;
+                alpha = (-INFINITY).max(alpha - delta);
+                depth = base_depth;
+            } else if eval >= beta {
+                // Fail-high, reduce depth, widen window up
+                beta = (INFINITY).min(beta + delta);
+
+                if eval.abs() < MATE_IN_PLY {
+                    depth -= 1;
+                }
+            } else {
+                // Search within window, success
+                return eval;
+            }
+
+            // Widen window, fully reopen when it's too wide
+            delta += delta / 2;
+            if delta >= QS_DELTA_MARGIN {
+                alpha = -INFINITY;
+                beta = INFINITY;
+            }
+        }
     }
 
     /// Standard alpha-beta negamax tree search
@@ -167,7 +198,12 @@ impl Position {
         let root_node = info.ply == 0;
         let pv_node = alpha != beta - 1; // False when searching with a null window
         let in_check = self.king_in_check();
-        info.seldepth = info.seldepth.max(info.ply);
+
+        if root_node {
+            info.seldepth = 0;
+        } else {
+            info.seldepth = info.seldepth.max(info.ply);
+        }
 
         // Check extension
         if in_check {

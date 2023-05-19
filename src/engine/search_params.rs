@@ -35,8 +35,8 @@ pub const EFP_MARGIN: Eval = 120; // multiplier for eval bonus margin for efp
 pub const LMP_THRESHOLD: usize = 8; // depth at which late move pruning kicks in
 pub const LMP_BASE: usize = 4; // lmp move count at depth = 0
 
-pub const ASPIRATION_THRESHOLD: usize = 4; // depth at which windows are reduced
-pub const ASPIRATION_WINDOW: Eval = 50; // aspiration window width
+pub const ASPIRATION_THRESHOLD: usize = 5; // depth at which windows are reduced
+pub const ASPIRATION_WINDOW: Eval = 25; // aspiration window width
 
 pub const QS_DELTA_MARGIN: Eval = 1100; // highest queen value possible
 pub const QS_FUTILITY_MARGIN: Eval = 200; // overhead we allow for captures in qs
