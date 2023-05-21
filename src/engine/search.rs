@@ -327,6 +327,7 @@ impl Position {
         let mut best_move = NULL_MOVE;
         let mut best_eval = -INFINITY;
         let mut searched_quiets = Vec::with_capacity(20);
+        let lmp_count = LMP_BASE + (depth * depth);
 
         for (move_count, (m, s)) in move_list.enumerate() {
             if move_count == 0 {
@@ -343,24 +344,24 @@ impl Position {
             // Quiet move pruning
             if !pv_node && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
                 let mut prune = false;
-
+                
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
                 if depth <= HLP_THRESHOLD && s - HISTORY_OFFSET < HLP_MARGIN {
                     prune = true;
                 }
+                
+                let lmr_depth = depth - lmr_reduction(depth, move_count).min(depth);
 
                 // Extended Futility pruning
                 // Below a certain depth, prune moves which will most likely not improve alpha
-                if !prune
-                    && depth <= EFP_THRESHOLD
-                    && stand_pat + EFP_BASE + EFP_MARGIN * (depth as Eval) < alpha
-                {
+                let efp_margin = EFP_BASE + EFP_MARGIN * (lmr_depth as Eval);
+                if !prune && lmr_depth <= EFP_THRESHOLD && stand_pat + efp_margin < alpha{
                     prune = true;
                 }
 
                 // Late move pruning
-                if !prune && depth <= LMP_THRESHOLD && move_count >= LMP_BASE + (depth * depth) {
+                if !prune && depth <= LMP_THRESHOLD && move_count >= lmp_count {
                     prune = true;
                 }
 

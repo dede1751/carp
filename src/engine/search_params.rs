@@ -28,9 +28,9 @@ pub const IIR_LOWER_LIMIT: usize = 4; // stop applying iir near leaves
 pub const HLP_THRESHOLD: usize = 2; // depth at which history leaf pruning kicks in
 pub const HLP_MARGIN: i32 = 0; // increase to prune quiets with higher history scores
 
-pub const EFP_THRESHOLD: usize = 8; // depth at which extended futility pruning kicks in
-pub const EFP_BASE: Eval = 100; // base eval bonus margin for efp
-pub const EFP_MARGIN: Eval = 120; // multiplier for eval bonus margin for efp
+pub const EFP_THRESHOLD: usize = 5; // depth at which extended futility pruning kicks in
+pub const EFP_BASE: Eval = 80; // base eval bonus margin for efp
+pub const EFP_MARGIN: Eval = 90; // multiplier for eval bonus margin for efp
 
 pub const LMP_THRESHOLD: usize = 8; // depth at which late move pruning kicks in
 pub const LMP_BASE: usize = 4; // lmp move count at depth = 0
