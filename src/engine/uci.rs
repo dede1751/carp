@@ -179,7 +179,7 @@ impl UCIEngine {
                         self.position
                             .smp_search(self.worker_count, main_clock, &self.tt);
 
-                    println!("\nbestmove {best_move}");
+                    println!("bestmove {best_move}");
                 }
 
                 _ => eprintln!("Unexpected UCI command!"),

@@ -50,8 +50,8 @@ impl FromStr for TimeControl {
                 "depth" => return Ok(TimeControl::FixedDepth(parse_value(&mut tokens)?)),
                 "nodes" => return Ok(TimeControl::FixedNodes(parse_value(&mut tokens)?)),
                 "movetime" => return Ok(TimeControl::FixedTime(parse_value(&mut tokens)?)),
-                "wtime" => wtime = Some(parse_value(&mut tokens)?),
-                "btime" => btime = Some(parse_value(&mut tokens)?),
+                "wtime" => wtime = Some(parse_value::<i64>(&mut tokens)?.max(0) as u64), // handle negative values
+                "btime" => btime = Some(parse_value::<i64>(&mut tokens)?.max(0) as u64),
                 "winc" => winc = Some(parse_value(&mut tokens)?),
                 "binc" => binc = Some(parse_value(&mut tokens)?),
                 "movestogo" => movestogo = Some(parse_value(&mut tokens)?),
@@ -91,8 +91,8 @@ impl Clock {
     pub fn new(time_control: TimeControl, stop: Arc<AtomicBool>, white_to_move: bool) -> Clock {
         let (opt_time, max_time) = match time_control {
             TimeControl::FixedTime(time) => (
-                Duration::from_millis(time - OVERHEAD),
-                Duration::from_millis(time - OVERHEAD),
+                Duration::from_millis(time - OVERHEAD.min(time)),
+                Duration::from_millis(time - OVERHEAD.min(time)),
             ),
             TimeControl::Variable {
                 wtime,
@@ -112,7 +112,14 @@ impl Clock {
                         None => (btime, 0),
                     }
                 };
-                let time = time - OVERHEAD;
+
+                // When below overhead, make opt and max time 0
+                let time = time - OVERHEAD.min(time);
+                let inc = if time < OVERHEAD {
+                    0
+                } else {
+                    inc
+                };
 
                 // This time allocation formula is taken from Svart by Crippa
                 let (opt, max) = if let Some(moves) = movestogo {
@@ -160,6 +167,15 @@ impl Clock {
     /// Returns time elapsed from clock start
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
+    }
+
+    /// Checks whether there is any time to begin the search
+    /// This should only every be called before beginning a search.
+    pub fn no_search_time(&self) -> bool {
+        match self.time_control {
+            TimeControl::FixedTime(_) | TimeControl::Variable { .. } => self.opt_time == Duration::ZERO,
+            _ => false,
+        }
     }
 
     /// Checks whether to deepen the search (true -> continue deepening)

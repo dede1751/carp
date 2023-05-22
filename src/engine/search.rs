@@ -37,7 +37,7 @@ impl Position {
         // Return immediately in forced situations.
         if move_count == 0 {
             return NULL_MOVE;
-        } else if move_count == 1 {
+        } else if move_count == 1 || main_clock.no_search_time() {
             return move_list.moves[0];
         };
 
