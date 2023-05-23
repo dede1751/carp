@@ -160,7 +160,7 @@ mod tests {
         let mut z1 = b.hash;
         z1.toggle_ep(Square::E6);
         z1.toggle_side();
-        
+
         // z1 is the same as we obtained through incremental hash updates in make move
         let b2 = b.make_null();
         assert_eq!(z1, b2.hash);

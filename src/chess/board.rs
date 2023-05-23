@@ -824,12 +824,12 @@ impl Board {
 /// SEE
 impl Board {
     /// Returns bitboard with all pieces attacking a square
-    fn map_all_attackers(&self, square: Square) -> BitBoard {
+    fn map_all_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
         self.pieces[WPAWN] & pawn_attacks(square, Color::Black)
             | self.pieces[BPAWN] & pawn_attacks(square, Color::White)
             | self.knights() & knight_attacks(square)
-            | (self.bishops() | self.queens()) & bishop_attacks(square, self.occupancy)
-            | (self.rooks() | self.queens()) & rook_attacks(square, self.occupancy)
+            | (self.bishops() | self.queens()) & bishop_attacks(square, blockers)
+            | (self.rooks() | self.queens()) & rook_attacks(square, blockers)
             | self.kings() & king_attacks(square)
     }
 
@@ -888,50 +888,57 @@ impl Board {
         // Updated occupancy map after capture
         let mut occs = self.occupancy.pop_bit(src).set_bit(tgt);
         if m.is_enpassant() {
-            occs = occs.pop_bit(self.en_passant.unwrap()); // guaranteed to be Some
+            let ep_tgt = PUSH[!self.side as usize][self.en_passant.unwrap() as usize]; // guaranteed to be Some
+            occs = occs.pop_bit(ep_tgt); 
         }
 
         // Get all pieces covering the exchange square and start exchanging
-        let mut attackers = self.map_all_attackers(tgt) & occs;
-        let mut turn = !self.side;
+        let mut attackers = self.map_all_attackers(tgt, occs) & occs;
+        let mut side_to_move = !self.side;
 
         loop {
             // SEE terminates when no recapture is possible.
-            let own_attackers = attackers & self.side_occupancy[turn as usize];
+            let own_attackers = attackers & self.side_occupancy[side_to_move as usize];
             if own_attackers == EMPTY_BB {
                 break;
             }
 
             // Get the least valuable attacker and simulate the recapture
-            let (attacker_square, attacker) = self.get_lva(own_attackers, turn).unwrap(); // attackers are at least one
+            let (attacker_square, attacker) = self.get_lva(own_attackers, side_to_move).unwrap(); // attackers are at least one
             occs = occs.pop_bit(attacker_square);
 
             // Diagonal recaptures uncover bishops/queens
-            if attacker == turn.pawn() || attacker == turn.bishop() || attacker == turn.queen() {
+            if attacker == side_to_move.pawn()
+                || attacker == side_to_move.bishop()
+                || attacker == side_to_move.queen()
+            {
                 attackers |= bishop_attacks(tgt, occs) & diagonal_sliders;
             }
 
             // Orthogonal recaptures uncover rooks/queens
-            if attacker == turn.rook() || attacker == turn.queen() {
+            if attacker == side_to_move.rook() || attacker == side_to_move.queen() {
                 attackers |= rook_attacks(tgt, occs) & orthogonal_sliders;
             }
-            attackers &= occs;
+            attackers &= occs; // ignore pieces already "used up"
 
             // Negamax the balance, cutoff if losing our attacker would still win the exchange
-            turn = !turn;
+            side_to_move = !side_to_move;
             balance = -balance - 1 - PIECE_VALUES[attacker as usize];
             if balance >= 0 {
-                // If the opponent recaptured with the king, we win if we have other attackers
-                if attacker == (!turn).king() && attackers != EMPTY_BB {
-                    return self.side == turn;
+                // If the recapturing piece is a king, and the opponent has another attacker,
+                // a positive balance should not translate to an exchange win.
+                if attacker == (!side_to_move).king()
+                    && attackers & self.side_occupancy[side_to_move as usize] != EMPTY_BB
+                {
+                    return self.side == side_to_move;
                 }
 
                 break;
             }
         }
 
-        // Whoever is left without recaptures, loses
-        self.side != turn
+        // We win the exchange if we are not the one who should recapture
+        self.side != side_to_move
     }
 }
 
@@ -1056,8 +1063,8 @@ mod tests {
             .parse()
             .unwrap();
 
-        let att1 = b1.map_all_attackers(Square::E5);
-        let att2 = b2.map_all_attackers(Square::E5);
+        let att1 = b1.map_all_attackers(Square::E5, b1.occupancy);
+        let att2 = b2.map_all_attackers(Square::E5, b2.occupancy);
 
         println!("{b1}\n{att1}\n{b2}\n{att2}");
 
@@ -1070,26 +1077,33 @@ mod tests {
 
     #[test]
     fn test_see() {
+        const SEE_SUITE: [(&str, &str, bool); 4] = [
+            (
+                "1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1",
+                "e1e5",
+                true,
+            ),
+            (
+                "1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1",
+                "d3e5",
+                false,
+            ),
+            (
+                "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+                "g2h3",
+                true,
+            ),
+            ("k3r3/8/8/4p3/8/2B5/1B6/K7 w - - 0 1", "c3e5", true),
+        ];
+
         init_all_tables();
-        let b1: Board = "1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
-            .parse()
-            .unwrap();
-        let b2: Board = "1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1"
-            .parse()
-            .unwrap();
-        let b3: Board = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-            .parse()
-            .unwrap();
+        for (b, m, r) in SEE_SUITE {
+            let board: Board = b.parse().unwrap();
+            let mov: Move = board.find_move(m).unwrap();
 
-        println!("{b1}\n{b2}\n{b3}");
-
-        let m1 = b1.find_move("e1e5").unwrap();
-        let m2 = b2.find_move("d3e5").unwrap();
-        let m3 = b3.find_move("g2h3").unwrap();
-
-        assert!(b1.see(m1, 0));
-        assert!(!b2.see(m2, 0));
-        assert!(b3.see(m3, 0));
+            println!("{board}");
+            assert_eq!(board.see(mov, 0), r);
+        }
     }
 
     #[rustfmt::skip]

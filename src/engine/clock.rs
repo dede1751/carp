@@ -115,11 +115,7 @@ impl Clock {
 
                 // When below overhead, make opt and max time 0
                 let time = time - OVERHEAD.min(time);
-                let inc = if time < OVERHEAD {
-                    0
-                } else {
-                    inc
-                };
+                let inc = if time < OVERHEAD { 0 } else { inc };
 
                 // This time allocation formula is taken from Svart by Crippa
                 let (opt, max) = if let Some(moves) = movestogo {
@@ -173,7 +169,9 @@ impl Clock {
     /// This should only every be called before beginning a search.
     pub fn no_search_time(&self) -> bool {
         match self.time_control {
-            TimeControl::FixedTime(_) | TimeControl::Variable { .. } => self.opt_time == Duration::ZERO,
+            TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
+                self.opt_time == Duration::ZERO
+            }
             _ => false,
         }
     }

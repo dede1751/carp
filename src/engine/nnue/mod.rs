@@ -248,9 +248,9 @@ mod tests {
         let idx3 = nnue_index(Piece::BP, Square::A1);
         let idx4 = nnue_index(Piece::WK, Square::E1);
 
-        assert_eq!(idx1, (HIDDEN *  56, HIDDEN * 384));
-        assert_eq!(idx2, (HIDDEN *   7, HIDDEN * 447));
-        assert_eq!(idx3, (HIDDEN * 384, HIDDEN *  56));
+        assert_eq!(idx1, (HIDDEN * 56, HIDDEN * 384));
+        assert_eq!(idx2, (HIDDEN * 7, HIDDEN * 447));
+        assert_eq!(idx3, (HIDDEN * 384, HIDDEN * 56));
         assert_eq!(idx4, (HIDDEN * 324, HIDDEN * 764));
     }
 

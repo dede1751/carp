@@ -120,7 +120,7 @@ impl Position {
             }
 
             let eval = self.aspiration_window(&mut info, result.eval, d);
-            
+
             if !info.stop {
                 result.best_move = info.best_move;
                 result.eval = eval;
@@ -157,7 +157,7 @@ impl Position {
             }
 
             if eval <= alpha {
-                // Fail-low, reset search depth, widen window down 
+                // Fail-low, reset search depth, widen window down
                 beta = (alpha + beta) / 2;
                 alpha = (-INFINITY).max(alpha - delta);
                 depth = base_depth;
@@ -344,19 +344,19 @@ impl Position {
             // Quiet move pruning
             if !pv_node && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
                 let mut prune = false;
-                
+
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
                 if depth <= HLP_THRESHOLD && s - HISTORY_OFFSET < HLP_MARGIN {
                     prune = true;
                 }
-                
+
                 let lmr_depth = depth - lmr_reduction(depth, move_count).min(depth);
 
                 // Extended Futility pruning
                 // Below a certain depth, prune moves which will most likely not improve alpha
                 let efp_margin = EFP_BASE + EFP_MARGIN * (lmr_depth as Eval);
-                if !prune && lmr_depth <= EFP_THRESHOLD && stand_pat + efp_margin < alpha{
+                if !prune && lmr_depth <= EFP_THRESHOLD && stand_pat + efp_margin < alpha {
                     prune = true;
                 }
 
