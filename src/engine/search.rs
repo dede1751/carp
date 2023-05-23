@@ -165,7 +165,7 @@ impl Position {
                 // Fail-high, reduce depth, widen window up
                 beta = (INFINITY).min(beta + delta);
 
-                if eval.abs() < MATE_IN_PLY {
+                if eval.abs() < MATE_IN_PLY && depth > 1 {
                     depth -= 1;
                 }
             } else {
