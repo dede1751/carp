@@ -66,8 +66,7 @@ pub fn run_benchmark() {
 
     for fen in TEST_POSITIONS {
         let mut position: Position = fen.parse().unwrap();
-        let mut tt = TT::default();
-        tt.resize(256);
+        let tt = TT::default();
         let clock = Clock::new(
             TimeControl::FixedDepth(13),
             Arc::new(AtomicBool::new(false)),

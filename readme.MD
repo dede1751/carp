@@ -26,12 +26,11 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 ## Building Carp
 
-Carp can either be build through Cargo with ```cargo run --release```, and the Tools module can be
+Carp can either be build through Cargo with ```cargo run --release```. Additionally, the Tools module can be
 conditionally compiled with the flag ```--features tools```.
 
-The Cargo build will automatically target the native architecture. To get the various [microarchitecture
-levels][arch-link] for the running OS build Carp using the Makefile provided with ```make release```.
-These are the executables provided within releases.
+The Cargo build will automatically target the native architecture: to get the various [microarchitecture
+levels][arch-link] for the running OS, build Carp using the Makefile provided by running ```make release```.
 
 
 ## Performance
@@ -109,10 +108,10 @@ None of these are necessary to run the engine, but they are vital for developmen
 [build-badge]:https://img.shields.io/github/actions/workflow/status/dede1751/carp/rust.yml?branch=master&logo=github&style=for-the-badge
 [build-link]:https://github.com/dede1751/carp/actions/workflows/rust.yml
 [commits-badge]:https://img.shields.io/github/commits-since/dede1751/carp/latest?style=for-the-badge
-[commits-link]:https://github.com/dede1751/carp/commits/master
+[commits-link]:https://github.com/dede1751/carp/commits/main
 [release-badge]:https://img.shields.io/github/v/release/dede1751/carp?style=for-the-badge&label=official%20release
 [release-link]:https://github.com/dede1751/carp/releases/latest
 [license-badge]:https://img.shields.io/github/license/dede1751/carp?style=for-the-badge&label=license&color=success
 [license-link]:https://github.com/dede1751/carp/blob/master/LICENSE
-[lichess-badge]:https://img.shields.io/badge/Play%20Carp%20-v1.3-yellow?logo=lichess&style=for-the-badge
+[lichess-badge]:https://img.shields.io/badge/Play%20Carp%20-v2.0-yellow?logo=lichess&style=for-the-badge
 [lichess-link]:https://lichess.org/@/Carp_Bot

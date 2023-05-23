@@ -889,7 +889,7 @@ impl Board {
         let mut occs = self.occupancy.pop_bit(src).set_bit(tgt);
         if m.is_enpassant() {
             let ep_tgt = PUSH[!self.side as usize][self.en_passant.unwrap() as usize]; // guaranteed to be Some
-            occs = occs.pop_bit(ep_tgt); 
+            occs = occs.pop_bit(ep_tgt);
         }
 
         // Get all pieces covering the exchange square and start exchanging
