@@ -133,7 +133,8 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
     let rng = fastrand::Rng::new();
 
     let mut position;
-    let mut game_buffer: Vec<(Eval, String)> = vec![];
+    let mut game_buffer: Vec<(Eval, String)> = Vec::new();
+    let mut tt = TT::default();
 
     let mut output_file = File::create(path.join(format!("thread_{id}.txt"))).unwrap();
     let mut output_buffer = BufWriter::new(&mut output_file);
@@ -179,7 +180,8 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
         position = Position::default();
 
         // Start each game at a random position, skip if randomly stumble into a game over
-        for _ in 0..12 {
+        // We randomize the starting side to avoid biasing the data
+        for _ in 0..rng.usize(11..=12) {
             let move_list = position.board.gen_moves::<true>();
 
             if move_list.is_empty() || position.is_draw(position.board.halfmoves) {
@@ -191,14 +193,13 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
         }
 
         // Avoid positions that are too unbalanced
+        tt.clear();
         let clock = Clock::new(
             TimeControl::FixedDepth(10),
             Arc::new(AtomicBool::new(false)),
-            true,
+            position.white_to_move(),
         );
-        let exit_eval = position
-            .iterative_search::<false>(clock, &TT::default())
-            .eval;
+        let exit_eval = position.iterative_search::<false>(clock, &tt).eval;
         if exit_eval.abs() >= 1000 {
             continue 'main;
         }
@@ -206,7 +207,6 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
         // Play out the game
         let mut win_adj_counter = 0;
         let mut draw_adj_counter = 0;
-        let mut tt = TT::default();
 
         let game_result = loop {
             let result = position.check_result();

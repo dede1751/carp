@@ -79,8 +79,10 @@ impl<'a> PartialOrd for QuicklySortableString<'a> {
 /// Merge all datagen files in the given directory.
 /// This will read all the data into memory, so be careful with dataset size.
 pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
-    let out = input_dir.as_ref().join("merged.txt");
-    let output_file = File::create(out.clone())?;
+    let out = input_dir.as_ref().join(format!(
+        "merged_{}.txt",
+        chrono::Local::now().format("%d-%m-%Y_%H-%M-%S")
+    ));
     println!(
         "\nMerged data is being saved to {WHITE}{}{DEFAULT}",
         out.display()
@@ -105,16 +107,18 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
     }
     let buffer = String::from_utf8(buffer)?;
 
-    // Generate all the QuickSortableStrings indices for the buffer and add them to the heap
-    let mut files = BinaryHeap::new();
-    let indices = buffer.lines()
+    // Generate all the QuickSortableString indices for the buffer
+    let indices = buffer
+        .lines()
         .map(|line| {
             let split_index = 2 + line.bytes().position(|b| b == b' ').unwrap();
             QuicklySortableString::new(line, 0..split_index)
         })
         .collect::<Vec<_>>();
+    let initial_size = indices.len();
 
     // Deduplicate each individual chunk and add it to the heap
+    let mut files = BinaryHeap::new();
     for chunk in indices.chunks(CHUNK_SIZE).into_iter() {
         let mut data = chunk.to_vec();
         data.sort_unstable();
@@ -139,7 +143,8 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
         let old_size = -s1 - s2;
 
         // Merge and dedup the two chunks
-        let mut res: Vec<QuicklySortableString<'_>> = Itertools::merge(f1.into_iter(), f2.into_iter()).collect();
+        let mut res: Vec<QuicklySortableString<'_>> =
+            Itertools::merge(f1.into_iter(), f2.into_iter()).collect();
         res.dedup();
 
         let new_size = res.len() as i64;
@@ -147,7 +152,7 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
 
         let elapsed = chunk_time.elapsed();
         println!(
-            "\n\t - Merged and Deduped {} FENs down to {} FENs in {}.{:03}s",
+            "\n\t - Merged and Deduped a batch of {} FENs down to {} FENs in {}.{:03}s",
             old_size,
             new_size,
             elapsed.as_secs(),
@@ -159,14 +164,15 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
     let data = files.pop().unwrap().1;
     let elapsed = merge_time.elapsed();
     println!(
-        "{GREEN}[2/3]{DEFAULT} Deduped down to {} FENs in {}.{:03}s",
+        "{GREEN}[2/3]{DEFAULT} Deduped {} FENs down to {} FENs in {}.{:03}s",
+        initial_size,
         data.len(),
         elapsed.as_secs(),
         elapsed.subsec_millis()
     );
 
     // Write final deduplicated data to output file.
-    let mut output = BufWriter::new(output_file);
+    let mut output = BufWriter::new(File::create(out.clone())?);
     let write_time = std::time::Instant::now();
     for fen in &data {
         writeln!(output, "{}", fen.as_str())?;

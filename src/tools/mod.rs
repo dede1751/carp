@@ -16,19 +16,13 @@ pub const RED: &str = "\x1b[38;5;196m";
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// Run nnue datagen, formatted like so: '{games}g-{threads}t-{value}[d/n]}'
+    /// Run nnue datagen, formatted like so: '{games}g-{threads}t-{value}[d/n]'
     #[arg(short, long, value_name = "OPTIONS")]
     datagen: Option<String>,
 
     /// Merge and dedup all datagen files in the given directory
     #[clap(short, long, value_parser, value_name = "PATH")]
     pub merge: Option<std::path::PathBuf>,
-}
-
-#[derive(Parser, Debug)]
-enum Bench {
-    /// Run node benchmark for OpenBench
-    Bench,
 }
 
 pub fn parse_cli() {
