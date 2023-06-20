@@ -3,7 +3,7 @@
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0000 │ 100M d8 self-play fens │           518.2 +/- 208.1           │ First unique network! Completely curshes HCE │
 │          │ 256 hidden nodes       │                                     │ SPRT took ~80 games just because it wouldn't │
-│ (MASTER) │ lr=1e-2    wdl=0.1     │                                     │ lose                                         │
+│  (v2.0)  │ lr=1e-2    wdl=0.1     │                                     │ lose                                         │
 │          │ 80 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0001 │ 100M d8 self-play fens │     -9.2 (lost full output)         │ Testing 384-node hidden layers               │
@@ -52,21 +52,26 @@
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0010 │ 670M d8 self-play fens │             4.71 +- 3.73            │ Trying SquaredReLu activation                │
-│  (CURR)  │ 512 hidden nodes       │               vs 0009               │                                              │
+│          │ 512 hidden nodes       │               vs 0009               │                                              │
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0011 │ 1.08B d8 self-play fens│                                     │ Completely fresh training data. Training     │
-│          │ 512 hidden nodes       │                                     │ crashed before 65 epochs                     │
+│ carp0011 │ 1.08B d8 self-play fens│            13.98 +- 7.83            │ Completely fresh training data. Training     │
+│          │ 512 hidden nodes       │               vs 0010               │ crashed before 65 epochs                     │
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 60 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0012 │ 670M d8 self-play fens │                                     │ Same as carp0011, but resumed training for   │
-│          │ 512 hidden nodes       │                                     │ final 5 epochs.                              │
+│ carp0012 │ 1.08B d8 self-play fens│             2.21 +- 2.39            │ Same as carp0011, but resumed training for   │
+│          │ 512 hidden nodes       │               vs 0011               │ final 5 epochs.                              │
 │          │ lr=1e-3    wdl=0.3     │                                     │                                              │
 │          │ 65 epoch, drop at 30   │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0011 │                        │                                     │                                              │
+│ carp0013 │ 1.08B d8 self-play fens│            6.94 +- 4.97             │ Carp0012 at earlier epoch. 512 nodes is most │
+│          │ 512 hidden nodes       │               vs 0012               │ likely overfitting at this point             │
+│  (CURR)  │ lr=1e-3    wdl=0.3     │           29.21 +- 12.00            │                                              │
+│          │ 45 epoch, drop at 30   │               vs 0010               │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0014 │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
