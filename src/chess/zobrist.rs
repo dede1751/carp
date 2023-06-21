@@ -18,7 +18,7 @@ impl ZHash {
         let mut hash: ZHash = ZHash(0);
 
         for piece in ALL_PIECES {
-            for square in board.pieces[piece as usize] {
+            for square in board.piece_bb[piece as usize] {
                 hash.toggle_piece(piece, square);
             }
         }

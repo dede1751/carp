@@ -11,16 +11,22 @@ use crate::engine::{nnue::*, search_params::*};
 /// Any board without a king for each player (and with more than one for either) is UB!
 #[derive(Copy, Clone, Debug)]
 pub struct Board {
-    pub pieces: [BitBoard; PIECE_COUNT],
+    // Main bitboards
+    pub piece_bb: [BitBoard; PIECE_COUNT],
     pub side_occupancy: [BitBoard; 2],
     pub occupancy: BitBoard,
+
+    // Piece map for piece_at lookup
+    piece: [Option<Piece>; SQUARE_COUNT],
+
+    // Other positional information
     pub side: Color,
     pub castling_rights: CastlingRights,
     pub en_passant: Option<Square>,
     pub halfmoves: usize,
     pub hash: ZHash,
 
-    // Various information used for evaluation and move generation
+    // Various information used for legal move generation
     diag_pins: BitBoard,
     hv_pins: BitBoard,
     pinned: BitBoard,
@@ -43,7 +49,7 @@ impl fmt::Display for Board {
 
                 let piece_str = ALL_PIECES
                     .iter()
-                    .find(|&p| self.pieces[*p as usize].get_bit(square))
+                    .find(|&p| self.piece_bb[*p as usize].get_bit(square))
                     .map_or(String::from(" "), |&p| p.to_string());
 
                 board_str.push_str(&piece_str);
@@ -169,7 +175,7 @@ impl Board {
 
                 let piece = ALL_PIECES
                     .iter()
-                    .find(|&p| self.pieces[*p as usize].get_bit(square));
+                    .find(|&p| self.piece_bb[*p as usize].get_bit(square));
 
                 if let Some(p) = piece {
                     if empty > 0 {
@@ -223,17 +229,17 @@ macro_rules! impl_piece_lookups {
     ($($piece:ident, $own:ident, $opp:ident, $tot:ident),*) => {
         $(impl Board {
             pub const fn $own(&self) -> BitBoard {
-                self.pieces[self.side.$piece() as usize]
+                self.piece_bb[self.side.$piece() as usize]
             }
 
             pub const fn $opp(&self) -> BitBoard {
-                self.pieces[self.side.$piece().opposite_color() as usize]
+                self.piece_bb[self.side.$piece().opposite_color() as usize]
             }
 
             pub const fn $tot(&self) -> BitBoard {
                 BitBoard(
-                    self.pieces[Color::White.$piece() as usize].0 |
-                    self.pieces[Color::Black.$piece() as usize].0
+                    self.piece_bb[Color::White.$piece() as usize].0 |
+                    self.piece_bb[Color::Black.$piece() as usize].0
                 )
             }
         })*
@@ -271,9 +277,12 @@ const REMOVE: bool = false;
 impl Board {
     pub const fn new() -> Board {
         Board {
-            pieces: [EMPTY_BB; PIECE_COUNT],
+            piece_bb: [EMPTY_BB; PIECE_COUNT],
             side_occupancy: [EMPTY_BB; 2],
             occupancy: EMPTY_BB,
+
+            piece: [None; SQUARE_COUNT],
+
             side: Color::White,
             castling_rights: NO_RIGHTS,
             en_passant: None,
@@ -296,13 +305,15 @@ impl Board {
         let c = piece.color() as usize;
 
         if SET {
-            self.pieces[p] = self.pieces[p].set_bit(square);
+            self.piece_bb[p] = self.piece_bb[p].set_bit(square);
             self.occupancy = self.occupancy.set_bit(square);
             self.side_occupancy[c] = self.side_occupancy[c].set_bit(square);
+            self.piece[square as usize] = Some(piece);
         } else {
-            self.pieces[p] = self.pieces[piece as usize].pop_bit(square);
+            self.piece_bb[p] = self.piece_bb[piece as usize].pop_bit(square);
             self.occupancy = self.occupancy.pop_bit(square);
             self.side_occupancy[c] = self.side_occupancy[c].pop_bit(square);
+            self.piece[square as usize] = None;
         }
         self.hash.toggle_piece(piece, square);
     }
@@ -313,9 +324,10 @@ impl Board {
         let mut new = Board::new();
 
         // only clone the relevant info
-        new.pieces = self.pieces;
+        new.piece_bb = self.piece_bb;
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
+        new.piece = self.piece;
         new.hash = self.hash;
 
         let (src, tgt) = (m.get_src(), m.get_tgt());
@@ -381,9 +393,10 @@ impl Board {
     pub fn make_move_nnue(&self, m: Move, nnue_state: &mut Box<NNUEState>) -> Board {
         let mut new = Board::new();
 
-        new.pieces = self.pieces;
+        new.piece_bb = self.piece_bb;
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
+        new.piece = self.piece;
         new.hash = self.hash;
 
         // add new accumulator
@@ -460,9 +473,10 @@ impl Board {
     pub fn make_null(&self) -> Board {
         let mut new = Board::new();
 
-        new.pieces = self.pieces;
+        new.piece_bb = self.piece_bb;
         new.side_occupancy = self.side_occupancy;
         new.occupancy = self.occupancy;
+        new.piece = self.piece;
         new.hash = self.hash;
 
         new.side = !self.side;
@@ -579,13 +593,9 @@ pub const CAPTURES: bool = false;
 
 /// Implement board move generation
 impl Board {
-    /// Looks for which piece was captured on tgt square
-    /// Panics if no piece is set on the tgt square. Only call if it's sure to be a capture.
-    fn get_captured_piece(&self, tgt: Square) -> Piece {
-        (PIECES[!self.side as usize])
-            .into_iter()
-            .find(|&p| self.pieces[p as usize].get_bit(tgt))
-            .unwrap() // possible panic
+    /// Looks for which piece is on the given square, if any
+    fn piece_at(&self, square: Square) -> Option<Piece> {
+        self.piece[square as usize]
     }
 
     /// Given a target map for the source square, it adds all possible moves to the move list
@@ -599,7 +609,7 @@ impl Board {
     ) {
         let captures = targets & self.opp_occupancy();
         for target in captures {
-            move_list.add_capture(source, target, piece, self.get_captured_piece(target));
+            move_list.add_capture(source, target, piece, self.piece_at(target).unwrap());
         }
 
         if QUIET {
@@ -668,7 +678,7 @@ impl Board {
 
             // normal/enpassant capture
             for target in captures {
-                let captured_piece = self.get_captured_piece(target);
+                let captured_piece = self.piece_at(target).unwrap();
 
                 move_list.add_pawn_capture(source, target, self.side, captured_piece);
             }
@@ -738,7 +748,7 @@ impl Board {
     fn gen_piece_moves<const PIECE: usize, const QUIET: bool>(&self, move_list: &mut MoveList) {
         let side = self.side as usize;
         let piece = Piece::from(PIECE + side);
-        let mut piece_bb = self.pieces[PIECE + side];
+        let mut piece_bb = self.piece_bb[PIECE + side];
         let check_mask = self.block_check | self.capture_check;
 
         if PIECE == N {
@@ -825,8 +835,8 @@ impl Board {
 impl Board {
     /// Returns bitboard with all pieces attacking a square
     fn map_all_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        self.pieces[WPAWN] & pawn_attacks(square, Color::Black)
-            | self.pieces[BPAWN] & pawn_attacks(square, Color::White)
+        self.piece_bb[WPAWN] & pawn_attacks(square, Color::Black)
+            | self.piece_bb[BPAWN] & pawn_attacks(square, Color::White)
             | self.knights() & knight_attacks(square)
             | (self.bishops() | self.queens()) & bishop_attacks(square, blockers)
             | (self.rooks() | self.queens()) & rook_attacks(square, blockers)
@@ -836,7 +846,7 @@ impl Board {
     /// Returns the least valuable of the attackers within the attacker map
     fn get_lva(&self, attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
         for piece in PIECES[side as usize] {
-            let squares = attackers & self.pieces[piece as usize];
+            let squares = attackers & self.piece_bb[piece as usize];
 
             if squares != EMPTY_BB {
                 return Some((squares.lsb(), piece));
