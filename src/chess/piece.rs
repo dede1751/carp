@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::Not;
 
-use crate::from;
+use crate::transmute_enum;
 
 /// Piece/Player color enum
 #[repr(u8)]
@@ -16,7 +16,7 @@ impl Not for Color {
 
     // get opposite color
     fn not(self) -> Color {
-        from!(self as u8 ^ 1, 1)
+        transmute_enum!(self as u8 ^ 1, 1)
     }
 }
 
@@ -26,7 +26,7 @@ macro_rules! impl_conversions {
         $(
             impl Color {
                 pub const fn $piece(self) -> Piece {
-                    from!($val + self as u8, 15)
+                    transmute_enum!($val + self as u8, 15)
                 }
             }
         )*
@@ -62,7 +62,7 @@ impl fmt::Display for Color {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 #[rustfmt::skip]
 pub enum Piece {
-    WP, BP, WN, BN, WB, BB, WR, BR, WQ, BQ, WK, BK
+    WP, BP, WN, BN, WB, BB, WR, BR, WQ, BQ, WK, BK,
 }
 use Piece::*;
 
@@ -94,13 +94,6 @@ pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
 pub const PIECES: [[Piece; 6]; 2] = [
     [ WP, WN, WB, WR, WQ, WK ],
     [ BP, BN, BB, BR, BQ, BK ]
-];
-
-/// All possible promotions, ordered by "usefulness"
-#[rustfmt::skip]
-pub const PROMOTIONS: [[Piece; 4]; 2] = [
-    [ WQ, WN, WR, WB ],
-    [ BQ, BN, BR, BB ]
 ];
 
 // used for printing/reading pieces
@@ -143,7 +136,7 @@ impl TryFrom<char> for Piece {
 /// Simply use indices that make sense
 impl From<usize> for Piece {
     fn from(index: usize) -> Self {
-        from!(index as u8, 15)
+        transmute_enum!(index as u8, 15)
     }
 }
 
@@ -155,11 +148,11 @@ impl Piece {
 
     /// Get piece color
     pub const fn color(self) -> Color {
-        from!(self as u8, 1)
+        transmute_enum!(self as u8, 1)
     }
 
     /// Switch piece color
     pub const fn opposite_color(self) -> Piece {
-        from!(self as u8 ^ 1, 15) // ^1 flips color bit
+        transmute_enum!(self as u8 ^ 1, 15) // ^1 flips color bit
     }
 }

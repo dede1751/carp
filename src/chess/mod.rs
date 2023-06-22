@@ -22,7 +22,7 @@ pub use tables::init_all_tables;
 /// Piece     : 15 (first 4 bits)
 /// Color     :  1 (first bit)
 #[macro_export]
-macro_rules! from {
+macro_rules! transmute_enum {
     ($x:expr, $mask:expr) => {
         unsafe { std::mem::transmute($x & $mask) }
     };

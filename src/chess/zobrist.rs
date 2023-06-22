@@ -71,7 +71,7 @@ impl ZHash {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess::moves::Move;
+    use crate::chess::moves::*;
 
     #[test]
     pub fn test_hash_init() {
@@ -90,17 +90,7 @@ mod tests {
         let b1: Board = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
             .parse()
             .unwrap();
-        let m = Move::encode(
-            Square::E1,
-            Square::G1,
-            Piece::WK,
-            Piece::WP,
-            Piece::WP,
-            0,
-            0,
-            0,
-            1,
-        );
+        let m = Move::new(Square::E1, Square::G1, MoveType::Castle);
         let b2 = b1.make_move(m);
 
         println!("{b1}\n{b2}");
@@ -126,17 +116,7 @@ mod tests {
         let b1: Board = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
             .parse()
             .unwrap();
-        let m = Move::encode(
-            Square::F5,
-            Square::E6,
-            Piece::WP,
-            Piece::BP,
-            Piece::WP,
-            1,
-            0,
-            1,
-            0,
-        );
+        let m = Move::new(Square::F5, Square::E6, MoveType::EnPassant);
         let b2 = b1.make_move(m);
 
         let mut z1 = b1.hash;

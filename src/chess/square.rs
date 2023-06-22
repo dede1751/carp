@@ -1,7 +1,7 @@
 use std::{fmt, str::FromStr};
 
 use crate::chess::bitboard::*;
-use crate::from;
+use crate::transmute_enum;
 
 /// Board square enum, indexed from A8 = 0 to H1 = 63
 #[repr(u8)]
@@ -104,14 +104,14 @@ impl FromStr for Square {
 /// Cannot incur in UB since squares are exactly 64
 impl From<usize> for Square {
     fn from(index: usize) -> Self {
-        from!(index as u8, 63)
+        transmute_enum!(index as u8, 63)
     }
 }
 
 impl Square {
     /// Get square from (rank, file) coordinates
     pub const fn from_coords(file: File, rank: Rank) -> Square {
-        from!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file
+        transmute_enum!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file
     }
 
     /// Converts square to bitboard
@@ -121,11 +121,11 @@ impl Square {
 
     /// Gets file coordinate
     pub const fn file(self) -> File {
-        from!(self as u8, 7)
+        transmute_enum!(self as u8, 7)
     }
     /// Gets rank coordinate
     pub const fn rank(self) -> Rank {
-        from!(self as u8 >> 3, 7)
+        transmute_enum!(self as u8 >> 3, 7)
     }
     /// Get (rank, file) coordinates of square
     pub const fn coords(self) -> (File, Rank) {
@@ -142,27 +142,27 @@ impl Square {
 
     /// Get new square by flipping the rank of the original.
     pub const fn flipv(self) -> Square {
-        from!(self as u8 ^ 56, 63)
+        transmute_enum!(self as u8 ^ 56, 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
     pub const fn right(self) -> Square {
-        from!(self as u8 + 1, 63)
+        transmute_enum!(self as u8 + 1, 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (A4.left() = H5)
     pub const fn left(self) -> Square {
-        from!((self as u8).wrapping_sub(1), 63)
+        transmute_enum!((self as u8).wrapping_sub(1), 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (H1.down() = H8)
     pub const fn down(self) -> Square {
-        from!(self as u8 + 8, 63)
+        transmute_enum!(self as u8 + 8, 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (A8.up() = A1)
     pub const fn up(self) -> Square {
-        from!((self as u8).wrapping_sub(8), 63)
+        transmute_enum!((self as u8).wrapping_sub(8), 63)
     }
 }
 
@@ -186,12 +186,12 @@ const FILE_CHAR: [char; FILE_COUNT] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 impl File {
     /// Gets file to the right, wraps H->A
     pub const fn right(self) -> File {
-        from!((self as u8) + 1, 7)
+        transmute_enum!((self as u8) + 1, 7)
     }
 
     /// Gets file to the left, wraps A->H
     pub const fn left(self) -> File {
-        from!((self as u8).wrapping_sub(1), 7)
+        transmute_enum!((self as u8).wrapping_sub(1), 7)
     }
 
     /// Converts file to char
@@ -220,12 +220,12 @@ const RANK_CHAR: [char; RANK_COUNT] = ['8', '7', '6', '5', '4', '3', '2', '1'];
 impl Rank {
     // Gets rank below, wraps First->Eight
     pub const fn down(self) -> Rank {
-        from!(self as u8 + 1, 7)
+        transmute_enum!(self as u8 + 1, 7)
     }
 
     // Gets rank above, wraps Eight->First
     pub const fn up(self) -> Rank {
-        from!((self as u8).wrapping_sub(1), 7)
+        transmute_enum!((self as u8).wrapping_sub(1), 7)
     }
 
     // Converts rank to a char

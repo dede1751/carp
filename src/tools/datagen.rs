@@ -227,8 +227,7 @@ fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
             // filter noisy positions
             if !position.king_in_check()
                 && eval.abs() < MATE_IN_PLY
-                && !best_move.is_capture()
-                && !best_move.is_promotion()
+                && best_move.get_type().is_quiet()
             {
                 // Always report scores from white's perspective
                 eval = if position.white_to_move() {

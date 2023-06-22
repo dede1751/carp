@@ -276,7 +276,7 @@ mod tests {
         let mut s1 = NNUEState::from_board(&b1);
         let s2 = NNUEState::from_board(&b2);
 
-        s1.move_update(m.get_piece(), m.get_src(), m.get_tgt());
+        s1.move_update(b1.piece_at(m.get_src()), m.get_src(), m.get_tgt());
 
         assert_eq!(s1.accumulator_stack[0], s2.accumulator_stack[0]);
     }

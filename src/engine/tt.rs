@@ -61,7 +61,7 @@ impl From<(u64, u64)> for TTField {
         let age = (data & AGE_MASK) as u8;
         let depth = ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8;
         let eval = ((data & EVAL_MASK) >> EVAL_OFFSET) as u16;
-        let best_move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u32);
+        let best_move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u16);
         let flag = unsafe { transmute((data >> FLAG_OFFSET) as u8) };
 
         TTField {
@@ -284,9 +284,9 @@ mod tests {
         let tt = TT::default();
         let z = ZHash(tt.bitmask);
 
-        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 1, 0); // insert in empty field
-        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 2, 0); // replace
-        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 1, 0); // do not replace
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 1, 0); // insert in empty field
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 2, 0); // replace
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 1, 0); // do not replace
 
         let target1 = tt.probe(z).unwrap();
         let target2 = tt.probe(ZHash(8));

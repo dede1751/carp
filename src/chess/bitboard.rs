@@ -1,5 +1,5 @@
 use crate::chess::square::*;
-use crate::from;
+use crate::transmute_enum;
 use std::fmt;
 
 /// Bitboard implemented as a simple tuple struct.
@@ -120,6 +120,6 @@ impl BitBoard {
 
     /// Returns first set square from board (least significant 1 bit)
     pub const fn lsb(self) -> Square {
-        from!(self.0.trailing_zeros() as u8, 63)
+        transmute_enum!(self.0.trailing_zeros() as u8, 63)
     }
 }

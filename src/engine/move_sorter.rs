@@ -19,9 +19,9 @@ type FUHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COU
 pub struct MoveSorter {
     killer_moves: [[Move; 2]; MAX_DEPTH], // [ply][num_killer]
     history_moves: [[[i32; SQUARE_COUNT]; SQUARE_COUNT]; 2], // [color][from][to]
-    pub counter_move: Option<Move>,
+    pub counter: Option<(Move, Piece)>,
     counter_moves: Box<CMHistory>, // [piece+col][to][from][to]
-    pub followup_move: Option<Move>,
+    pub followup: Option<(Move, Piece)>,
     followup_moves: Box<FUHistory>, // [piece+col][to][from][to]
     pub tt_move: Option<Move>,
 }
@@ -45,9 +45,9 @@ impl Default for MoveSorter {
         MoveSorter {
             killer_moves: [[NULL_MOVE; 2]; MAX_DEPTH],
             history_moves: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
-            counter_move: None,
+            counter: None,
             counter_moves: box_array::<CMHistory>(),
-            followup_move: None,
+            followup: None,
             followup_moves: box_array::<FUHistory>(),
             tt_move: None,
         }
@@ -95,16 +95,16 @@ impl MoveSorter {
         &mut self,
         curr: Move,
         prev: Move,
+        piece: Piece,
         bonus: i32,
         searched: &Vec<Move>,
     ) {
-        let prev_p = prev.get_piece() as usize;
         let prev_t = prev.get_tgt() as usize;
 
         for m in searched {
-            self.add_double_bonus::<CMH>(*m, prev_p, prev_t, -bonus)
+            self.add_double_bonus::<CMH>(*m, piece as usize, prev_t, -bonus)
         }
-        self.add_double_bonus::<CMH>(curr, prev_p, prev_t, bonus);
+        self.add_double_bonus::<CMH>(curr, piece as usize, prev_t, bonus);
     }
 
     /// Update killer and history values for sorting quiet moves after a beta cutoff
@@ -129,11 +129,11 @@ impl MoveSorter {
         // countermove and followup history
         const CMH: bool = true;
         const FUH: bool = false;
-        if let Some(counter_move) = self.counter_move {
-            self.update_double::<CMH>(m, counter_move, bonus, &searched);
+        if let Some((counter_move, piece)) = self.counter {
+            self.update_double::<CMH>(m, counter_move, piece, bonus, &searched);
 
-            if let Some(followup_move) = self.followup_move {
-                self.update_double::<FUH>(m, followup_move, bonus, &searched);
+            if let Some((followup_move, piece)) = self.followup {
+                self.update_double::<FUH>(m, followup_move, piece, bonus, &searched);
             }
         }
     }
@@ -175,10 +175,12 @@ const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
 impl MoveSorter {
     /// Score individual captures.
     fn score_capture(&self, m: Move, board: &Board) -> i32 {
-        if m.is_enpassant() {
+        if m.get_type() == MoveType::EnPassant {
             EP_SCORE
         } else {
-            let mut score = MVV_LVA[m.get_piece() as usize][m.get_capture() as usize];
+            let attacker = board.piece_at(m.get_src()) as usize;
+            let victim = board.piece_at(m.get_tgt()) as usize;
+            let mut score = MVV_LVA[attacker][victim];
 
             if board.see(m, 0) {
                 score += GOOD_CAPTURE
@@ -192,9 +194,10 @@ impl MoveSorter {
     pub fn score_captures(&self, board: &Board, move_list: &mut MoveList) {
         for i in 0..move_list.len() {
             let m = move_list.moves[i];
+            let mt = m.get_type();
 
-            move_list.scores[i] = if m.is_promotion() {
-                PROMOTION_SCORES[m.get_promotion() as usize]
+            move_list.scores[i] = if mt.is_promotion() {
+                PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
             } else {
                 self.score_capture(m, board)
             };
@@ -209,18 +212,16 @@ impl MoveSorter {
         let mut score = self.history_moves[side][src][tgt];
 
         // counter move
-        if let Some(counter_move) = self.counter_move {
-            let prev_p = counter_move.get_piece() as usize;
+        if let Some((counter_move, piece)) = self.counter {
             let prev_tgt = counter_move.get_tgt() as usize;
 
-            score += self.counter_moves[prev_p][prev_tgt][src][tgt];
+            score += self.counter_moves[piece as usize][prev_tgt][src][tgt];
 
             // followup move
-            if let Some(followup_move) = self.followup_move {
-                let prev_p = followup_move.get_piece() as usize;
+            if let Some((followup_move, piece)) = self.followup {
                 let prev_tgt = followup_move.get_tgt() as usize;
 
-                score += self.followup_moves[prev_p][prev_tgt][src][tgt];
+                score += self.followup_moves[piece as usize][prev_tgt][src][tgt];
             }
         }
 
@@ -229,18 +230,22 @@ impl MoveSorter {
 
     /// Score any type of move
     fn score_move(&self, m: Move, board: &Board, ply: usize) -> i32 {
-        if m.is_promotion() {
-            PROMOTION_SCORES[m.get_promotion() as usize]
-        } else if m.is_capture() {
-            self.score_capture(m, board)
-        } else if m.is_castle() {
-            CASTLE_SCORE
-        } else if m == self.killer_moves[ply][0] {
-            FIRST_KILLER
-        } else if m == self.killer_moves[ply][1] {
-            SECOND_KILLER
-        } else {
-            self.score_history(m, board.side as usize)
+        let mt = m.get_type();
+
+        match mt {
+            MoveType::Capture => self.score_capture(m, board),
+            MoveType::Castle => CASTLE_SCORE,
+            _ => {
+                if mt.is_promotion() {
+                    PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
+                } else if m == self.killer_moves[ply][0] {
+                    FIRST_KILLER
+                } else if m == self.killer_moves[ply][1] {
+                    SECOND_KILLER
+                } else {
+                    self.score_history(m, board.side as usize)
+                }
+            }
         }
     }
 
