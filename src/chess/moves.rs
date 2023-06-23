@@ -84,7 +84,7 @@ impl fmt::Display for Move {
                 f,
                 "{}{}",
                 s,
-                move_type.get_promotion(Color::White).to_char()
+                move_type.get_promotion(Color::Black).to_char()
             )
         } else {
             write!(f, "{s}")

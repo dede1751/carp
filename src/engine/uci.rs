@@ -76,11 +76,15 @@ enum UCICommand {
     Uci,
     IsReady,
     Option(String, String),
-    Perft(usize),
     Position(Box<Position>),
     Go(TimeControl),
     Quit,
     Stop,
+
+    // Extra debug commands
+    Perft(usize),
+    Print,
+    Eval,
 }
 
 /// Parse string into uci command
@@ -110,6 +114,8 @@ impl FromStr for UCICommand {
                 Ok(d) => Ok(Self::Perft(d)),
                 _ => Err("Could not parse depth!"),
             },
+            Some("print") => Ok(Self::Print),
+            Some("eval") => Ok(Self::Eval),
             Some("position") => Ok(Self::Position(Box::new(
                 tokens.collect::<Vec<&str>>().join(" ").parse()?,
             ))),
@@ -164,6 +170,17 @@ impl UCIEngine {
 
                 UCICommand::Perft(d) => {
                     self.position.board.perft(d);
+                }
+
+                UCICommand::Print => {
+                    println!("{}", self.position.board);
+                }
+
+                UCICommand::Eval => {
+                    println!(
+                        "Static evaluation: {}",
+                        self.position.nnue_state.evaluate(self.position.board.side)
+                    );
                 }
 
                 UCICommand::Position(position) => {
