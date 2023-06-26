@@ -19,28 +19,28 @@ pub enum TTFlag {
 
 /// TTField: uncompressed external representation of tt entries
 ///
-/// Can compress to 128b by using only 3b for the flag and 29 for the move.
+/// Can compress to 128b (114b are actually fully used, 14b are padding)
 /// Mate scores are normalized within the tt for retrieval at different plies: within the tree, we
 /// normalize them to the root-distance, while in the tt they are normalized to node-distance
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash, Default)]
 pub struct TTField {
     key: u64,        // 8B
     flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually of note
-    best_move: Move, // 4B -- only the rightmost 28 bits are actually of note
+    best_move: Move, // 2B
     eval: u16,       // 2B
     depth: u8,       // 1B
     age: u8,         // 1B
 }
 
-// Masks for the second u64
+// Masks for the data field
 const DEPTH_OFFSET: u64 = 8;
 const EVAL_OFFSET: u64 = 16;
 const MOVE_OFFSET: u64 = 32;
-const FLAG_OFFSET: u64 = 61;
+const FLAG_OFFSET: u64 = 48;
 const AGE_MASK: u64 = 0x00000000000000FF; // first byte
 const DEPTH_MASK: u64 = 0x000000000000FF00; // second byte
 const EVAL_MASK: u64 = 0x00000000FFFF0000; // third/fourth byte
-const MOVE_MASK: u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
+const MOVE_MASK: u64 = 0x0000FFFF00000000; // fifth/sixth byte
 
 /// Convert from external field to compressed internal
 impl From<TTField> for (u64, u64) {
@@ -61,7 +61,7 @@ impl From<(u64, u64)> for TTField {
         let age = (data & AGE_MASK) as u8;
         let depth = ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8;
         let eval = ((data & EVAL_MASK) >> EVAL_OFFSET) as u16;
-        let best_move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u32);
+        let best_move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u16);
         let flag = unsafe { transmute((data >> FLAG_OFFSET) as u8) };
 
         TTField {
@@ -284,9 +284,9 @@ mod tests {
         let tt = TT::default();
         let z = ZHash(tt.bitmask);
 
-        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 1, 0); // insert in empty field
-        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 2, 0); // replace
-        tt.insert(z, TTFlag::Exact, Move(25625038), 100, 1, 0); // do not replace
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 1, 0); // insert in empty field
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 2, 0); // replace
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 1, 0); // do not replace
 
         let target1 = tt.probe(z).unwrap();
         let target2 = tt.probe(ZHash(8));

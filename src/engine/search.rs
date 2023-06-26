@@ -1,6 +1,6 @@
 use std::thread;
 
-use crate::chess::{board::*, moves::*, tables::*};
+use crate::chess::{board::*, moves::*, piece::*, tables::*};
 use crate::engine::{clock::*, move_sorter::*, position::*, search_params::*, tt::*};
 
 /// Information only relevant within the search tree
@@ -14,7 +14,7 @@ pub struct SearchInfo<'a> {
     pub ply_from_null: usize,
 
     pub best_move: Move,
-    pub search_stack: [(Move, usize); MAX_DEPTH],
+    pub search_stack: [(Move, Piece, usize); MAX_DEPTH],
     pub eval_stack: [Eval; MAX_DEPTH],
     pub stop: bool,
 }
@@ -102,7 +102,7 @@ impl Position {
             ply: 0,
             ply_from_null: 0,
             best_move: NULL_MOVE,
-            search_stack: [(NULL_MOVE, 0); MAX_DEPTH],
+            search_stack: [(NULL_MOVE, Piece::WP, 0); MAX_DEPTH],
             eval_stack: [0; MAX_DEPTH],
             stop: false,
         };
@@ -339,7 +339,7 @@ impl Position {
 
             // Flag for moves checking the opponent
             let is_check = self.king_in_check();
-            let is_quiet = !m.is_capture() && !m.is_promotion();
+            let is_quiet = m.get_type().is_quiet();
 
             // Quiet move pruning
             if !pv_node && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
@@ -509,8 +509,8 @@ impl Position {
 
                 // Futility Pruning
                 // Avoid searching captures that, even with an extra margin, would not raise alpha
-                let move_value = stand_pat + PIECE_VALUES[m.get_capture() as usize];
-                if !m.is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha {
+                let move_value = stand_pat + PIECE_VALUES[self.board.get_capture(m) as usize];
+                if !m.get_type().is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha {
                     continue;
                 }
             }
@@ -558,37 +558,38 @@ impl Position {
 }
 
 impl<'a> SearchInfo<'a> {
-    // Push a non-null move to the search stack
-    pub fn push_move(&mut self, m: Move) {
-        self.search_stack[self.ply] = (m, self.ply_from_null);
-        self.sorter.followup_move = self.sorter.counter_move;
-        self.sorter.counter_move = Some(m);
+    /// Push a non-null move to the search stack
+    pub fn push_move(&mut self, m: Move, piece: Piece) {
+        self.search_stack[self.ply] = (m, piece, self.ply_from_null);
+        self.sorter.followup = self.sorter.counter;
+        self.sorter.counter = Some((m, piece));
 
         self.ply += 1;
         self.ply_from_null += 1;
         self.nodes += 1;
     }
 
-    // Push a null move to the search stack
+    /// Push a null move to the search stack
     pub fn push_null(&mut self) {
-        self.search_stack[self.ply] = (NULL_MOVE, self.ply_from_null);
-        self.sorter.followup_move = None;
-        self.sorter.counter_move = None;
+        self.search_stack[self.ply] = (NULL_MOVE, Piece::WP, self.ply_from_null);
+        self.sorter.followup = None;
+        self.sorter.counter = None;
 
         self.ply += 1;
         self.ply_from_null = 0;
         self.nodes += 1;
     }
 
-    // Pop a move from the search stack
+    /// Pop a move from the search stack
     pub fn pop_move(&mut self) {
         self.ply -= 1;
-        let (_, old_ply) = self.search_stack[self.ply];
+        let (_, _, old_ply) = self.search_stack[self.ply];
 
         self.ply_from_null = old_ply;
-        self.sorter.counter_move = self.sorter.followup_move;
+        self.sorter.counter = self.sorter.followup;
         if self.ply_from_null > 1 {
-            self.sorter.followup_move = Some(self.search_stack[self.ply - 2].0);
+            let (m, p, _) = self.search_stack[self.ply - 2];
+            self.sorter.followup = Some((m, p));
         }
     }
 

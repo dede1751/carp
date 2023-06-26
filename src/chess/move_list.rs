@@ -1,15 +1,17 @@
 use crate::chess::{moves::*, piece::*, square::*};
 
-/// Taken from Pleco, adapted to 32b moves.
+/// Taken from Pleco
 /// Assuming we have 8 cache lines, which should be 512B, we use up enough to fill a single
 /// cache line with the array and a pointer of our current architecture.
-/// With my 4B moves, this results in (512B - {ARCH_POINTER_SIZE}B) / 4B
+/// With 2B moves, this results in (512B - {ARCH_POINTER_SIZE}B) / 2B
 #[cfg(target_pointer_width = "128")]
-pub const MAX_MOVES: usize = 124;
+pub const MAX_MOVES: usize = 248;
 #[cfg(target_pointer_width = "64")]
-pub const MAX_MOVES: usize = 126;
+pub const MAX_MOVES: usize = 252;
 #[cfg(target_pointer_width = "32")]
-pub const MAX_MOVES: usize = 127;
+pub const MAX_MOVES: usize = 254;
+#[cfg(any(target_pointer_width = "16", target_pointer_width = "8",))]
+pub const MAX_MOVES: usize = 255;
 
 /// MoveList with MoveScores, assigned by the Position struct
 pub struct MoveList {
@@ -69,50 +71,44 @@ impl MoveList {
     }
 
     /// Push move to the back of the movelist
-    fn push(&mut self, m: Move) {
+    pub fn push(&mut self, m: Move) {
         self.moves[self.len] = m;
         self.len += 1;
     }
 
-    /// Initialize and add a capture move to the move list
-    #[rustfmt::skip]
-    pub fn add_capture(&mut self, src: Square, tgt: Square, piece: Piece, capture: Piece) {
-        self.push(Move::encode(src, tgt, piece, capture, Piece::WP, 1, 0, 0, 0));
-    }
+    /// Push a pawn quiet move to the back of the movelist (do not use for double push)
+    pub fn push_pawn_quiet(&mut self, src: Square, tgt: Square, side: Color) {
+        const PROMOTIONS: [MoveType; 4] = [
+            MoveType::QueenPromotion,
+            MoveType::KnightPromotion,
+            MoveType::RookPromotion,
+            MoveType::BishopPromotion,
+        ];
 
-    /// Initialize and add a quiet move to the move list
-    #[rustfmt::skip]
-    pub fn add_quiet(&mut self, src: Square, tgt: Square, piece: Piece, castle: u32) {
-        self.push(Move::encode(src, tgt, piece, Piece::WP, Piece::WP, 0, 0, 0, castle));
-    }
-
-    /// Initialize and add an enpassant capture to the move list
-    #[rustfmt::skip]
-    pub fn add_enpassant(&mut self, src: Square, tgt: Square, side: Color) {
-        self.push(Move::encode(src, tgt, side.pawn(), (!side).pawn(), Piece::WP, 1, 0, 1, 0));
-    }
-
-    /// Adds pawn capture to move list, or all the possible promotions if on promotion rank
-    #[rustfmt::skip]
-    pub fn add_pawn_capture(&mut self, src: Square, tgt: Square, side: Color, capture: Piece) {
         if src.rank() == PROMOTION_RANKS[side as usize] {
-            for promotion in PROMOTIONS[side as usize] {
-                self.push(Move::encode(src, tgt, side.pawn(), capture, promotion, 1, 0, 0, 0));
+            for promotion in PROMOTIONS {
+                self.push(Move::new(src, tgt, promotion))
             }
         } else {
-            self.push(Move::encode(src, tgt, side.pawn(), capture, Piece::WP, 1, 0, 0, 0));
+            self.push(Move::new(src, tgt, MoveType::Quiet))
         }
     }
 
-    /// Adds pawn quiet move to move list, or all the possible promotions if on promotion rank
-    #[rustfmt::skip]
-    pub fn add_pawn_quiet(&mut self, src: Square, tgt: Square, side: Color, double: u32) {
+    /// Push a pawn capture to the back of the movelist (do not use for enpassant)
+    pub fn push_pawn_capture(&mut self, src: Square, tgt: Square, side: Color) {
+        const PROMOTIONS: [MoveType; 4] = [
+            MoveType::QueenCapPromo,
+            MoveType::KnightCapPromo,
+            MoveType::RookCapPromo,
+            MoveType::BishopCapPromo,
+        ];
+
         if src.rank() == PROMOTION_RANKS[side as usize] {
-            for promotion in PROMOTIONS[side as usize] {
-                self.push(Move::encode(src, tgt, side.pawn(), Piece::WP, promotion, 0, 0, 0, 0));
+            for promotion in PROMOTIONS {
+                self.push(Move::new(src, tgt, promotion))
             }
         } else {
-            self.push(Move::encode(src, tgt, side.pawn(), Piece::WP, Piece::WP, 0, double, 0, 0));
+            self.push(Move::new(src, tgt, MoveType::Capture))
         }
     }
 }
@@ -125,8 +121,8 @@ mod tests {
     fn test_movelist() {
         let mut l = MoveList::default();
 
-        l.add_pawn_capture(Square::E2, Square::D3, Color::White, Piece::BP);
-        l.add_pawn_quiet(Square::E2, Square::E4, Color::White, 1);
+        l.push_pawn_capture(Square::E2, Square::D3, Color::White);
+        l.push_pawn_quiet(Square::E2, Square::E3, Color::White);
 
         assert_eq!(l.len, 2);
     }

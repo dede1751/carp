@@ -84,10 +84,11 @@ impl Position {
     /// Makes the given move within the game tree
     pub fn make_move(&mut self, m: Move, info: &mut SearchInfo) {
         let new = self.board.make_move_nnue(m, &mut self.nnue_state);
+        let piece = self.board.piece_at(m.get_src());
         self.history.push(self.board);
         self.board = new;
 
-        info.push_move(m);
+        info.push_move(m, piece);
     }
 
     /// Passes turn to opponent (this resets the ply_from_null clock in the search info)

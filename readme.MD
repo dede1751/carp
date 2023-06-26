@@ -36,10 +36,10 @@ levels][arch-link] for the running OS, build Carp using the Makefile provided by
 ## Performance
 
 Move generation is fully legal, inspired by [this article][movegen-link]
-and perft(7) on startpos will achieve ~130 MNodes/s locally (a roughly 4x speedup compared to pseudolegal generation).
+and perft(8) on startpos will achieve ~300 MNodes/s on a 7950x.
 
 Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
-time to depth and reduced the branching factor greatly. During search, Carp will usually run at ~1.5 MNodes/s on a single
+time to depth and reduced the branching factor greatly. During search, Carp will usually run at ~2MNodes/s on a single
 core.
 
 Carp is rigorously tested with SPRT, and has recently joined the [Engine Programming OB instance][ob-link].
