@@ -19,28 +19,28 @@ pub enum TTFlag {
 
 /// TTField: uncompressed external representation of tt entries
 ///
-/// Can compress to 128b by using only 3b for the flag and 29 for the move.
+/// Can compress to 128b (114b are actually fully used, 14b are padding)
 /// Mate scores are normalized within the tt for retrieval at different plies: within the tree, we
 /// normalize them to the root-distance, while in the tt they are normalized to node-distance
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash, Default)]
 pub struct TTField {
     key: u64,        // 8B
     flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually of note
-    best_move: Move, // 4B -- only the rightmost 28 bits are actually of note
+    best_move: Move, // 2B
     eval: u16,       // 2B
     depth: u8,       // 1B
     age: u8,         // 1B
 }
 
-// Masks for the second u64
+// Masks for the data field
 const DEPTH_OFFSET: u64 = 8;
 const EVAL_OFFSET: u64 = 16;
 const MOVE_OFFSET: u64 = 32;
-const FLAG_OFFSET: u64 = 61;
+const FLAG_OFFSET: u64 = 48;
 const AGE_MASK: u64 = 0x00000000000000FF; // first byte
 const DEPTH_MASK: u64 = 0x000000000000FF00; // second byte
 const EVAL_MASK: u64 = 0x00000000FFFF0000; // third/fourth byte
-const MOVE_MASK: u64 = 0x1FFFFFFF00000000; // last four bytes except for final 3 bits
+const MOVE_MASK: u64 = 0x0000FFFF00000000; // fifth/sixth byte
 
 /// Convert from external field to compressed internal
 impl From<TTField> for (u64, u64) {

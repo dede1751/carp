@@ -40,11 +40,8 @@ impl fmt::Display for Board {
 
             for file in ALL_FILES {
                 let square = Square::from_coords(file, rank);
-
-                let piece_str = ALL_PIECES
-                    .iter()
-                    .find(|&p| self.piece_bb[*p as usize].get_bit(square))
-                    .map_or(String::from(" "), |&p| p.to_string());
+                let piece_str =
+                    self.piece[square as usize].map_or(String::from(" "), |p| p.to_string());
 
                 board_str.push_str(&piece_str);
                 board_str.push_str(" ┃ ");
@@ -162,11 +159,7 @@ impl Board {
             for file in ALL_FILES {
                 let square = Square::from_coords(file, rank);
 
-                let piece = ALL_PIECES
-                    .iter()
-                    .find(|&p| self.piece_bb[*p as usize].get_bit(square));
-
-                if let Some(p) = piece {
+                if let Some(p) = self.piece[square as usize] {
                     if empty > 0 {
                         fen.push_str(&empty.to_string());
                         empty = 0;

@@ -173,35 +173,39 @@ const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
 
 /// Move Scoring
 impl MoveSorter {
-    /// Score individual captures.
-    fn score_capture(&self, m: Move, board: &Board) -> i32 {
-        if m.get_type() == MoveType::EnPassant {
-            EP_SCORE
-        } else {
-            let attacker = board.piece_at(m.get_src()) as usize;
-            let victim = board.piece_at(m.get_tgt()) as usize;
-            let mut score = MVV_LVA[attacker][victim];
+    /// Score any type of move
+    fn score_move(&self, m: Move, board: &Board, ply: usize) -> i32 {
+        let mt = m.get_type();
 
-            if board.see(m, 0) {
-                score += GOOD_CAPTURE
+        match mt {
+            MoveType::Capture => self.score_capture(m, board),
+            MoveType::EnPassant => EP_SCORE,
+            MoveType::Castle => CASTLE_SCORE,
+            _ => {
+                if mt.is_promotion() {
+                    PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
+                } else if m == self.killer_moves[ply][0] {
+                    FIRST_KILLER
+                } else if m == self.killer_moves[ply][1] {
+                    SECOND_KILLER
+                } else {
+                    self.score_history(m, board.side as usize)
+                }
             }
-
-            score
         }
     }
 
-    /// Score assuming all moves are captures
-    pub fn score_captures(&self, board: &Board, move_list: &mut MoveList) {
-        for i in 0..move_list.len() {
-            let m = move_list.moves[i];
-            let mt = m.get_type();
+    /// Score individual captures. Do not use with EnPassant
+    fn score_capture(&self, m: Move, board: &Board) -> i32 {
+        let attacker = board.piece_at(m.get_src()) as usize;
+        let victim = board.piece_at(m.get_tgt()) as usize;
+        let mut score = MVV_LVA[attacker][victim];
 
-            move_list.scores[i] = if mt.is_promotion() {
-                PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
-            } else {
-                self.score_capture(m, board)
-            };
+        if board.see(m, 0) {
+            score += GOOD_CAPTURE
         }
+
+        score
     }
 
     /// Score quiet moves according to Standard/Counter Move/Follow Up heuristics
@@ -228,24 +232,19 @@ impl MoveSorter {
         HISTORY_OFFSET + score
     }
 
-    /// Score any type of move
-    fn score_move(&self, m: Move, board: &Board, ply: usize) -> i32 {
-        let mt = m.get_type();
+    /// Score assuming all moves are captures
+    pub fn score_captures(&self, board: &Board, move_list: &mut MoveList) {
+        for i in 0..move_list.len() {
+            let m = move_list.moves[i];
+            let mt = m.get_type();
 
-        match mt {
-            MoveType::Capture => self.score_capture(m, board),
-            MoveType::Castle => CASTLE_SCORE,
-            _ => {
-                if mt.is_promotion() {
-                    PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
-                } else if m == self.killer_moves[ply][0] {
-                    FIRST_KILLER
-                } else if m == self.killer_moves[ply][1] {
-                    SECOND_KILLER
-                } else {
-                    self.score_history(m, board.side as usize)
-                }
-            }
+            move_list.scores[i] = if mt.is_promotion() {
+                PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
+            } else if mt == MoveType::EnPassant {
+                EP_SCORE
+            } else {
+                self.score_capture(m, board)
+            };
         }
     }
 
