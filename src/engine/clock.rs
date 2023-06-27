@@ -210,9 +210,10 @@ impl Clock {
                     let bm_nodes = self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
                     let bm_fraction = bm_nodes as f64 / nodes as f64;
                     
-                    (1.5f64 - bm_fraction) * 1.35
+                    // Scale factor from Ethereal, scale between 50% and 240%
+                    (0.4 + (1.0 - bm_fraction) * 2.0).max(0.5)
                 } else {
-                    1f64
+                    1.0
                 };
 
                 self.elapsed() < self.opt_time.mul_f64(opt_scale)
@@ -241,7 +242,7 @@ impl Clock {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 // check elapsed time only every CHECK_FREQUENCY checks
                 if self.check_count % CHECK_FREQUENCY == 0 {
-                    self.start_time.elapsed() < self.max_time
+                    self.elapsed() < self.max_time
                 } else {
                     true
                 }
