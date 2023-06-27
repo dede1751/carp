@@ -1,11 +1,11 @@
 /// Save search parameters in a single module
 /// Used to simplify engine testing and future tuning.
 
-pub type Eval = i16;
+pub type Eval = i32;
 pub const MAX_DEPTH: usize = 128; // max depth to search at
-pub const INFINITY: Eval = 30001; // score upper bound
-pub const MATE: Eval = 30000; // mate in 0 moves
-pub const MATE_IN_PLY: Eval = MATE - MAX_DEPTH as i16; // mate in x moves
+pub const INFINITY: Eval = 32001; // score upper bound
+pub const MATE: Eval = 32000; // mate in 0 moves
+pub const MATE_IN_PLY: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
 
 pub const HISTORY_LOWER_LIMIT: usize = 3; // minimum depth at which history updates happen
 
