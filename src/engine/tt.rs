@@ -27,7 +27,7 @@ pub struct TTField {
     key: u64,        // 8B
     flag: TTFlag,    // 1B -- only the rightmost 3 bits are actually of note
     best_move: Move, // 2B
-    eval: u16,       // 2B
+    eval: i16,       // 2B
     depth: u8,       // 1B
     age: u8,         // 1B
 }
@@ -47,7 +47,7 @@ impl From<TTField> for (u64, u64) {
     fn from(field: TTField) -> Self {
         let data: u64 = field.age as u64
             | (field.depth as u64) << DEPTH_OFFSET
-            | (field.eval as u64) << EVAL_OFFSET
+            | (field.eval as u16 as u64) << EVAL_OFFSET
             | (field.best_move.0 as u64) << MOVE_OFFSET
             | (field.flag as u64) << FLAG_OFFSET;
 
@@ -58,19 +58,13 @@ impl From<TTField> for (u64, u64) {
 /// Convert from compressed internal to external
 impl From<(u64, u64)> for TTField {
     fn from((key, data): (u64, u64)) -> Self {
-        let age = (data & AGE_MASK) as u8;
-        let depth = ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8;
-        let eval = ((data & EVAL_MASK) >> EVAL_OFFSET) as u16;
-        let best_move = Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u16);
-        let flag = unsafe { transmute((data >> FLAG_OFFSET) as u8) };
-
         TTField {
             key,
-            flag,
-            best_move,
-            eval,
-            depth,
-            age,
+            flag: unsafe { transmute((data >> FLAG_OFFSET) as u8) },
+            best_move: Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u16),
+            eval: ((data & EVAL_MASK) >> EVAL_OFFSET) as i16,
+            depth: ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8,
+            age: (data & AGE_MASK) as u8,
         }
     }
 }
@@ -245,11 +239,11 @@ impl TT {
             || (old.flag == TTFlag::Exact && flag == TTFlag::Exact && depth > old.depth as usize))
         {
             let eval = if eval >= MATE_IN_PLY {
-                (eval + ply as Eval) as u16
+                (eval + ply as Eval) as i16
             } else if eval <= -MATE_IN_PLY {
-                (eval - ply as Eval) as u16
+                (eval - ply as Eval) as i16
             } else {
-                eval as u16
+                eval as i16
             };
 
             let new = TTField {
