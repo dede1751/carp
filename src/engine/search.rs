@@ -115,7 +115,7 @@ impl Position {
         };
 
         for d in 1..MAX_DEPTH {
-            if !info.clock.start_check(d, info.nodes) {
+            if !info.clock.start_check(d, info.nodes, result.best_move) {
                 break;
             }
 
@@ -330,6 +330,7 @@ impl Position {
         let lmp_count = LMP_BASE + (depth * depth);
 
         for (move_count, (m, s)) in move_list.enumerate() {
+            let start_nodes = info.nodes;
             if move_count == 0 {
                 best_move = m;
             }
@@ -411,6 +412,11 @@ impl Position {
 
             if info.stop {
                 return 0;
+            }
+
+            // In root, update the node counts used by the clock
+            if root_node {
+                info.clock.update_node_counts(m, info.nodes - start_nodes);
             }
 
             if eval > best_eval {

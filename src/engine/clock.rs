@@ -8,6 +8,8 @@ use std::{
     sync::Arc,
 };
 
+use crate::chess::{square::*, moves::*};
+
 #[derive(Clone, Debug)]
 pub enum TimeControl {
     Infinite,
@@ -85,9 +87,12 @@ pub struct Clock {
     opt_time: Duration,
     max_time: Duration,
     check_count: u64,
+    node_count: [[u64; SQUARE_COUNT]; SQUARE_COUNT],
 }
 
 impl Clock {
+    /// Init a new clock for the given timecontrol.
+    /// Only meant to be used by the main thread in SMP.
     pub fn new(time_control: TimeControl, stop: Arc<AtomicBool>, white_to_move: bool) -> Clock {
         let (opt_time, max_time) = match time_control {
             TimeControl::FixedTime(time) => (
@@ -145,6 +150,7 @@ impl Clock {
             opt_time,
             max_time,
             check_count: 0,
+            node_count: [[0; SQUARE_COUNT]; SQUARE_COUNT],
         }
     }
 
@@ -157,6 +163,7 @@ impl Clock {
             opt_time: Duration::ZERO,
             max_time: Duration::ZERO,
             check_count: 0,
+            node_count: [[0; SQUARE_COUNT]; SQUARE_COUNT],
         }
     }
 
@@ -176,8 +183,14 @@ impl Clock {
         }
     }
 
+    /// Update the number of nodes searched by a single move.
+    /// Only called from the root to see how deep each move has been searched.
+    pub fn update_node_counts(&mut self, m: Move, delta: u64) {
+        self.node_count[m.get_src() as usize][m.get_tgt() as usize] += delta;
+    }
+
     /// Checks whether to deepen the search (true -> continue deepening)
-    pub fn start_check(&mut self, depth: usize, nodes: u64) -> bool {
+    pub fn start_check(&mut self, depth: usize, nodes: u64, best_move: Move) -> bool {
         if self.stop.load(Ordering::SeqCst) {
             return false;
         }
@@ -191,7 +204,19 @@ impl Clock {
             TimeControl::FixedDepth(d) => depth <= d,
             TimeControl::FixedNodes(n) => nodes <= n,
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
-                self.start_time.elapsed() < self.opt_time
+                // At the start, we scale the opt time based on how many nodes were dedicated
+                // to searching the best move.
+                let opt_scale = if best_move != NULL_MOVE && nodes != 0 {
+                    let bm_nodes = self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
+                    let bm_fraction = bm_nodes as f64 / nodes as f64;
+                    
+                    // Scale factor from Ethereal, scale between 50% and 240%
+                    (0.4 + (1.0 - bm_fraction) * 2.0).max(0.5)
+                } else {
+                    1.0
+                };
+
+                self.elapsed() < self.opt_time.mul_f64(opt_scale)
             }
             _ => true, // Infinite tc does not depend on start check
         };
@@ -217,7 +242,7 @@ impl Clock {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 // check elapsed time only every CHECK_FREQUENCY checks
                 if self.check_count % CHECK_FREQUENCY == 0 {
-                    self.start_time.elapsed() < self.max_time
+                    self.elapsed() < self.max_time
                 } else {
                     true
                 }
