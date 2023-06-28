@@ -128,11 +128,11 @@ impl Clock {
                     let eight = 0.8 * time as f64;
 
                     let opt_time = (scale * time as f64).min(eight);
-                    (opt_time, (5. * opt_time).min(eight))
+                    (opt_time, (5.0 * opt_time).min(eight))
                 } else {
-                    let total = ((time / 20) + (inc / 2)) as f64;
+                    let total = ((time / 20) + (inc * 3 / 4)) as f64;
 
-                    (0.6 * total, (2. * total).min(time as f64))
+                    (0.6 * total, (2.0 * total).min(time as f64))
                 };
 
                 (
