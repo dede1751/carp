@@ -81,8 +81,12 @@ impl TTField {
     }
 
     /// Returns best move
-    pub fn get_move(&self) -> Move {
-        self.best_move
+    pub fn get_move(&self) -> Option<Move> {
+        if self.best_move != NULL_MOVE {
+            Some(self.best_move)
+        } else {
+            None
+        }
     }
 
     /// Gets eval while normalizing mate scores
@@ -238,12 +242,20 @@ impl TT {
             || ((old.flag != TTFlag::Exact && (flag == TTFlag::Exact || depth >= old.depth as usize))
             || (old.flag == TTFlag::Exact && flag == TTFlag::Exact && depth > old.depth as usize))
         {
+            // Normalize eval to node distance
             let eval = if eval >= MATE_IN_PLY {
                 (eval + ply as Eval) as i16
             } else if eval <= -MATE_IN_PLY {
                 (eval - ply as Eval) as i16
             } else {
                 eval as i16
+            };
+
+            // Don't overwrite best moves with null moves
+            let best_move = if best_move != NULL_MOVE {
+                best_move
+            } else {
+                old.best_move
             };
 
             let new = TTField {

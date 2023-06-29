@@ -235,8 +235,6 @@ impl Position {
         // Probe tt for eval and best move (for pv, only cutoff at leaves)
         let tt_move = match info.tt.probe(self.board.hash) {
             Some(entry) => {
-                let tt_move = entry.get_move();
-
                 if entry.get_depth() >= depth {
                     let tt_eval = entry.get_eval(info.ply);
                     let tt_flag = entry.get_flag();
@@ -253,7 +251,7 @@ impl Position {
                     }
                 }
 
-                Some(tt_move)
+                entry.get_move()
             }
 
             None => None,
@@ -421,10 +419,10 @@ impl Position {
 
             if eval > best_eval {
                 best_eval = eval;
-                best_move = m;
-
+                
                 if eval > alpha {
                     alpha = eval;
+                    best_move = m;
                 }
 
                 if eval >= beta {
@@ -610,9 +608,13 @@ impl<'a> SearchInfo<'a> {
             // move "sanity" check, since a hash collision is possible
             let move_list = board.gen_moves::<true>();
 
-            if move_list.moves.contains(&tt_move) {
-                board = board.make_move(tt_move);
-                print!(" {tt_move}");
+            if let Some(m) = tt_move {
+                if move_list.moves.contains(&m) {
+                    board = board.make_move(m);
+                    print!(" {m}");
+                } else {
+                    break;
+                }
             } else {
                 break;
             }
