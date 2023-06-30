@@ -232,36 +232,49 @@ impl Position {
             }
         }
 
-        // Probe tt for eval and best move (for pv, only cutoff at leaves)
-        let tt_move = match info.tt.probe(self.board.hash) {
-            Some(entry) => {
-                if entry.get_depth() >= depth {
-                    let tt_eval = entry.get_eval(info.ply);
-                    let tt_flag = entry.get_flag();
+        // Probe tt for the best move and static eval (for pv, only cutoff at leaves)
+        let tt_entry = info.tt.probe(self.board.hash);
+        let mut stand_pat = -INFINITY;
+        let mut tt_move = None;
 
-                    if !root_node && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
-                        return tt_eval;
-                    } else if !pv_node {
-                        match tt_flag {
-                            TTFlag::Exact => return tt_eval,
-                            TTFlag::Lower if tt_eval >= beta => return beta,
-                            TTFlag::Upper if tt_eval <= alpha => return alpha,
-                            _ => (),
-                        }
+        if let Some(entry) = tt_entry {
+            if entry.get_depth() >= depth {
+                let tt_eval = entry.get_eval(info.ply);
+                let tt_flag = entry.get_flag();
+
+                if !root_node && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
+                    return tt_eval;
+                } else if !pv_node {
+                    match tt_flag {
+                        TTFlag::Exact => return tt_eval,
+                        TTFlag::Lower if tt_eval >= beta => return beta,
+                        TTFlag::Upper if tt_eval <= alpha => return alpha,
+                        _ => (),
                     }
                 }
-
-                entry.get_move()
             }
 
-            None => None,
-        };
+            // If we're not in check, we can use the static eval from the tt entry
+            if !in_check {
+                stand_pat = entry.get_static_eval();
+            }
 
-        let stand_pat = if !in_check {
-            self.nnue_state.evaluate(self.board.side)
-        } else {
-            -INFINITY
-        };
+            tt_move = entry.get_move();
+        } else if !in_check {
+            // Without a tt entry (and not in check), we have to compute the static eval
+            stand_pat = self.nnue_state.evaluate(self.board.side);
+
+            // Chuck the static eval into the tt. This won't overwrite any relevant entry
+            info.tt.insert(
+                self.board.hash,
+                TTFlag::None,
+                NULL_MOVE,
+                -INFINITY,
+                stand_pat,
+                0,
+                info.ply,
+            );
+        }
 
         info.eval_stack[info.ply] = stand_pat;
 
@@ -416,7 +429,7 @@ impl Position {
 
             if eval > best_eval {
                 best_eval = eval;
-                
+
                 if eval > alpha {
                     best_move = m;
                     alpha = eval;
@@ -448,8 +461,15 @@ impl Position {
                 TTFlag::Upper
             };
 
-            info.tt
-                .insert(self.board.hash, tt_flag, best_move, alpha, depth, info.ply);
+            info.tt.insert(
+                self.board.hash,
+                tt_flag,
+                best_move,
+                alpha,
+                stand_pat,
+                depth,
+                info.ply,
+            );
         }
 
         if root_node {
@@ -473,21 +493,23 @@ impl Position {
             return self.nnue_state.evaluate(self.board.side);
         }
 
-        // Probe tt for evaluation
-        if let Some(entry) = info.tt.probe(self.board.hash) {
+        // Probe tt for static eval and potential cuts, else use nnue
+        let stand_pat = if let Some(entry) = info.tt.probe(self.board.hash) {
             let tt_eval = entry.get_eval(info.ply);
-            let tt_flag = entry.get_flag();
 
-            match tt_flag {
+            match entry.get_flag() {
                 TTFlag::Exact => return tt_eval,
                 TTFlag::Lower if tt_eval >= beta => return beta,
                 TTFlag::Upper if tt_eval <= alpha => return alpha,
                 _ => (),
             }
-        }
 
-        // Run the static evaluation and raise alpha if needed.
-        let stand_pat = self.nnue_state.evaluate(self.board.side);
+            entry.get_static_eval()
+        } else {
+            self.nnue_state.evaluate(self.board.side)
+        };
+
+        // Update alpha based on stand pat
         let old_alpha = alpha;
         alpha = alpha.max(stand_pat);
 
@@ -527,7 +549,7 @@ impl Position {
 
             if eval > best_eval {
                 best_eval = eval;
-                
+
                 if eval > alpha {
                     best_move = m;
                     alpha = eval;
@@ -550,8 +572,15 @@ impl Position {
                 TTFlag::Upper
             };
 
-            info.tt
-                .insert(self.board.hash, tt_flag, best_move, alpha, 0, info.ply);
+            info.tt.insert(
+                self.board.hash,
+                tt_flag,
+                best_move,
+                alpha,
+                stand_pat,
+                0,
+                info.ply,
+            );
         }
 
         alpha
