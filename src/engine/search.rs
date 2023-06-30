@@ -329,9 +329,6 @@ impl Position {
 
         for (move_count, (m, s)) in move_list.enumerate() {
             let start_nodes = info.nodes;
-            if move_count == 0 {
-                best_move = m;
-            }
 
             self.make_move(m, info);
             info.tt.prefetch(self.board.hash); // prefetch next hash
