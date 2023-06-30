@@ -235,8 +235,6 @@ impl Position {
         // Probe tt for eval and best move (for pv, only cutoff at leaves)
         let tt_move = match info.tt.probe(self.board.hash) {
             Some(entry) => {
-                let tt_move = entry.get_move();
-
                 if entry.get_depth() >= depth {
                     let tt_eval = entry.get_eval(info.ply);
                     let tt_flag = entry.get_flag();
@@ -253,7 +251,7 @@ impl Position {
                     }
                 }
 
-                Some(tt_move)
+                entry.get_move()
             }
 
             None => None,
@@ -331,9 +329,6 @@ impl Position {
 
         for (move_count, (m, s)) in move_list.enumerate() {
             let start_nodes = info.nodes;
-            if move_count == 0 {
-                best_move = m;
-            }
 
             self.make_move(m, info);
             info.tt.prefetch(self.board.hash); // prefetch next hash
@@ -421,9 +416,9 @@ impl Position {
 
             if eval > best_eval {
                 best_eval = eval;
-                best_move = m;
-
+                
                 if eval > alpha {
+                    best_move = m;
                     alpha = eval;
                 }
 
@@ -532,9 +527,9 @@ impl Position {
 
             if eval > best_eval {
                 best_eval = eval;
-                best_move = m;
-
+                
                 if eval > alpha {
+                    best_move = m;
                     alpha = eval;
                 }
 
@@ -546,7 +541,7 @@ impl Position {
         }
 
         // Save to TT if we at least improved on the static eval.
-        if !info.stop && best_move != NULL_MOVE {
+        if !info.stop {
             let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
             } else if best_eval > old_alpha {
@@ -610,9 +605,13 @@ impl<'a> SearchInfo<'a> {
             // move "sanity" check, since a hash collision is possible
             let move_list = board.gen_moves::<true>();
 
-            if move_list.moves.contains(&tt_move) {
-                board = board.make_move(tt_move);
-                print!(" {tt_move}");
+            if let Some(m) = tt_move {
+                if move_list.moves.contains(&m) {
+                    board = board.make_move(m);
+                    print!(" {m}");
+                } else {
+                    break;
+                }
             } else {
                 break;
             }

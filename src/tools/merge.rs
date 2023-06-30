@@ -53,7 +53,7 @@ impl<'a> QuicklySortableString<'a> {
 impl<'a> PartialEq for QuicklySortableString<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
-            && &self.string[self.view.clone()] == &other.string[other.view.clone()]
+            && self.string[self.view.clone()] == other.string[other.view.clone()]
     }
 }
 
@@ -119,7 +119,7 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
 
     // Deduplicate each individual chunk and add it to the heap
     let mut files = BinaryHeap::new();
-    for chunk in indices.chunks(CHUNK_SIZE).into_iter() {
+    for chunk in indices.chunks(CHUNK_SIZE) {
         let mut data = chunk.to_vec();
         data.sort_unstable();
         data.dedup();
@@ -172,7 +172,7 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
     );
 
     // Write final deduplicated data to output file.
-    let mut output = BufWriter::new(File::create(out.clone())?);
+    let mut output = BufWriter::new(File::create(out)?);
     let write_time = std::time::Instant::now();
     for fen in &data {
         writeln!(output, "{}", fen.as_str())?;
