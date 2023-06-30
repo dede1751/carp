@@ -69,6 +69,31 @@ impl From<(u64, u64)> for TTField {
     }
 }
 
+/// Convert from external root-distance to internal node-distance
+fn to_tt(eval: Eval, ply: usize) -> i16 {
+    if eval >= MATE_IN_PLY {
+        (eval + ply as Eval) as i16
+    } else if eval <= -MATE_IN_PLY {
+        (eval - ply as Eval) as i16
+    } else {
+        eval as i16
+    }
+}
+
+/// Convert from internal node-distance to external root-distance
+fn to_search(eval: i16, ply: usize) -> Eval {
+    let eval = eval as Eval;
+    let ply = ply as Eval;
+
+    if eval >= MATE_IN_PLY {
+        eval - ply
+    } else if eval <= -MATE_IN_PLY {
+        eval + ply
+    } else {
+        eval
+    }
+}
+
 impl TTField {
     /// Returns entry depth
     pub fn get_depth(&self) -> usize {
@@ -91,16 +116,7 @@ impl TTField {
 
     /// Gets eval while normalizing mate scores
     pub fn get_eval(&self, ply: usize) -> Eval {
-        let eval = self.eval as Eval;
-        let ply = ply as Eval;
-
-        if eval >= MATE_IN_PLY {
-            eval - ply
-        } else if eval <= -MATE_IN_PLY {
-            eval + ply
-        } else {
-            eval
-        }
+        to_search(self.eval, ply)
     }
 }
 
@@ -243,13 +259,7 @@ impl TT {
             || (old.flag == TTFlag::Exact && flag == TTFlag::Exact && depth > old.depth as usize))
         {
             // Normalize eval to node distance
-            let eval = if eval >= MATE_IN_PLY {
-                (eval + ply as Eval) as i16
-            } else if eval <= -MATE_IN_PLY {
-                (eval - ply as Eval) as i16
-            } else {
-                eval as i16
-            };
+            let eval = to_tt(eval, ply);
 
             // Don't overwrite best moves with null moves
             let best_move = if best_move != NULL_MOVE {

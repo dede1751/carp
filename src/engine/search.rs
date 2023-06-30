@@ -418,8 +418,8 @@ impl Position {
                 best_eval = eval;
                 
                 if eval > alpha {
-                    alpha = eval;
                     best_move = m;
+                    alpha = eval;
                 }
 
                 if eval >= beta {
@@ -527,9 +527,9 @@ impl Position {
 
             if eval > best_eval {
                 best_eval = eval;
-                best_move = m;
-
+                
                 if eval > alpha {
+                    best_move = m;
                     alpha = eval;
                 }
 
@@ -541,7 +541,7 @@ impl Position {
         }
 
         // Save to TT if we at least improved on the static eval.
-        if !info.stop && best_move != NULL_MOVE {
+        if !info.stop {
             let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
             } else if best_eval > old_alpha {

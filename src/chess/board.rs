@@ -317,7 +317,7 @@ impl Board {
     /// Makes (legal) move on the board
     /// Supplying illegal moves will lead to illegal board states.
     pub fn make_move(&self, m: Move) -> Board {
-        let mut new = self.clone();
+        let mut new = *self;
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = self.piece_at(src); // must exist
         let move_type = m.get_type();
@@ -379,7 +379,7 @@ impl Board {
 
     /// Make move with NNUE accumulator increments
     pub fn make_move_nnue(&self, m: Move, nnue_state: &mut Box<NNUEState>) -> Board {
-        let mut new = self.clone();
+        let mut new = *self;
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = self.piece_at(src);
         let move_type = m.get_type();
@@ -448,7 +448,7 @@ impl Board {
 
     /// Makes the null move on the board, giving the turn to the opponent
     pub fn make_null(&self) -> Board {
-        let mut new = self.clone();
+        let mut new = *self;
         new.side = !self.side;
         new.hash.toggle_side();
 
