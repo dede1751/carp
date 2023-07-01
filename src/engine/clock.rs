@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::chess::{square::*, moves::*};
+use crate::chess::{moves::*, square::*};
 
 #[derive(Clone, Debug)]
 pub enum TimeControl {
@@ -207,9 +207,10 @@ impl Clock {
                 // At the start, we scale the opt time based on how many nodes were dedicated
                 // to searching the best move.
                 let opt_scale = if best_move != NULL_MOVE && nodes != 0 {
-                    let bm_nodes = self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
+                    let bm_nodes =
+                        self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
                     let bm_fraction = bm_nodes as f64 / nodes as f64;
-                    
+
                     // Scale factor from Ethereal, scale between 50% and 240%
                     (0.4 + (1.0 - bm_fraction) * 2.0).max(0.5)
                 } else {
