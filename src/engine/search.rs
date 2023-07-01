@@ -238,10 +238,11 @@ impl Position {
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
-            if entry.get_depth() >= depth {
-                let tt_eval = entry.get_eval(info.ply);
-                let tt_flag = entry.get_flag();
+            let tt_flag = entry.get_flag();
+            let tt_eval = entry.get_eval(info.ply);
 
+            // TT cutoffs
+            if entry.get_depth() >= depth {
                 if !root_node && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
                     return tt_eval;
                 } else if !pv_node {
@@ -254,9 +255,23 @@ impl Position {
                 }
             }
 
-            // If we're not in check, we can use the static eval from the tt entry
+            // If we're in check, we do not use the static eval.
+            // We recompute the tt static eval when it's a bad value (-INFINITY)
             if !in_check {
-                stand_pat = entry.get_static_eval();
+                let tt_static_eval = entry.get_static_eval();
+
+                if tt_static_eval == -INFINITY {
+                    stand_pat = self.nnue_state.evaluate(self.board.side);
+                } else {
+                    stand_pat = tt_static_eval;
+                }
+
+                // If the tt eval is a tigher bound than the static eval, use it as stand pat
+                if (tt_flag == TTFlag::Lower && tt_eval > tt_static_eval)
+                    || (tt_flag == TTFlag::Upper && tt_eval <= tt_static_eval)
+                {
+                    stand_pat = tt_eval;
+                }
             }
 
             tt_move = entry.get_move();
@@ -493,20 +508,41 @@ impl Position {
             return self.nnue_state.evaluate(self.board.side);
         }
 
-        // Probe tt for static eval and potential cuts, else use nnue
-        let stand_pat = if let Some(entry) = info.tt.probe(self.board.hash) {
-            let tt_eval = entry.get_eval(info.ply);
+        let in_check = self.king_in_check();
+        let mut stand_pat = -INFINITY;
 
-            match entry.get_flag() {
+        // Probe tt and compute stand pat
+        if let Some(entry) = info.tt.probe(self.board.hash) {
+            let tt_eval = entry.get_eval(info.ply);
+            let tt_flag = entry.get_flag();
+
+            // TT Cutoffs
+            match tt_flag {
                 TTFlag::Exact => return tt_eval,
                 TTFlag::Lower if tt_eval >= beta => return beta,
                 TTFlag::Upper if tt_eval <= alpha => return alpha,
                 _ => (),
             }
 
-            entry.get_static_eval()
-        } else {
-            self.nnue_state.evaluate(self.board.side)
+            // Use the static eval in TT when appropriate, else use NNUE
+            if !in_check {
+                let tt_static_eval = entry.get_static_eval();
+
+                if tt_static_eval == -INFINITY {
+                    stand_pat = self.nnue_state.evaluate(self.board.side);
+                } else {
+                    stand_pat = tt_static_eval;
+                }
+
+                // If the tt eval is a tigher bound than the static eval, use it as stand pat
+                if (tt_flag == TTFlag::Lower && tt_eval > tt_static_eval)
+                    || (tt_flag == TTFlag::Upper && tt_eval <= tt_static_eval)
+                {
+                    stand_pat = tt_eval;
+                }
+            }
+        } else if !in_check {
+            stand_pat = self.nnue_state.evaluate(self.board.side)
         };
 
         // Update alpha based on stand pat
@@ -518,7 +554,6 @@ impl Position {
             return stand_pat;
         }
 
-        let in_check = self.king_in_check();
         let mut best_move = NULL_MOVE;
         let mut best_eval = stand_pat;
 
