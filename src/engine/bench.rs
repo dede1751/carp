@@ -68,7 +68,7 @@ pub fn run_benchmark() {
         let mut position: Position = fen.parse().unwrap();
         let tt = TT::default();
         let clock = Clock::new(
-            TimeControl::FixedDepth(13),
+            TimeControl::FixedDepth(16),
             Arc::new(AtomicBool::new(false)),
             position.board.side == Color::White,
         );

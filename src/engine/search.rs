@@ -143,7 +143,7 @@ impl Position {
         info: &mut SearchInfo,
         best_move: &mut Move,
         prev: Eval,
-        mut depth: usize
+        mut depth: usize,
     ) -> Eval {
         let base_depth = depth;
 
