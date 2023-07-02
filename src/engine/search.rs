@@ -119,7 +119,7 @@ impl Position {
                 break;
             }
 
-            let eval = self.aspiration_window(&mut info, result.eval, d);
+            let eval = self.aspiration_window(&mut info, &mut result.best_move, result.eval, d);
 
             if !info.stop {
                 result.best_move = info.best_move;
@@ -138,7 +138,13 @@ impl Position {
 
     /// Aspiration Window loop
     /// Run searches on progressively wider windows until we find a value within the window.
-    fn aspiration_window(&mut self, info: &mut SearchInfo, prev: Eval, mut depth: usize) -> Eval {
+    fn aspiration_window(
+        &mut self,
+        info: &mut SearchInfo,
+        best_move: &mut Move,
+        prev: Eval,
+        mut depth: usize
+    ) -> Eval {
         let base_depth = depth;
 
         // Setup aspiration window when searching a sufficient depth
@@ -168,6 +174,9 @@ impl Position {
                 if eval.abs() < MATE_IN_PLY && depth > 1 {
                     depth -= 1;
                 }
+
+                // Short circuit saving the best move when failing high
+                *best_move = info.best_move;
             } else {
                 // Search within window, success
                 return eval;
