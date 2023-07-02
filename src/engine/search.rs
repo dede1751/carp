@@ -518,6 +518,7 @@ impl Position {
         }
 
         let in_check = self.king_in_check();
+        let old_alpha = alpha;
         let mut stand_pat = -INFINITY;
 
         // Probe tt and compute stand pat
@@ -554,13 +555,13 @@ impl Position {
             stand_pat = self.nnue_state.evaluate(self.board.side)
         };
 
-        // Update alpha based on stand pat
-        let old_alpha = alpha;
-        alpha = alpha.max(stand_pat);
-
         // Stand pat and delta pruning
-        if stand_pat >= beta || stand_pat + QS_DELTA_MARGIN < alpha {
-            return stand_pat;
+        if !in_check {
+            alpha = alpha.max(stand_pat);
+
+            if stand_pat >= beta || stand_pat + QS_DELTA_MARGIN < alpha {
+                return stand_pat;
+            }
         }
 
         let mut best_move = NULL_MOVE;
@@ -604,6 +605,11 @@ impl Position {
                     break;
                 }
             }
+        }
+
+        // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
+        if in_check && best_eval == -INFINITY {
+            return -5000;
         }
 
         // Save to TT if we at least improved on the static eval.
