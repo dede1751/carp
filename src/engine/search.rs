@@ -184,7 +184,7 @@ impl Position {
 
             // Widen window, fully reopen when it's too wide
             delta += delta / 2;
-            if delta >= QS_DELTA_MARGIN {
+            if delta >= BIG_DELTA {
                 alpha = -INFINITY;
                 beta = INFINITY;
             }
@@ -559,7 +559,7 @@ impl Position {
         if !in_check {
             alpha = alpha.max(stand_pat);
 
-            if stand_pat >= beta || stand_pat + QS_DELTA_MARGIN < alpha {
+            if stand_pat >= beta {
                 return stand_pat;
             }
         }
