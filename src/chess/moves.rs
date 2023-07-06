@@ -3,9 +3,6 @@ use std::fmt;
 use crate::chess::{piece::*, square::*};
 use crate::transmute_enum;
 
-/// Indexed by color, rank at which each side's pawns promote
-pub const PROMOTION_RANKS: [Rank; 2] = [Rank::Seventh, Rank::Second];
-
 /// Moves, encoded in 16b (encoding scheme is from Midnight by Archi)
 ///
 ///     0000 0000 0011 1111    source       0x003F     0

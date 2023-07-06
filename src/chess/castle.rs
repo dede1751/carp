@@ -2,7 +2,7 @@ use std::{fmt, str::FromStr};
 
 use crate::chess::{
     piece::*,
-    square::{Square::*, *},
+    square::*,
 };
 
 /// Castling rights struct
@@ -35,31 +35,14 @@ const NO_BQ: u8 = ALL ^ BQ;
 const NO_W: u8 = NO_WK & NO_WQ;
 const NO_B: u8 = NO_BK & NO_BQ;
 
-// used to update castling rights during move generation
-#[rustfmt::skip]
-const CASTLE_MASKS: [u8; SQUARE_COUNT] = [
-    NO_BQ, ALL, ALL, ALL, NO_B, ALL, ALL, NO_BK,
-      ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
-      ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
-      ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
-      ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
-      ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
-      ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
-    NO_WQ, ALL, ALL, ALL, NO_W, ALL, ALL, NO_WK,
-];
-
-// rook source and target square for each king castling move
-#[rustfmt::skip]
-pub const ROOK_CASTLING_MOVE: [(Square, Square); SQUARE_COUNT] = [
-    (A8, A8), (A8, A8), (A8, D8), (A8, A8), (A8, A8), (A8, A8), (H8, F8), (A8, A8), 
-    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
-    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
-    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
-    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
-    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
-    (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), (A8, A8), 
-    (A8, A8), (A8, A8), (A1, D1), (A8, A8), (A8, A8), (A8, A8), (H1, F1), (A8, A8),
-];
+/// Returns the rook src/tgt square for a given king target square
+/// King target square must be a valid castling destination, so either C1/C8 or G1/G8
+pub const fn rook_castling_move(king_tgt: Square) -> (Square, Square) {
+    match king_tgt.file() {
+        File::C => (king_tgt.left().left(), king_tgt.right()),
+        _ => (king_tgt.right(), king_tgt.left()),
+    }
+}
 
 /// Prints rights to fen format
 impl fmt::Display for CastlingRights {
@@ -123,17 +106,17 @@ impl FromStr for CastlingRights {
 
 impl CastlingRights {
     /// Get index of rights as usize
-    pub const fn index(&self) -> usize {
+    pub const fn index(self) -> usize {
         self.0 as usize
     }
 
     /// Checks whether given color has kingside rights
-    pub const fn has_kingside(&self, side: Color) -> bool {
+    pub const fn has_kingside(self, side: Color) -> bool {
         self.0 & KINGSIDE[side as usize] != 0
     }
 
     /// Checks whether given color has queenside rights
-    pub const fn has_queenside(&self, side: Color) -> bool {
+    pub const fn has_queenside(self, side: Color) -> bool {
         self.0 & QUEENSIDE[side as usize] != 0
     }
 
@@ -141,11 +124,20 @@ impl CastlingRights {
     /// Based on the idea that any move starting or ending on one of the four corners of the board
     /// will remove the rights relative to that corner, and remove all rights in case the move
     /// starts (or ends but it's impossible) on the king start square
-    pub const fn update(&self, src: Square, tgt: Square) -> CastlingRights {
-        let mut new: CastlingRights = *self;
+    pub const fn update(self, src: Square, tgt: Square) -> CastlingRights {
+        #[rustfmt::skip]
+        const CASTLE_MASKS: [u8; SQUARE_COUNT] = [
+            NO_BQ, ALL, ALL, ALL, NO_B, ALL, ALL, NO_BK,
+            ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
+            ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
+            ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
+            ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
+            ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
+            ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
+            NO_WQ, ALL, ALL, ALL, NO_W, ALL, ALL, NO_WK,
+        ];
 
-        new.0 &= CASTLE_MASKS[src as usize];
-        new.0 &= CASTLE_MASKS[tgt as usize];
-        new
+        let new = self.0 & CASTLE_MASKS[src as usize] & CASTLE_MASKS[tgt as usize];
+        CastlingRights(new)
     }
 }

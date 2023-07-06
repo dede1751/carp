@@ -35,25 +35,27 @@ impl FromStr for Position {
         let mut history = Vec::new();
         if let Some("moves") = tokens.next() {
             for move_str in tokens {
-                let new = board.find_move(move_str);
+                let m = board.find_move(move_str);
 
-                match new {
+                match m {
                     Some(m) => {
+                        let new = board.make_move(m);
                         history.push(board);
-                        board = board.make_move(m);
+                        board = new;
                     }
                     None => eprintln!("Move is not legal!"),
                 };
             }
         };
 
-        let res = Position {
+        let nnue_state = NNUEState::from_board(&board);
+
+        Ok(
+            Position {
             board,
             history,
-            nnue_state: NNUEState::from_board(&board),
-        };
-
-        Ok(res)
+            nnue_state,
+        })
     }
 }
 
@@ -82,11 +84,13 @@ impl Position {
     }
 
     /// Makes the given move within the game tree
+    /// We use std::mem::replace to avoid cloning the board
     pub fn make_move(&mut self, m: Move, info: &mut SearchInfo) {
         let new = self.board.make_move_nnue(m, &mut self.nnue_state);
-        let piece = self.board.piece_at(m.get_src());
-        self.history.push(self.board);
-        self.board = new;
+        let old = std::mem::replace(&mut self.board, new);
+
+        let piece = old.piece_at(m.get_src());
+        self.history.push(old);
 
         info.push_move(m, piece);
     }
@@ -94,9 +98,10 @@ impl Position {
     /// Passes turn to opponent (this resets the ply_from_null clock in the search info)
     pub fn make_null(&mut self, info: &mut SearchInfo) {
         let new = self.board.make_null();
+        let old = std::mem::replace(&mut self.board, new);
+
         self.nnue_state.push();
-        self.history.push(self.board);
-        self.board = new;
+        self.history.push(old);
 
         info.push_null();
     }
@@ -198,10 +203,10 @@ impl Position {
     /// Accumulator is refreshed to avoid overflows
     pub fn push_move(&mut self, m: Move) {
         let new = self.board.make_move(m);
-        self.history.push(self.board);
-        self.board = new;
-
         self.nnue_state.refresh(&new);
+
+        let old = std::mem::replace(&mut self.board, new);
+        self.history.push(old);
     }
 
     /// Checks if the game is over and returns the result

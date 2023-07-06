@@ -127,7 +127,7 @@ impl Position {
                 result.depth = d;
 
                 if INFO {
-                    info.print(self.board, eval, d);
+                    info.print(self.board.clone(), eval, d);
                 }
             }
         }
@@ -737,45 +737,38 @@ mod performance_tests {
 
     use crate::chess::piece::Color;
 
-    fn search_driver(fen: &str, depth: usize) {
+    #[test]
+    fn search_suite() {
+        #[rustfmt::skip]
+        const SEARCH_SUITE: [(&str, &str, usize); 4] = [
+            ("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", "Kiwipete", 15),
+            ("rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1", "Killer", 15),
+            ("8/8/8/2K5/5Q2/8/4k3/8 w - - 0 1", "Mate in 4", 20),
+            ("1b2k3/3rP3/2B1K3/8/5P2/8/1p6/8 b - - 4 57", "All moves lead to mate", 5),
+        ];
+
         init_all_tables();
-        let mut position: Position = fen.parse().unwrap();
-        let tt = TT::default();
-        let clock = Clock::new(
-            TimeControl::FixedDepth(depth),
-            Arc::new(AtomicBool::new(false)),
-            position.board.side == Color::White,
-        );
 
-        println!("\n{}\n\n", position.board);
+        for (fen, name, depth) in SEARCH_SUITE {
+            println!("Searching: {}", name);
 
-        let start = Instant::now();
-        let best_move = position.iterative_search::<true>(clock, &tt).best_move;
-        let duration = start.elapsed();
+            let mut position: Position = format!("fen {}", fen).parse().unwrap();
+            let tt = TT::default();
+            let clock = Clock::new(
+                TimeControl::FixedDepth(depth),
+                Arc::new(AtomicBool::new(false)),
+                position.board.side == Color::White,
+            );
 
-        println!(
-            "\nDEPTH: {depth} Found {best_move} in {duration:?}\n--------------------------------\n",
-        );
-    }
+            println!("\n{}\n\n", position.board);
 
-    #[test]
-    fn search_kiwipete15() {
-        search_driver(
-            "fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-            15,
-        );
-    }
+            let start = Instant::now();
+            let best_move = position.iterative_search::<true>(clock, &tt).best_move;
+            let duration = start.elapsed();
 
-    #[test]
-    fn search_killer15() {
-        search_driver(
-            "fen rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1",
-            15,
-        );
-    }
-
-    #[test]
-    fn search_mate4() {
-        search_driver("fen 8/8/8/2K5/5Q2/8/4k3/8 w - - 0 1", 20);
+            println!(
+                "\nDEPTH: {depth} Found {best_move} in {duration:?}\n--------------------------------\n",
+            );
+        }
     }
 }

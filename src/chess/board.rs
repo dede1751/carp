@@ -9,7 +9,7 @@ use crate::engine::{nnue::*, search_params::*};
 
 /// Piece-centric board representation
 /// Any board without a king for each player (and with more than one for either) is UB!
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Board {
     // Main bitboards
     pub piece_bb: [BitBoard; PIECE_COUNT],
@@ -33,7 +33,10 @@ pub struct Board {
 /// Pretty print board state
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut board_str = String::from("\n Board:\n\n\t┏━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┓");
+        let mut board_str = format!(
+            "\n FEN: {}\n\n\t┏━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┳━━━┓",
+            self.to_fen()
+        );
 
         for rank in ALL_RANKS {
             board_str.push_str(format!("\n      {} ┃ ", 8 - rank as usize).as_str());
@@ -317,7 +320,7 @@ impl Board {
     /// Makes (legal) move on the board
     /// Supplying illegal moves will lead to illegal board states.
     pub fn make_move(&self, m: Move) -> Board {
-        let mut new = *self;
+        let mut new = self.clone();
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = self.piece_at(src); // must exist
         let move_type = m.get_type();
@@ -325,7 +328,7 @@ impl Board {
 
         // Remove moving piece and reset halfmoves
         new.remove_piece(src);
-        if capture || piece == Piece::WP || piece == Piece::BP {
+        if capture || piece.is_pawn() {
             new.halfmoves = 0
         } else {
             new.halfmoves += 1;
@@ -333,12 +336,12 @@ impl Board {
 
         // Handle pieces affected by the move (captures/castles..)
         if move_type == MoveType::EnPassant {
-            new.remove_piece(PUSH[!self.side as usize][tgt as usize]);
+            new.remove_piece(tgt.forward(!self.side));
         } else if capture {
             new.remove_piece(tgt);
         } else if move_type == MoveType::Castle {
             let rook = self.side.rook();
-            let (rook_src, rook_tgt) = ROOK_CASTLING_MOVE[tgt as usize];
+            let (rook_src, rook_tgt) = rook_castling_move(tgt);
 
             new.remove_piece(rook_src);
             new.set_piece(rook, rook_tgt);
@@ -359,7 +362,7 @@ impl Board {
 
         // Handle double push
         if move_type == MoveType::DoublePush {
-            let ep_tgt = PUSH[self.side as usize][src as usize];
+            let ep_tgt = src.forward(self.side);
 
             new.en_passant = Some(ep_tgt);
             new.hash.toggle_ep(ep_tgt);
@@ -379,7 +382,7 @@ impl Board {
 
     /// Make move with NNUE accumulator increments
     pub fn make_move_nnue(&self, m: Move, nnue_state: &mut Box<NNUEState>) -> Board {
-        let mut new = *self;
+        let mut new = self.clone();
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = self.piece_at(src);
         let move_type = m.get_type();
@@ -389,14 +392,14 @@ impl Board {
         nnue_state.push();
 
         new.remove_piece(src);
-        if capture || piece == Piece::WP || piece == Piece::BP {
+        if capture || piece.is_pawn() {
             new.halfmoves = 0
         } else {
             new.halfmoves += 1;
         }
 
         if move_type == MoveType::EnPassant {
-            let ep_target = PUSH[!self.side as usize][tgt as usize];
+            let ep_target = tgt.forward(!self.side);
 
             new.remove_piece(ep_target);
             nnue_state.manual_update::<OFF>((!self.side).pawn(), ep_target);
@@ -405,7 +408,7 @@ impl Board {
             nnue_state.manual_update::<OFF>(self.piece_at(tgt), tgt);
         } else if move_type == MoveType::Castle {
             let rook = self.side.rook();
-            let (rook_src, rook_tgt) = ROOK_CASTLING_MOVE[tgt as usize];
+            let (rook_src, rook_tgt) = rook_castling_move(tgt);
 
             new.remove_piece(rook_src);
             new.set_piece(rook, rook_tgt);
@@ -429,7 +432,7 @@ impl Board {
         }
 
         if move_type == MoveType::DoublePush {
-            let ep_tgt = PUSH[self.side as usize][src as usize];
+            let ep_tgt = src.forward(self.side);
 
             new.en_passant = Some(ep_tgt);
             new.hash.toggle_ep(ep_tgt);
@@ -448,7 +451,7 @@ impl Board {
 
     /// Makes the null move on the board, giving the turn to the opponent
     pub fn make_null(&self) -> Board {
-        let mut new = *self;
+        let mut new = self.clone();
         new.side = !self.side;
         new.hash.toggle_side();
 
@@ -595,26 +598,26 @@ impl Board {
         let side = self.side as usize;
         let pawn_bb = self.own_pawns() & !diag_pins; // diag pinned pawns cannot move
 
-        for source in pawn_bb {
-            let target: Square = PUSH[side][source as usize];
+        for src in pawn_bb {
+            let target: Square = src.forward(self.side);
 
             // pawns pinned along a rank cannot be pushed
-            if hv_pins.get_bit(source) && !hv_pins.get_bit(target) {
+            if hv_pins.get_bit(src) && !hv_pins.get_bit(target) {
                 continue;
             }
 
             if !(self.occupancy.get_bit(target)) {
                 // normal pawn push
                 if block_check.get_bit(target) {
-                    move_list.push_pawn_quiet(source, target, self.side);
+                    move_list.push_pawn_quiet(src, target, self.side);
                 }
 
                 // double pawn push
-                if source.rank() == START_RANKS[side] {
-                    let target = DOUBLE_PUSH[side][source.file() as usize];
+                if src.rank() == START_RANKS[side] {
+                    let target = src.forward(self.side).forward(self.side);
 
                     if !(self.occupancy.get_bit(target)) && block_check.get_bit(target) {
-                        move_list.push(Move::new(source, target, MoveType::DoublePush));
+                        move_list.push(Move::new(src, target, MoveType::DoublePush));
                     }
                 }
             }
@@ -649,14 +652,15 @@ impl Board {
             }
 
             if let Some(ep_square) = self.en_passant {
-                let ep_target = PUSH[!self.side as usize][ep_square as usize];
+                let ep_target = ep_square.forward(!self.side);
 
                 // Attack must land on ep square, and either capture the checking piece or
                 // block the check
                 if attacks.get_bit(ep_square)
                     && (capture_check.get_bit(ep_target) || block_check.get_bit(ep_square))
                 {
-                    let ep_rank = RANK_MASKS[ep_target as usize];
+                    const EP_RANKS: [BitBoard; 2] = [BitBoard(4278190080), BitBoard(1095216660480)];
+                    let ep_rank = EP_RANKS[self.side as usize];
 
                     // En Passant discovered check!
                     if ep_rank & self.own_king() != EMPTY_BB
@@ -819,8 +823,8 @@ impl Board {
 impl Board {
     /// Returns bitboard with all pieces attacking a square
     fn map_all_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        self.piece_bb[WPAWN] & pawn_attacks(square, Color::Black)
-            | self.piece_bb[BPAWN] & pawn_attacks(square, Color::White)
+        self.piece_bb[0] & pawn_attacks(square, Color::Black)
+            | self.piece_bb[1] & pawn_attacks(square, Color::White)
             | self.knights() & knight_attacks(square)
             | (self.bishops() | self.queens()) & bishop_attacks(square, blockers)
             | (self.rooks() | self.queens()) & rook_attacks(square, blockers)
@@ -847,6 +851,11 @@ impl Board {
         let src = m.get_src();
         let tgt = m.get_tgt();
         let mt = m.get_type();
+
+        // Castling cannot have bad SEE, since all squares the king passes through are not attacked
+        if mt == MoveType::Castle {
+            return true;
+        }
 
         // Piece being swapped off is the promoted piece
         let victim = if mt.is_promotion() {
@@ -876,8 +885,9 @@ impl Board {
         }
 
         // Win if the balance is still in our favor even if we lose the capturing piece
+        // This ensures a positive SEE in case of even trades.
         balance -= PIECE_VALUES[victim as usize];
-        if balance > 0 {
+        if balance > 0 { // THIS IS A MISTAKE. Left in to first regtest the refactor
             return true;
         }
 
@@ -887,7 +897,7 @@ impl Board {
         // Updated occupancy map after capture
         let mut occs = self.occupancy.pop_bit(src).set_bit(tgt);
         if mt == MoveType::EnPassant {
-            let ep_tgt = PUSH[!self.side as usize][self.en_passant.unwrap() as usize]; // guaranteed to be Some
+            let ep_tgt = self.en_passant.unwrap().forward(!self.side); // guaranteed to be Some
             occs = occs.pop_bit(ep_tgt);
         }
 
@@ -907,15 +917,12 @@ impl Board {
             occs = occs.pop_bit(attacker_square);
 
             // Diagonal recaptures uncover bishops/queens
-            if attacker == side_to_move.pawn()
-                || attacker == side_to_move.bishop()
-                || attacker == side_to_move.queen()
-            {
+            if attacker.is_pawn() || attacker.is_bishop() || attacker.is_queen() {
                 attackers |= bishop_attacks(tgt, occs) & diagonal_sliders;
             }
 
             // Orthogonal recaptures uncover rooks/queens
-            if attacker == side_to_move.rook() || attacker == side_to_move.queen() {
+            if attacker.is_rook() || attacker.is_queen() {
                 attackers |= rook_attacks(tgt, occs) & orthogonal_sliders;
             }
             attackers &= occs; // ignore pieces already "used up"
@@ -926,7 +933,7 @@ impl Board {
             if balance >= 0 {
                 // If the recapturing piece is a king, and the opponent has another attacker,
                 // a positive balance should not translate to an exchange win.
-                if attacker == (!side_to_move).king()
+                if attacker.is_king()
                     && attackers & self.side_occupancy[side_to_move as usize] != EMPTY_BB
                 {
                     return self.side == side_to_move;
@@ -1079,20 +1086,29 @@ mod tests {
     #[test]
     fn test_see() {
         #[rustfmt::skip]
-        const SEE_SUITE: [(&str, &str, bool); 4] = [
-            ("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1", "e1e5", true),
-            ("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1", "d3e5", false),
-            ("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", "g2h3", true),
-            ("k3r3/8/8/4p3/8/2B5/1B6/K7 w - - 0 1", "c3e5", true),
+        const SEE_SUITE: [(&str, &str, Eval, bool); 13] = [
+            ("1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1", "e1e5", 0, true),
+            ("1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1", "d3e5", 0, false),
+            ("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", "g2h3", 0, true),
+            ("k3r3/8/8/4p3/8/2B5/1B6/K7 w - - 0 1", "c3e5", 0, true),
+            ("4kbnr/p1P4p/b1q5/5pP1/4n3/5Q2/PP1PPP1P/RNB1KBNR w KQk f6 0 1", "g5f6", 0, true),
+            ("6k1/1pp4p/p1pb4/6q1/3P1pRr/2P4P/PP1Br1P1/5RKN w - - 0 1", "f1f4", 0, false),
+            ("6RR/4bP2/8/8/5r2/3K4/5p2/4k3 w - - 0 1", "f7f8q", 0, true),
+            ("r1bqk1nr/pppp1ppp/2n5/1B2p3/1b2P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1", "e1g1", 0, true),
+            ("4kbnr/p1P1pppp/b7/4q3/7n/8/PPQPPPPP/RNB1KBNR w KQk - 0 1", "c7c8q", 0, true),
+            ("4kbnr/p1P1pppp/b7/4q3/7n/8/PP1PPPPP/RNBQKBNR w KQk - 0 1", "c7c8q", 0, false),
+            ("3r3k/3r4/2n1n3/8/3p4/2PR4/1B1Q4/3R3K w - - 0 1", "d3d4", 0, false),
+            ("5rk1/1pp2q1p/p1pb4/8/3P1NP1/2P5/1P1BQ1P1/5RK1 b - - 0 1", "d6f4", 0, false),
+            ("5rk1/1pp2q1p/p1pb4/8/3P1NP1/2P5/1P1BQ1P1/5RK1 b - - 0 1", "d6f4", -108, true),
         ];
 
         init_all_tables();
-        for (b, m, r) in SEE_SUITE {
+        for (b, m, t, r) in SEE_SUITE {
             let board: Board = b.parse().unwrap();
-            let mov: Move = board.find_move(m).unwrap();
+            let m = board.find_move(m).unwrap();
 
-            println!("{board}");
-            assert_eq!(board.see(mov, 0), r);
+            println!("Move: {m}{board}");
+            assert_eq!(board.see(m, t), r);
         }
     }
 
@@ -1115,7 +1131,7 @@ mod tests {
             ("8/P1k5/K7/8/8/8/8/8 w - - 0 1", "Under promote to give check", 92683, 6),
             ("K1k5/8/P7/8/8/8/8/8 w - - 0 1", "Self stalemate", 2217, 6),
             ("8/k1P5/8/1K6/8/8/8/8 w - - 0 1", "Stalemate & checkmate #1", 567584, 7),
-            ("8/8/2k5/5q2/5n2/8/5K2/8 b - - 0 1", "Stalemate & checkmate #2", 23527, 4)
+            ("8/8/2k5/5q2/5n2/8/5K2/8 b - - 0 1", "Stalemate & checkmate #2", 23527, 4),
         ];
 
         init_all_tables();

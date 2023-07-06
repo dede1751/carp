@@ -1,6 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use crate::chess::bitboard::*;
+use crate::chess::{bitboard::*, piece::Color};
 use crate::transmute_enum;
 
 /// Board square enum, indexed from A8 = 0 to H1 = 63
@@ -43,35 +43,6 @@ const SQUARE_STR: [&str; SQUARE_COUNT] = [
     "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3", 
     "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2", 
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", 
-];
-
-/// Indexed by color and file. Target squares for pawn single pushes
-#[rustfmt::skip]
-pub const PUSH: [[Square; SQUARE_COUNT]; 2] = [[
-    A8, A8, A8, A8, A8, A8, A8, A8,
-    A8, B8, C8, D8, E8, F8, G8, H8, 
-    A7, B7, C7, D7, E7, F7, G7, H7, 
-    A6, B6, C6, D6, E6, F6, G6, H6, 
-    A5, B5, C5, D5, E5, F5, G5, H5, 
-    A4, B4, C4, D4, E4, F4, G4, H4, 
-    A3, B3, C3, D3, E3, F3, G3, H3, 
-    A8, A8, A8, A8, A8, A8, A8, A8,], [
-        
-    A8, A8, A8, A8, A8, A8, A8, A8,
-    A6, B6, C6, D6, E6, F6, G6, H6, 
-    A5, B5, C5, D5, E5, F5, G5, H5, 
-    A4, B4, C4, D4, E4, F4, G4, H4, 
-    A3, B3, C3, D3, E3, F3, G3, H3, 
-    A2, B2, C2, D2, E2, F2, G2, H2, 
-    A1, B1, C1, D1, E1, F1, G1, H1, 
-    A8, A8, A8, A8, A8, A8, A8, A8,
-]];
-
-/// Indexed by color and file. Target squares for pawn double pushes
-#[rustfmt::skip]
-pub const DOUBLE_PUSH: [[Square; FILE_COUNT]; 2] = [
-    [ A4, B4, C4, D4, E4, F4, G4, H4 ],
-    [ A5, B5, C5, D5, E5, F5, G5, H5 ]
 ];
 
 /// Print fen formatted square.
@@ -145,6 +116,15 @@ impl Square {
         transmute_enum!(self as u8 ^ 56, 63)
     }
 
+    /// Get new square moving forward from original based on side.
+    /// To go backwards, simply use the opposite side.
+    pub const fn forward(self, side: Color) -> Square {
+        match side {
+            Color::White => self.up(),
+            Color::Black => self.down(),
+        }
+    }
+
     /// Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
     pub const fn right(self) -> Square {
         transmute_enum!(self as u8 + 1, 63)
@@ -163,6 +143,22 @@ impl Square {
     /// Get new square from original. Wrap linear over the Square enum (A8.up() = A1)
     pub const fn up(self) -> Square {
         transmute_enum!((self as u8).wrapping_sub(8), 63)
+    }
+
+    /// Checks if a square is on the starting rank for the given side
+    pub const fn is_start_square(self, side: Color) -> bool {
+        match side {
+            Color::White => self.rank() as u8 == Rank::Second as u8,
+            Color::Black => self.rank() as u8 == Rank::Seventh as u8,
+        }
+    }
+
+    /// Checks if a square is on the promoting rank for the given side
+    pub const fn is_promotion_square(self, side: Color) -> bool {
+        match side {
+            Color::White => self.rank() as u8 == Rank::Eight as u8,
+            Color::Black => self.rank() as u8 == Rank::First as u8,
+        }
     }
 }
 
@@ -218,17 +214,17 @@ pub const ALL_RANKS: [Rank; RANK_COUNT] = [
 const RANK_CHAR: [char; RANK_COUNT] = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
 impl Rank {
-    // Gets rank below, wraps First->Eight
+    /// Gets rank below, wraps First->Eight
     pub const fn down(self) -> Rank {
         transmute_enum!(self as u8 + 1, 7)
     }
 
-    // Gets rank above, wraps Eight->First
+    /// Gets rank above, wraps Eight->First
     pub const fn up(self) -> Rank {
         transmute_enum!((self as u8).wrapping_sub(1), 7)
     }
 
-    // Converts rank to a char
+    /// Converts rank to a char
     pub const fn to_char(self) -> char {
         RANK_CHAR[self as usize]
     }
