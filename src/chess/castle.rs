@@ -1,9 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use crate::chess::{
-    piece::*,
-    square::*,
-};
+use crate::chess::{piece::*, square::*};
 
 /// Castling rights struct
 /// Implemented through a flag bit vector. This allows for fast castle update without needing

@@ -477,7 +477,7 @@ impl Board {
     /// Returns a BitBoard of all squares attacked by pieces who can attack any of the squares around
     /// the king. The only relevant information is that in the squares around him, the rest is not
     /// used but is kept because it does not cause problems.
-    /// 
+    ///
     /// We only look at the squares from which a piece could threaten squares adjacent to the king.
     ///
     /// We pretend the king is not on the board so that sliders also attack behind the king, since
@@ -684,11 +684,16 @@ impl Board {
     fn gen_kingside_castle(&self, threats: BitBoard, move_list: &mut MoveList) {
         const SRC: [Square; 2] = [Square::E1, Square::E8];
         const TGT: [Square; 2] = [Square::G1, Square::G8];
-        const OCCS: [BitBoard; 2] = [BitBoard(6917529027641081856), BitBoard(96)]; // No friendly or enemy piece can be on these bitboards
-        const KP: [Square; 2] = [Square::H2, Square::H7];                          // Kings or pawns on these squares would be attacking the king after it castles
-        const N: [BitBoard; 2] = [BitBoard(4679521487814656), BitBoard(10489856)]; // Knights on these bitboards would be attacking the king after it castles
-        const QR: [BitBoard; 2] = [BitBoard(18085043209519168), BitBoard(4629771061636907008)]; // Orthogonal sliders on these bitboards would be attacking the king after it castles
-        const QB: [BitBoard; 2] = [BitBoard(45053622886727936), BitBoard(283691315142656)];     // Diagonal sliders on these bitboards would be attacking the king after it castles
+        // No friendly or enemy piece can be on these bitboards
+        const OCCS: [BitBoard; 2] = [BitBoard(6917529027641081856), BitBoard(96)];
+        // Kings or pawns on these squares would be attacking the king after it castles
+        const KP: [Square; 2] = [Square::H2, Square::H7];
+        // Knights on these bitboards would be attacking the king after it castles
+        const N: [BitBoard; 2] = [BitBoard(4679521487814656), BitBoard(10489856)];
+        // Orthogonal sliders on these bitboards would be attacking the king after it castles
+        const QR: [BitBoard; 2] = [BitBoard(18085043209519168), BitBoard(4629771061636907008)];
+        // Diagonal sliders on these bitboards would be attacking the king after it castles
+        const QB: [BitBoard; 2] = [BitBoard(45053622886727936), BitBoard(283691315142656)];
 
         let side = self.side as usize;
 
@@ -719,12 +724,13 @@ impl Board {
     fn gen_queenside_castle(&self, threats: BitBoard, move_list: &mut MoveList) {
         const SRC: [Square; 2] = [Square::E1, Square::E8];
         const TGT: [Square; 2] = [Square::C1, Square::C8];
-        const OCCS: [BitBoard; 2] = [BitBoard(1008806316530991104), BitBoard(14)]; // No friendly or enemy piece can be on these bitboards
-        const THREATS: [Square; 2] = [Square::D1, Square::D8];                     // Slight asymmetry: no enemy piece can attack these squares
-        const KP: [Square; 2] = [Square::B2, Square::B7];                          // Kings or pawns on these squares would be attacking the king after it castles
-        const N: [BitBoard; 2] = [BitBoard(4796069720358912), BitBoard(659712)];   // Knights on these bitboards would be attacking the king after it castles
-        const QR: [BitBoard; 2] = [BitBoard(1130315200594948), BitBoard(289360691352306688)]; // Orthogonal sliders on these bitboards would be attacking the king after it castles
-        const QB: [BitBoard; 2] = [BitBoard(2833579985862656), BitBoard(141012904249856)];    // Diagonal sliders on these bitboards would be attacking the king after it castles
+        const OCCS: [BitBoard; 2] = [BitBoard(1008806316530991104), BitBoard(14)];
+        // Slight asymmetry: no enemy piece can attack these squares
+        const THREATS: [Square; 2] = [Square::D1, Square::D8];
+        const KP: [Square; 2] = [Square::B2, Square::B7];
+        const N: [BitBoard; 2] = [BitBoard(4796069720358912), BitBoard(659712)];
+        const QR: [BitBoard; 2] = [BitBoard(1130315200594948), BitBoard(289360691352306688)];
+        const QB: [BitBoard; 2] = [BitBoard(2833579985862656), BitBoard(141012904249856)];
 
         let side = self.side as usize;
 
@@ -742,7 +748,6 @@ impl Board {
                 sliders |= bishop_attacks(sq, self.occupancy);
             }
 
-            // No slider attacks the C1/C8 square
             if !sliders.get_bit(TGT[side]) {
                 move_list.push(Move::new(SRC[side], TGT[side], MoveType::Castle));
             }
@@ -929,7 +934,7 @@ impl Board {
         // Win if the balance is still in our favor even if we lose the capturing piece
         // This ensures a positive SEE in case of even trades.
         balance -= PIECE_VALUES[victim as usize];
-        if balance > 0 { // THIS IS A MISTAKE. Left in to first regtest the refactor
+        if balance >= 0 {
             return true;
         }
 
