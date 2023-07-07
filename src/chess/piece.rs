@@ -20,28 +20,6 @@ impl Not for Color {
     }
 }
 
-/// Implement functions to get each piece based on color
-macro_rules! impl_conversions {
-    ($($piece:ident, $val:literal),*) => {
-        $(
-            impl Color {
-                pub const fn $piece(self) -> Piece {
-                    transmute_enum!($val + self as u8, 15)
-                }
-            }
-        )*
-    };
-}
-
-impl_conversions! {
-    pawn,   0x00u8,
-    knight, 0x02u8,
-    bishop, 0x04u8,
-    rook,   0x06u8,
-    queen,  0x08u8,
-    king,   0x0Au8
-}
-
 /// Pretty print color to string
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -67,20 +45,6 @@ pub enum Piece {
 use Piece::*;
 
 pub const PIECE_COUNT: usize = 12;
-
-// Piece index constants
-pub const WPAWN: usize = WP as usize;
-pub const BPAWN: usize = BP as usize;
-pub const WKNIGHT: usize = WN as usize;
-pub const BKNIGHT: usize = BN as usize;
-pub const WBISHOP: usize = WB as usize;
-pub const BBISHOP: usize = BB as usize;
-pub const WROOK: usize = WR as usize;
-pub const BROOK: usize = BR as usize;
-pub const WQUEEN: usize = WQ as usize;
-pub const BQUEEN: usize = BQ as usize;
-pub const WKING: usize = WK as usize;
-pub const BKING: usize = BK as usize;
 
 /// All pieces indexed by binary representation
 #[rustfmt::skip]
@@ -128,6 +92,35 @@ impl TryFrom<char> for Piece {
                 .ok_or("Invalid piece!")?,
         ))
     }
+}
+
+/// Implement methods to:
+///  - get each piece based on color
+///  - check if any piece is of a certain type
+macro_rules! impl_conversions {
+    ($($piece:ident, $fn:ident, $val:literal),*) => {
+        $(
+            impl Color {
+                pub const fn $piece(self) -> Piece {
+                    transmute_enum!($val + self as u8, 15)
+                }
+            }
+
+            impl Piece {
+                pub const fn $fn(self) -> bool {
+                    self as u8 & 0b1110 == $val
+                }
+            }
+        )*
+    };
+}
+impl_conversions! {
+    pawn,   is_pawn,   0b0000,
+    knight, is_knight, 0b0010,
+    bishop, is_bishop, 0b0100,
+    rook,   is_rook,   0b0110,
+    queen,  is_queen,  0b1000,
+    king,   is_king,   0b1010
 }
 
 /// Create piece from usize index

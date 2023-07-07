@@ -85,7 +85,7 @@ impl MoveList {
             MoveType::BishopPromotion,
         ];
 
-        if src.rank() == PROMOTION_RANKS[side as usize] {
+        if tgt.is_promotion_square(side) {
             for promotion in PROMOTIONS {
                 self.push(Move::new(src, tgt, promotion))
             }
@@ -103,7 +103,7 @@ impl MoveList {
             MoveType::BishopCapPromo,
         ];
 
-        if src.rank() == PROMOTION_RANKS[side as usize] {
+        if tgt.is_promotion_square(side) {
             for promotion in PROMOTIONS {
                 self.push(Move::new(src, tgt, promotion))
             }
