@@ -7,14 +7,16 @@ type CMHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COU
 type FUHistory = [[[[i32; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
 
 /// Move Scoring
-/// 300         -> TT Move
-/// 200         -> queen promotion
+/// 400         -> TT Move
+/// 300         -> capture queen promotions
+/// 200         -> quiet queen promotion
 /// 110:165     -> good and equal captures according to MVV-LVA
 /// 110         -> enpassant
 /// 102:103     -> second and first killer
 /// 101         -> castling move
 ///  10: 65     -> bad captures according to MVV-LVA
 ///   0:-98304  -> quiet moves according to history score
+/// i32::MIN    -> underpromotions
 #[derive(Clone, Debug)]
 pub struct MoveSorter {
     killer_moves: [[Move; 2]; MAX_DEPTH], // [ply][num_killer]
@@ -24,6 +26,7 @@ pub struct MoveSorter {
     pub followup: Option<(Move, Piece)>,
     followup_moves: Box<FUHistory>, // [piece+col][to][from][to]
     pub tt_move: Option<Move>,
+    pub see_threshold: Eval,
 }
 
 /// Used to box arrays without blowing the stack on debug builds.
@@ -50,6 +53,7 @@ impl Default for MoveSorter {
             followup: None,
             followup_moves: box_array::<FUHistory>(),
             tt_move: None,
+            see_threshold: 0,
         }
     }
 }
@@ -139,7 +143,7 @@ impl MoveSorter {
     }
 }
 
-const TT_SCORE: i32 = 300;
+const TT_SCORE: i32 = 400;
 
 pub const GOOD_CAPTURE: i32 = 100;
 const EP_SCORE: i32 = GOOD_CAPTURE + 10;
@@ -148,7 +152,7 @@ const SECOND_KILLER: i32 = GOOD_CAPTURE + 2;
 const CASTLE_SCORE: i32 = GOOD_CAPTURE + 1;
 
 pub const HISTORY_OFFSET: i32 = -(3 * 16384);
-const WORST: i32 = -(6 * 16384); // each history can be at the least -16384, start at history offset
+const WORST: i32 = i32::MIN;
 
 const PROMOTION_SCORES: [i32; PIECE_COUNT] = [
     0, 0, WORST, WORST, WORST, WORST, WORST, WORST, 200, 200, 0, 0,
@@ -177,31 +181,37 @@ impl MoveSorter {
     fn score_move(&self, m: Move, board: &Board, ply: usize) -> i32 {
         let mt = m.get_type();
 
-        match mt {
-            MoveType::Capture => self.score_capture(m, board),
-            MoveType::EnPassant => EP_SCORE,
-            MoveType::Castle => CASTLE_SCORE,
-            _ => {
-                if mt.is_promotion() {
-                    PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
-                } else if m == self.killer_moves[ply][0] {
-                    FIRST_KILLER
-                } else if m == self.killer_moves[ply][1] {
-                    SECOND_KILLER
-                } else {
-                    self.score_history(m, board.side as usize)
-                }
-            }
+        if mt.is_capture() {
+            self.score_capture(m, board)
+        } else if mt.is_promotion() {
+            PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
+        } else if m == self.killer_moves[ply][0] {
+            FIRST_KILLER
+        } else if m == self.killer_moves[ply][1] {
+            SECOND_KILLER
+        } else if mt == MoveType::Castle {
+            CASTLE_SCORE
+        } else {
+            self.score_history(m, board.side as usize)
         }
     }
 
-    /// Score individual captures. Do not use with EnPassant
+    /// Score individual captures
     fn score_capture(&self, m: Move, board: &Board) -> i32 {
+        // Capture promotions can never have negative SEE, enpassant is usually not bad
+        let mt = m.get_type();
+        if mt.is_promotion() {
+            return PROMOTION_SCORES[mt.get_promotion(board.side) as usize] + GOOD_CAPTURE;
+        } else if mt == MoveType::EnPassant {
+            return EP_SCORE;
+        }
+
+        // Handle normal captures by MVV/LVA + SEE
         let attacker = board.piece_at(m.get_src()) as usize;
         let victim = board.piece_at(m.get_tgt()) as usize;
         let mut score = MVV_LVA[attacker][victim];
 
-        if board.see(m, 0) {
+        if board.see(m, self.see_threshold) {
             score += GOOD_CAPTURE
         }
 
@@ -232,24 +242,22 @@ impl MoveSorter {
         HISTORY_OFFSET + score
     }
 
-    /// Score assuming all moves are captures
-    pub fn score_captures(&self, board: &Board, move_list: &mut MoveList) {
-        for i in 0..move_list.len() {
-            let m = move_list.moves[i];
-            let mt = m.get_type();
-
-            move_list.scores[i] = if mt.is_promotion() {
-                PROMOTION_SCORES[mt.get_promotion(board.side) as usize]
-            } else if mt == MoveType::EnPassant {
-                EP_SCORE
-            } else {
-                self.score_capture(m, board)
-            };
+    fn score<const QUIETS: bool>(&self, m: Move, board: &Board, ply: usize) -> i32 {
+        if QUIETS {
+            self.score_move(m, board, ply)
+        } else {
+            self.score_capture(m, board)
         }
     }
 
     /// Sort all moves in the movelist
-    pub fn score_moves(&self, board: &Board, ply: usize, move_list: &mut MoveList) {
+    /// If QUIETS is false, it assumes all moves are captures and scores accordingly.
+    pub fn score_moves<const QUIETS: bool>(
+        &self,
+        board: &Board,
+        ply: usize,
+        move_list: &mut MoveList
+    ) {
         match self.tt_move {
             Some(tt_move) => {
                 for i in 0..move_list.len() {
@@ -258,14 +266,14 @@ impl MoveSorter {
                     move_list.scores[i] = if m == tt_move {
                         TT_SCORE
                     } else {
-                        self.score_move(m, board, ply)
+                        self.score::<QUIETS>(m, board, ply)
                     }
                 }
             }
 
             None => {
                 for i in 0..move_list.len() {
-                    move_list.scores[i] = self.score_move(move_list.moves[i], board, ply);
+                    move_list.scores[i] = self.score::<QUIETS>(move_list.moves[i], board, ply)
                 }
             }
         };
