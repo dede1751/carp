@@ -256,7 +256,7 @@ impl MoveSorter {
         &self,
         board: &Board,
         ply: usize,
-        move_list: &mut MoveList
+        move_list: &mut MoveList,
     ) {
         match self.tt_move {
             Some(tt_move) => {

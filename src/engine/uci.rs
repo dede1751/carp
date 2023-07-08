@@ -14,7 +14,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
 const ENGINE_OPTIONS: &str = "
-option name Hash type spin default 16 min 1 max 65536 
+option name Hash type spin default 16 min 1 max 1048576 
 option name Threads type spin default 1 min 1 max 512";
 
 /// UCI controller responsible of reading input and command the main engine thread
@@ -177,10 +177,7 @@ impl UCIEngine {
                 }
 
                 UCICommand::Eval => {
-                    println!(
-                        "Static evaluation: {}",
-                        self.position.nnue_state.evaluate(self.position.board.side)
-                    );
+                    println!("Static evaluation: {}", self.position.evaluate());
                 }
 
                 UCICommand::Position(position) => {

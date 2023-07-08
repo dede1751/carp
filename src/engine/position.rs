@@ -1,15 +1,15 @@
 use std::{cmp::min, str::FromStr};
 
 use crate::chess::{bitboard::*, board::*, move_list::*, moves::*, piece::*};
-use crate::engine::{move_sorter::*, nnue::*, search::*};
+use crate::engine::{move_sorter::*, nnue::*, search::*, search_params::*};
 
 /// Position, represents a Board's evolution along the game tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
 #[derive(Clone, Debug)]
 pub struct Position {
     pub board: Board,
-    pub history: Vec<Board>,
-    pub nnue_state: Box<NNUEState>,
+    history: Vec<Board>,
+    nnue_state: Box<NNUEState>,
 }
 
 /// Get position from uci position string
@@ -128,6 +128,21 @@ impl Position {
         self.board.halfmoves >= 100
             || self.is_repetition(ply_from_null)
             || self.insufficient_material()
+    }
+
+    /// Return the NNUE evaluation of the current position
+    /// We scale the evaluation by the total material on the board
+    pub fn evaluate(&self) -> Eval {
+        let eval = self.nnue_state.evaluate(self.board.side);
+
+        #[rustfmt::skip]
+        let total_material =
+            self.board.knights().count_bits() as Eval * PIECE_VALUES[Piece::WK as usize] +
+            self.board.bishops().count_bits() as Eval * PIECE_VALUES[Piece::WB as usize] +
+            self.board.rooks().count_bits() as Eval   * PIECE_VALUES[Piece::WR as usize] +
+            self.board.queens().count_bits() as Eval  * PIECE_VALUES[Piece::WQ as usize];
+
+        (eval * (700 + total_material / 32)) / 1024
     }
 
     /// Check for repetitions in hash history.
