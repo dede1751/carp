@@ -347,7 +347,7 @@ impl Position {
         }
 
         info.sorter.tt_move = tt_move;
-        let move_list = self.generate_moves(info.ply, &info.sorter);
+        let move_list = self.generate_moves::<QUIETS>(info.ply, &info.sorter);
 
         // Mate or stalemate. Don't save in the TT, simply return early
         if move_list.is_empty() {
@@ -520,6 +520,7 @@ impl Position {
         let in_check = self.king_in_check();
         let old_alpha = alpha;
         let mut stand_pat = -INFINITY;
+        let mut tt_move = None;
 
         // Probe tt and compute stand pat
         if let Some(entry) = info.tt.probe(self.board.hash) {
@@ -551,6 +552,12 @@ impl Position {
                     stand_pat = tt_eval;
                 }
             }
+
+            // Use the tt move if it's a capture
+            tt_move = entry.get_move();
+            if tt_move.is_some_and(|m| !m.get_type().is_capture()) {
+                tt_move = None;
+            }
         } else if !in_check {
             stand_pat = self.nnue_state.evaluate(self.board.side)
         };
@@ -566,8 +573,9 @@ impl Position {
 
         let mut best_move = NULL_MOVE;
         let mut best_eval = stand_pat;
+        info.sorter.tt_move = tt_move;
 
-        for (m, s) in self.generate_captures(&info.sorter) {
+        for (m, s) in self.generate_moves::<CAPTURES>(0, &info.sorter) {
             if !in_check {
                 // SEE pruning
                 // Avoid searching captures with bad static evaluation

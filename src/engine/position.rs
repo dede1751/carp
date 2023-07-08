@@ -66,19 +66,12 @@ impl Default for Position {
 }
 
 impl Position {
-    /// Generate a sorted list of captures
-    pub fn generate_captures(&self, sorter: &MoveSorter) -> MoveList {
-        let mut move_list = self.board.gen_moves::<CAPTURES>();
-
-        sorter.score_captures(&self.board, &mut move_list);
-        move_list
-    }
-
-    /// Generate a sorted list of moves
-    pub fn generate_moves(&self, ply: usize, sorter: &MoveSorter) -> MoveList {
+    /// Generate and sort either all moves or only captures in a position.
+    /// In case of only captures, ply is superfluous.
+    pub fn generate_moves<const QUIETS: bool>(&self, ply: usize, sorter: &MoveSorter) -> MoveList {
         let mut move_list = self.board.gen_moves::<QUIETS>();
 
-        sorter.score_moves(&self.board, ply, &mut move_list);
+        sorter.score_moves::<QUIETS>(&self.board, ply, &mut move_list);
         move_list
     }
 
