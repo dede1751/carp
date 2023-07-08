@@ -270,7 +270,7 @@ impl Position {
                 let tt_static_eval = entry.get_static_eval();
 
                 if tt_static_eval == -INFINITY {
-                    stand_pat = self.nnue_state.evaluate(self.board.side);
+                    stand_pat = self.evaluate();
                 } else {
                     stand_pat = tt_static_eval;
                 }
@@ -286,7 +286,7 @@ impl Position {
             tt_move = entry.get_move();
         } else if !in_check {
             // Without a tt entry (and not in check), we have to compute the static eval
-            stand_pat = self.nnue_state.evaluate(self.board.side);
+            stand_pat = self.evaluate();
 
             // Chuck the static eval into the tt. This won't overwrite any relevant entry
             info.tt.insert(
@@ -514,7 +514,7 @@ impl Position {
 
         // Return early when reaching max depth
         if info.ply >= MAX_DEPTH {
-            return self.nnue_state.evaluate(self.board.side);
+            return self.evaluate();
         }
 
         let in_check = self.king_in_check();
@@ -540,7 +540,7 @@ impl Position {
                 let tt_static_eval = entry.get_static_eval();
 
                 if tt_static_eval == -INFINITY {
-                    stand_pat = self.nnue_state.evaluate(self.board.side);
+                    stand_pat = self.evaluate();
                 } else {
                     stand_pat = tt_static_eval;
                 }
@@ -559,7 +559,7 @@ impl Position {
                 tt_move = None;
             }
         } else if !in_check {
-            stand_pat = self.nnue_state.evaluate(self.board.side)
+            stand_pat = self.evaluate()
         };
 
         // Stand pat and delta pruning
