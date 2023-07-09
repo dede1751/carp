@@ -145,7 +145,7 @@ impl Position {
         }
 
         loop {
-            let eval = self.negamax(info, alpha, beta, depth);
+            let eval = self.negamax::<true>(info, alpha, beta, depth);
             if info.stop {
                 return 0;
             }
@@ -180,7 +180,7 @@ impl Position {
     }
 
     /// Standard alpha-beta negamax tree search
-    fn negamax(
+    fn negamax<const ROOT: bool>(
         &mut self,
         info: &mut SearchInfo,
         mut alpha: Eval,
@@ -192,14 +192,17 @@ impl Position {
             return 0;
         }
 
-        let root_node = info.ply == 0;
-        let pv_node = alpha != beta - 1; // False when searching with a null window
+        let pv_node = alpha != beta - 1;
         let in_check = self.king_in_check();
 
-        if root_node {
+        if ROOT {
             info.seldepth = 0;
         } else {
             info.seldepth = info.seldepth.max(info.ply);
+        }
+
+        if !pv_node && alpha != beta - 1 {
+            println!("DANGER");
         }
 
         // Check extension
@@ -212,7 +215,7 @@ impl Position {
             return self.quiescence(info, alpha, beta);
         }
 
-        if !root_node {
+        if !ROOT {
             // Mate distance pruning
             // Shrink the window based on the best/worst possible outcomes, which are being mated
             // now or mating in the next ply. Prune if even these extreme situations would not
@@ -249,9 +252,11 @@ impl Position {
 
                 // TT Cutoffs
                 if tt_depth >= depth {
-                    if !root_node && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
+                    if !ROOT && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
                         return tt_eval;
-                    } else if !pv_node {
+                    }
+                    
+                    if !pv_node {
                         match tt_flag {
                             TTFlag::Exact => return tt_eval,
                             TTFlag::Lower if tt_eval >= beta => return beta,
@@ -262,7 +267,7 @@ impl Position {
                 }
 
                 tt_move = entry.get_move();
-                possible_singularity = !root_node
+                possible_singularity = !ROOT
                     && depth >= SE_LOWER_LIMIT
                     && tt_eval.abs() < MATE_IN_PLY
                     && (tt_flag == TTFlag::Lower || tt_flag == TTFlag::Exact)
@@ -342,7 +347,7 @@ impl Position {
                 let r = (NMP_BASE_R + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(info);
-                let eval = -self.negamax(info, -beta, -beta + 1, depth - r);
+                let eval = -self.negamax::<false>(info, -beta, -beta + 1, depth - r);
                 self.undo_move(info);
 
                 // cutoff above beta
@@ -354,7 +359,7 @@ impl Position {
 
         // Internal Iterative Reduction
         // When no TT Move is found in any node, apply a 1-ply reduction
-        if !root_node && tt_move.is_none() && depth >= IIR_LOWER_LIMIT {
+        if !ROOT && tt_move.is_none() && depth >= IIR_LOWER_LIMIT {
             depth -= 1;
         }
 
@@ -425,7 +430,7 @@ impl Position {
             // Singular Extensions (second part):
             // We perform a verification search excluding the tt move, with a window around beta.
             // If this search fails below beta, we accept singularity and extend the depth by one.
-            let mut extended_depth = depth;
+            let mut ext_depth = depth;
 
             if possible_singularity && s == TT_SCORE {
                 let tt_eval = tt_entry.unwrap().get_eval(info.ply); // Can't panic
@@ -437,14 +442,14 @@ impl Position {
                 info.nodes -= 1;
                 info.excluded[info.ply] = Some(m);
 
-                let eval = self.negamax(info, se_beta - 1, se_beta, se_depth);
+                let eval = self.negamax::<false>(info, se_beta - 1, se_beta, se_depth);
 
                 // Reset the line
                 info.excluded[info.ply] = None;
                 self.make_move(m, info);
 
                 if eval < se_beta {
-                    extended_depth += 1;
+                    ext_depth += 1;
                 }
             }
 
@@ -467,7 +472,7 @@ impl Position {
                     };
 
                     // Reduced depth null window search
-                    eval = -self.negamax(info, -alpha - 1, -alpha, extended_depth - r);
+                    eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - r);
                     eval > alpha && r > 1
                 } else {
                     !pv_node || move_count > 0
@@ -475,12 +480,12 @@ impl Position {
 
             // Full depth null window search when lmr fails or when using pvs
             if full_depth_search {
-                eval = -self.negamax(info, -alpha - 1, -alpha, extended_depth - 1);
+                eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - 1);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
             if pv_node && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax(info, -beta, -alpha, extended_depth - 1);
+                eval = -self.negamax::<false>(info, -beta, -alpha, ext_depth - 1);
             }
 
             self.undo_move(info);
@@ -490,7 +495,7 @@ impl Position {
             }
 
             // In root, update the node counts used by the clock
-            if root_node {
+            if ROOT {
                 info.clock.update_node_counts(m, info.nodes - start_nodes);
             }
 
@@ -539,7 +544,7 @@ impl Position {
             );
         }
 
-        if root_node {
+        if ROOT {
             info.best_move = best_move;
         }
 
@@ -561,25 +566,34 @@ impl Position {
         }
 
         let in_check = self.king_in_check();
-        let old_alpha = alpha;
-        let mut stand_pat = -INFINITY;
+
+        // Probe the TT and if possible get a tt move
+        let tt_entry = info.tt.probe(self.board.hash);
         let mut tt_move = None;
 
-        // Probe tt and compute stand pat
-        if let Some(entry) = info.tt.probe(self.board.hash) {
+        if let Some(entry) = tt_entry {
             let tt_eval = entry.get_eval(info.ply);
-            let tt_flag = entry.get_flag();
 
             // TT Cutoffs
-            match tt_flag {
+            match entry.get_flag() {
                 TTFlag::Exact => return tt_eval,
                 TTFlag::Lower if tt_eval >= beta => return beta,
                 TTFlag::Upper if tt_eval <= alpha => return alpha,
                 _ => (),
             }
 
-            // Use the static eval in TT when appropriate, else use NNUE
-            if !in_check {
+            // Use the tt move if it's a capture
+            tt_move = entry.get_capture();
+        };
+
+        // Compute the static eval when not in check
+        let mut stand_pat = -INFINITY;
+        let old_alpha = alpha;
+
+        if !in_check {
+            if let Some(entry) = tt_entry {
+                let tt_flag = entry.get_flag();
+                let tt_eval = entry.get_eval(info.ply);
                 let tt_static_eval = entry.get_static_eval();
 
                 if tt_static_eval == -INFINITY {
@@ -594,25 +608,17 @@ impl Position {
                 {
                     stand_pat = tt_eval;
                 }
+            } else {
+                stand_pat = self.evaluate();
             }
 
-            // Use the tt move if it's a capture
-            tt_move = entry.get_move();
-            if tt_move.is_some_and(|m| !m.get_type().is_capture()) {
-                tt_move = None;
-            }
-        } else if !in_check {
-            stand_pat = self.evaluate()
-        };
-
-        // Stand pat and delta pruning
-        if !in_check {
+            // Stand pat pruning
             alpha = alpha.max(stand_pat);
 
             if stand_pat >= beta {
                 return stand_pat;
             }
-        }
+        };
 
         let mut best_move = NULL_MOVE;
         let mut best_eval = stand_pat;
