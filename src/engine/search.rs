@@ -145,7 +145,7 @@ impl Position {
         }
 
         loop {
-            let eval = self.negamax::<true, true>(info, alpha, beta, depth);
+            let eval = self.negamax::<true>(info, alpha, beta, depth);
             if info.stop {
                 return 0;
             }
@@ -180,7 +180,7 @@ impl Position {
     }
 
     /// Standard alpha-beta negamax tree search
-    fn negamax<const PV: bool, const ROOT: bool>(
+    fn negamax<const ROOT: bool>(
         &mut self,
         info: &mut SearchInfo,
         mut alpha: Eval,
@@ -192,6 +192,7 @@ impl Position {
             return 0;
         }
 
+        let pv_node = alpha != beta - 1;
         let in_check = self.king_in_check();
 
         if ROOT {
@@ -200,7 +201,7 @@ impl Position {
             info.seldepth = info.seldepth.max(info.ply);
         }
 
-        if !PV && alpha != beta - 1 {
+        if !pv_node && alpha != beta - 1 {
             println!("DANGER");
         }
 
@@ -251,11 +252,11 @@ impl Position {
 
                 // TT Cutoffs
                 if tt_depth >= depth {
-                    if !ROOT && PV && tt_flag == TTFlag::Exact && depth == 1 {
+                    if !ROOT && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
                         return tt_eval;
                     }
                     
-                    if !PV {
+                    if !pv_node {
                         match tt_flag {
                             TTFlag::Exact => return tt_eval,
                             TTFlag::Lower if tt_eval >= beta => return beta,
@@ -326,7 +327,7 @@ impl Position {
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
         // need any further deep search.
-        if !PV && !in_check && !in_singular_search {
+        if !pv_node && !in_check && !in_singular_search {
             // Reverse Futility Pruning (static eval pruning)
             // At pre-frontier nodes, check if the static eval minus a safety margin is enough to
             // produce a beta cutoff.
@@ -346,7 +347,7 @@ impl Position {
                 let r = (NMP_BASE_R + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(info);
-                let eval = -self.negamax::<false, false>(info, -beta, -beta + 1, depth - r);
+                let eval = -self.negamax::<false>(info, -beta, -beta + 1, depth - r);
                 self.undo_move(info);
 
                 // cutoff above beta
@@ -396,7 +397,7 @@ impl Position {
             let is_quiet = m.get_type().is_quiet();
 
             // Quiet move pruning
-            if !PV && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
+            if !pv_node && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
                 let mut prune = false;
 
                 // History leaf pruning
@@ -441,7 +442,7 @@ impl Position {
                 info.nodes -= 1;
                 info.excluded[info.ply] = Some(m);
 
-                let eval = self.negamax::<false, false>(info, se_beta - 1, se_beta, se_depth);
+                let eval = self.negamax::<false>(info, se_beta - 1, se_beta, se_depth);
 
                 // Reset the line
                 info.excluded[info.ply] = None;
@@ -458,11 +459,11 @@ impl Position {
             // We reduce the depth of these searches the further in the move list we go.
             let mut eval = -INFINITY;
             let full_depth_search =
-                if depth >= LMR_LOWER_LIMIT && move_count >= LMR_THRESHOLD + PV as usize {
+                if depth >= LMR_LOWER_LIMIT && move_count >= LMR_THRESHOLD + pv_node as usize {
                     let r = if is_quiet {
                         let mut r = lmr_reduction(depth, move_count) as i32;
 
-                        r += !PV as i32; // reduce more in non-pv nodes
+                        r += !pv_node as i32; // reduce more in non-pv nodes
                         r -= in_check as i32 + is_check as i32; // reduce less when in check/checking the opponent
 
                         r.clamp(1, (depth - 1) as i32) as usize
@@ -471,20 +472,20 @@ impl Position {
                     };
 
                     // Reduced depth null window search
-                    eval = -self.negamax::<false, false>(info, -alpha - 1, -alpha, ext_depth - r);
+                    eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - r);
                     eval > alpha && r > 1
                 } else {
-                    !PV || move_count > 0
+                    !pv_node || move_count > 0
                 };
 
             // Full depth null window search when lmr fails or when using pvs
             if full_depth_search {
-                eval = -self.negamax::<false, false>(info, -alpha - 1, -alpha, ext_depth - 1);
+                eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - 1);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
-            if PV && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax::<true, false>(info, -beta, -alpha, ext_depth - 1);
+            if pv_node && (move_count == 0 || eval > alpha) {
+                eval = -self.negamax::<false>(info, -beta, -alpha, ext_depth - 1);
             }
 
             self.undo_move(info);
