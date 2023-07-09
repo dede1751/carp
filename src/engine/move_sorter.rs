@@ -143,7 +143,7 @@ impl MoveSorter {
     }
 }
 
-const TT_SCORE: i32 = 400;
+pub const TT_SCORE: i32 = 400;
 
 pub const GOOD_CAPTURE: i32 = 100;
 const EP_SCORE: i32 = GOOD_CAPTURE + 10;

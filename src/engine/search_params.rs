@@ -14,6 +14,8 @@ pub const LMR_LOWER_LIMIT: usize = 2; // stop applying lmr near leaves
 pub const LMR_BASE: f32 = 0.75; // increase to reduce every move more
 pub const LMR_FACTOR: f32 = 2.0; // increase to reduce less further in the movelist
 
+pub const SE_LOWER_LIMIT: usize = 8; // stop applying SE near leaves
+
 pub const RFP_THRESHOLD: usize = 8; // depth at which rfp kicks in
 pub const RFP_MARGIN: Eval = 130; // multiplier for eval safety margin for rfp cutoffs
 pub const RFP_IMPROVING_MARGIN: Eval = 50; // multiplier for improving flag
