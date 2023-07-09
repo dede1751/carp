@@ -16,6 +16,7 @@ pub struct SearchInfo<'a> {
     pub best_move: Move,
     pub search_stack: [(Move, Piece, usize); MAX_DEPTH],
     pub eval_stack: [Eval; MAX_DEPTH],
+    pub excluded: [Option<Move>; MAX_DEPTH],
     pub stop: bool,
 }
 
@@ -93,20 +94,7 @@ impl Position {
 
     /// Iteratively searches the position at increasing depth
     pub fn iterative_search<const INFO: bool>(&mut self, clock: Clock, tt: &TT) -> SearchResult {
-        let mut info = SearchInfo {
-            clock,
-            tt,
-            sorter: MoveSorter::default(),
-            nodes: 0,
-            seldepth: 0,
-            ply: 0,
-            ply_from_null: 0,
-            best_move: NULL_MOVE,
-            search_stack: [(NULL_MOVE, Piece::WP, 0); MAX_DEPTH],
-            eval_stack: [0; MAX_DEPTH],
-            stop: false,
-        };
-
+        let mut info = SearchInfo::new(tt, clock);
         let mut result = SearchResult {
             best_move: NULL_MOVE,
             eval: -INFINITY,
@@ -241,32 +229,58 @@ impl Position {
             }
         }
 
-        // Probe tt for the best move and static eval (for pv, only cutoff at leaves)
+        // Singular Extension (first part):
+        // If we are excluding a move to verify singularity, limit pruning in this node.
+        // Otherwise, identify possibly singular moves based on the tt hit.
+        let excluded = info.excluded[info.ply];
+        let in_singular_search = excluded.is_some();
+        let mut possible_singularity = false;
+
+        // Probe tt for the best move and possible cutoffs.
         let tt_entry = info.tt.probe(self.board.hash);
-        let mut stand_pat = -INFINITY;
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
-            let tt_flag = entry.get_flag();
-            let tt_eval = entry.get_eval(info.ply);
+            // Don't use the tt result at the root of a singular search!
+            if !in_singular_search {
+                let tt_depth = entry.get_depth();
+                let tt_flag = entry.get_flag();
+                let tt_eval = entry.get_eval(info.ply);
 
-            // TT cutoffs
-            if entry.get_depth() >= depth {
-                if !root_node && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
-                    return tt_eval;
-                } else if !pv_node {
-                    match tt_flag {
-                        TTFlag::Exact => return tt_eval,
-                        TTFlag::Lower if tt_eval >= beta => return beta,
-                        TTFlag::Upper if tt_eval <= alpha => return alpha,
-                        _ => (),
+                // TT Cutoffs
+                if tt_depth >= depth {
+                    if !root_node && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
+                        return tt_eval;
+                    } else if !pv_node {
+                        match tt_flag {
+                            TTFlag::Exact => return tt_eval,
+                            TTFlag::Lower if tt_eval >= beta => return beta,
+                            TTFlag::Upper if tt_eval <= alpha => return alpha,
+                            _ => (),
+                        }
                     }
                 }
-            }
 
-            // If we're in check, we do not use the static eval.
-            // We recompute the tt static eval when it's a bad value (-INFINITY)
-            if !in_check {
+                tt_move = entry.get_move();
+                possible_singularity = !root_node
+                    && depth >= SE_LOWER_LIMIT
+                    && tt_eval.abs() < MATE_IN_PLY
+                    && (tt_flag == TTFlag::Lower || tt_flag == TTFlag::Exact)
+                    && tt_depth >= depth - 3;
+            }
+        }
+
+        // Compute the static eval. Try to avoid re-computing it if we already have it in some form.
+        // When in check, we keep -INFINITY.
+        let mut stand_pat = -INFINITY;
+
+        if in_singular_search {
+            stand_pat = info.eval_stack[info.ply];
+        } else if !in_check {
+            // If we have a tt entry, use the static eval from there
+            if let Some(entry) = tt_entry {
+                let tt_flag = entry.get_flag();
+                let tt_eval = entry.get_eval(info.ply);
                 let tt_static_eval = entry.get_static_eval();
 
                 if tt_static_eval == -INFINITY {
@@ -281,24 +295,22 @@ impl Position {
                 {
                     stand_pat = tt_eval;
                 }
+            } else {
+                // Without a tt entry (and not in check), we have to compute the static eval
+                stand_pat = self.evaluate();
+
+                // Chuck the static eval into the tt. This won't overwrite any relevant entry
+                info.tt.insert(
+                    self.board.hash,
+                    TTFlag::None,
+                    NULL_MOVE,
+                    -INFINITY,
+                    stand_pat,
+                    0,
+                    info.ply,
+                );
             }
-
-            tt_move = entry.get_move();
-        } else if !in_check {
-            // Without a tt entry (and not in check), we have to compute the static eval
-            stand_pat = self.evaluate();
-
-            // Chuck the static eval into the tt. This won't overwrite any relevant entry
-            info.tt.insert(
-                self.board.hash,
-                TTFlag::None,
-                NULL_MOVE,
-                -INFINITY,
-                stand_pat,
-                0,
-                info.ply,
-            );
-        }
+        };
 
         info.eval_stack[info.ply] = stand_pat;
 
@@ -310,7 +322,7 @@ impl Position {
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
         // need any further deep search.
-        if !pv_node && !in_check {
+        if !pv_node && !in_check && !in_singular_search {
             // Reverse Futility Pruning (static eval pruning)
             // At pre-frontier nodes, check if the static eval minus a safety margin is enough to
             // produce a beta cutoff.
@@ -365,6 +377,11 @@ impl Position {
         let lmp_count = LMP_BASE + (depth * depth);
 
         for (move_count, (m, s)) in move_list.enumerate() {
+            // Skip SE excluded move
+            if excluded == Some(m) {
+                continue;
+            }
+
             let start_nodes = info.nodes;
 
             self.make_move(m, info);
@@ -405,6 +422,32 @@ impl Position {
                 }
             }
 
+            // Singular Extensions (second part):
+            // We perform a verification search excluding the tt move, with a window around beta.
+            // If this search fails below beta, we accept singularity and extend the depth by one.
+            let mut extended_depth = depth;
+
+            if possible_singularity && s == TT_SCORE {
+                let tt_eval = tt_entry.unwrap().get_eval(info.ply); // Can't panic
+                let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);
+                let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
+
+                // Revert the line and exclude the possibly singular move
+                self.undo_move(info);
+                info.nodes -= 1;
+                info.excluded[info.ply] = Some(m);
+
+                let eval = self.negamax(info, se_beta - 1, se_beta, se_depth);
+
+                // Reset the line
+                info.excluded[info.ply] = None;
+                self.make_move(m, info);
+
+                if eval < se_beta {
+                    extended_depth += 1;
+                }
+            }
+
             // Principal Variation Search + Late Move Reductions
             // Before most searches, we run a "verification" search on a null window to prove it
             // fails high on alpha. If it doesn't, it's likely a cutnode.
@@ -424,7 +467,7 @@ impl Position {
                     };
 
                     // Reduced depth null window search
-                    eval = -self.negamax(info, -alpha - 1, -alpha, depth - r);
+                    eval = -self.negamax(info, -alpha - 1, -alpha, extended_depth - r);
                     eval > alpha && r > 1
                 } else {
                     !pv_node || move_count > 0
@@ -432,12 +475,12 @@ impl Position {
 
             // Full depth null window search when lmr fails or when using pvs
             if full_depth_search {
-                eval = -self.negamax(info, -alpha - 1, -alpha, depth - 1);
+                eval = -self.negamax(info, -alpha - 1, -alpha, extended_depth - 1);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
             if pv_node && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax(info, -beta, -alpha, depth - 1);
+                eval = -self.negamax(info, -beta, -alpha, extended_depth - 1);
             }
 
             self.undo_move(info);
@@ -646,6 +689,24 @@ impl Position {
 }
 
 impl<'a> SearchInfo<'a> {
+    /// Create a new SearchInfo struct with the given TT and time control
+    pub fn new(tt: &'a TT, clock: Clock) -> SearchInfo {
+        SearchInfo {
+            clock,
+            tt,
+            sorter: MoveSorter::default(),
+            nodes: 0,
+            seldepth: 0,
+            ply: 0,
+            ply_from_null: 0,
+            best_move: NULL_MOVE,
+            search_stack: [(NULL_MOVE, Piece::WP, 0); MAX_DEPTH],
+            eval_stack: [0; MAX_DEPTH],
+            excluded: [None; MAX_DEPTH],
+            stop: false,
+        }
+    }
+
     /// Push a non-null move to the search stack
     pub fn push_move(&mut self, m: Move, piece: Piece) {
         self.search_stack[self.ply] = (m, piece, self.ply_from_null);
@@ -738,7 +799,7 @@ impl<'a> SearchInfo<'a> {
 /// Test nodes searched
 /// Run with: cargo test --release search -- --show-output
 #[cfg(test)]
-mod performance_tests {
+mod tests {
     use super::*;
     use std::sync::{atomic::AtomicBool, Arc};
     use std::time::Instant;
