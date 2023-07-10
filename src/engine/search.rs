@@ -381,7 +381,10 @@ impl Position {
         let mut searched_quiets = Vec::with_capacity(20);
 
         let lmp_count = LMP_BASE + (depth * depth);
-        let see_margin = SEE_QUIET_MARGIN * depth as Eval;
+        let see_margins = [
+            SEE_CAPTURE_MARGIN * (depth * depth) as Eval,
+            SEE_QUIET_MARGIN * depth as Eval
+        ];
 
         for (move_count, (m, s)) in move_list.enumerate() {
             // Skip SE excluded move
@@ -392,12 +395,11 @@ impl Position {
             let start_nodes = info.nodes;
             let is_quiet = m.get_type().is_quiet();
 
-            // SEE pruning for quiet moves
+            // SEE pruning for captures and quiets
             if best_eval > -MATE_IN_PLY
-                && is_quiet
                 && depth <= SEE_THRESHOLD
                 && s < GOOD_CAPTURE
-                && !self.board.see(m, see_margin)
+                && !self.board.see(m, see_margins[is_quiet as usize])
             {
                 continue;
             };
