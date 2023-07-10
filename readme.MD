@@ -26,11 +26,16 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 ## Building Carp
 
-Carp can either be build through Cargo with ```cargo run --release```. Additionally, the Tools module can be
-conditionally compiled with the flag ```--features tools```.
+For development, Carp should be built through Cargo with ```cargo run --release```. Additionally, the **Tools**
+module can be conditionally compiled with the flag ```--features tools```. All external dependencies are
+limited to this feature.
 
-The Cargo build will automatically target the native architecture: to get the various [microarchitecture
-levels][arch-link] for the running OS, build Carp using the Makefile provided by running ```make release```.
+To compile Carp for maximum performance, the use of [PGO][pgo-link] is highly recommended. Depending on the CPU,
+it has shown to be up to 60 elo over a standard Cargo build. To do this, either run ```make native``` to only
+build an executable targeting the machine's specific architecture, or build all available [microarchitecture
+levels][arch-link] for the running OS through ```make release```.
+
+**NOTE**: the PGO build requires having *llvm-profdata*, which should be included with LLVM or CLANG.
 
 
 ## Performance
@@ -40,7 +45,7 @@ and perft(8) on startpos will achieve ~300 MNodes/s on a 7950x.
 
 Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
 time to depth and reduced the branching factor greatly. During search, Carp will usually run at ~2MNodes/s on a single
-core.
+core (up to 3.8MN/s with PGO).
 
 Carp is rigorously tested with SPRT, and has recently joined the [Engine Programming OB instance][ob-link].
 
@@ -73,14 +78,8 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
 * History Leaf Pruning
 * Extended Futility Pruning
 * Late Move Pruning
-* Delta/SEE/Futility pruning in QS
-
-Of course it is still lacking many optimizations, most notably:
-
-* Pondering for Lichess bot games
-* Endgame tablebases
-* Various other heuristics (probcut, razoring, search extensions...)
-* Continuous net improvements
+* SEE/Futility pruning in QS
+* Singular Extensions
 
 ## Dependencies
 None of these are necessary to run the engine, but they are vital for development:
@@ -95,10 +94,12 @@ None of these are necessary to run the engine, but they are vital for developmen
 * Bruce Moreland's [Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)
 * Cosmo, author of [Viridithas](https://github.com/cosmobobak/viridithas), for a lot of help with NNUE
 * Crippa, author of [Svart](https://github.com/crippa1337/svart) for hosting the OB instance Carp is tested with.
+* Johan, owner of [SWEHosting](https://swehosting.se/en/) for donating CPU time to our instance.
 * Malu's [Asymptote](https://github.com/malu/asymptote) engine to better understand search heuristics
 * The entire chess programming community, for countless awesome resources
 
 [ob-link]:https://chess.swehosting.se/
+[pgo-link]:https://en.wikipedia.org/wiki/Profile-guided_optimization
 [arch-link]:https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels
 [ccrl-blitz-link]:https://ccrl.chessdom.com/ccrl/404/cgi/engine_details.cgi?print=Details&each_game=1&eng=Carp%202.0.0%2064-bit#Carp_2_0_0_64-bit
 [ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?class=None&only_best_in_class=on&num_best_in_class=1&family=Carp&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no
