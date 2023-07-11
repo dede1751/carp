@@ -19,5 +19,5 @@ fn main() {
     #[cfg(feature = "tools")]
     tools::parse_cli();
 
-    engine::UCIController::default().run();
+    engine::UCIReader::default().run();
 }

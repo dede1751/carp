@@ -1,7 +1,7 @@
 use std::{cmp::min, str::FromStr};
 
 use crate::chess::{bitboard::*, board::*, move_list::*, moves::*, piece::*};
-use crate::engine::{move_sorter::*, nnue::*, search::*, search_params::*};
+use crate::engine::{move_sorter::*, nnue::*, search_info::*, search_params::*};
 
 /// Position, represents a Board's evolution along the game tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -68,10 +68,10 @@ impl Default for Position {
 impl Position {
     /// Generate and sort either all moves or only captures in a position.
     /// In case of only captures, ply is superfluous.
-    pub fn generate_moves<const QUIETS: bool>(&self, ply: usize, sorter: &MoveSorter) -> MoveList {
+    pub fn generate_moves<const QUIETS: bool>(&self, info: &mut SearchInfo) -> MoveList {
         let mut move_list = self.board.gen_moves::<QUIETS>();
 
-        sorter.score_moves::<QUIETS>(&self.board, ply, &mut move_list);
+        MoveSorter::score_moves::<QUIETS>(info, &self.board, &mut move_list);
         move_list
     }
 
@@ -84,7 +84,7 @@ impl Position {
         let piece = old.piece_at(m.get_src());
         self.history.push(old);
 
-        info.push_move(m, piece);
+        info.push_move(piece, m);
     }
 
     /// Passes turn to opponent (this resets the ply_from_null clock in the search info)
