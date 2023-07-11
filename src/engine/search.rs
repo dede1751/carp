@@ -379,7 +379,12 @@ impl Position {
         let mut best_move = NULL_MOVE;
         let mut best_eval = -INFINITY;
         let mut searched_quiets = Vec::with_capacity(20);
+
         let lmp_count = LMP_BASE + (depth * depth);
+        let see_margins = [
+            SEE_CAPTURE_MARGIN * (depth * depth) as Eval,
+            SEE_QUIET_MARGIN * depth as Eval
+        ];
 
         for (move_count, (m, s)) in move_list.enumerate() {
             // Skip SE excluded move
@@ -388,13 +393,22 @@ impl Position {
             }
 
             let start_nodes = info.nodes;
+            let is_quiet = m.get_type().is_quiet();
+
+            // SEE pruning for captures and quiets
+            if best_eval > -MATE_IN_PLY
+                && depth <= SEE_THRESHOLD
+                && s < GOOD_CAPTURE
+                && !self.board.see(m, see_margins[is_quiet as usize])
+            {
+                continue;
+            };
 
             self.make_move(m, info);
             info.tt.prefetch(self.board.hash); // prefetch next hash
 
-            // Flag for moves checking the opponent
+            // After make move, in_check tells us if this move gives check
             let is_check = self.king_in_check();
-            let is_quiet = m.get_type().is_quiet();
 
             // Quiet move pruning
             if !pv_node && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
