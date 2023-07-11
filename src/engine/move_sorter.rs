@@ -1,5 +1,3 @@
-use std::cmp::min;
-
 use crate::chess::{board::*, move_list::*, moves::*, piece::*, square::*};
 use crate::engine::search_params::*;
 
@@ -60,11 +58,11 @@ impl Default for MoveSorter {
 
 /// Sorter updates
 impl MoveSorter {
-    /// Taper history so that it's bounded to 32 * 512 = 16384 (and -16384)
+    /// Taper history so that it's bounded to 8 * 2048 = +/-16384
     /// Discussed here:
     /// http://www.talkchess.com/forum3/viewtopic.php?f=7&t=76540
     fn taper_bonus(bonus: i32, old: i32) -> i32 {
-        old + bonus - (old * bonus.abs()) / 16_384
+        old + 8 * bonus - (old * bonus.abs()) / 2048
     }
 
     fn add_bonus(&mut self, m: Move, side: usize, bonus: i32) {
@@ -126,7 +124,8 @@ impl MoveSorter {
         }
 
         // history bonus is Stockfish's "gravity"
-        let bonus = min(depth * depth, 400) as i32;
+        let bonus = 400.min(depth * depth) as i32;
+
         self.update_history(m, bonus, side as usize, &searched);
 
         // countermove and followup history
