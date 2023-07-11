@@ -64,7 +64,7 @@ impl MoveSorter {
     /// Discussed here:
     /// http://www.talkchess.com/forum3/viewtopic.php?f=7&t=76540
     fn taper_bonus(bonus: i32, old: i32) -> i32 {
-        old + 16 * bonus - old * bonus / 512
+        old + bonus - (old * bonus.abs()) / 16_384
     }
 
     fn add_bonus(&mut self, m: Move, side: usize, bonus: i32) {
@@ -127,7 +127,6 @@ impl MoveSorter {
 
         // history bonus is Stockfish's "gravity"
         let bonus = min(depth * depth, 400) as i32;
-
         self.update_history(m, bonus, side as usize, &searched);
 
         // countermove and followup history
