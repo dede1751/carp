@@ -135,10 +135,9 @@ impl MoveSorter {
         const FUH: bool = false;
         if let Some((counter_move, piece)) = self.counter {
             self.update_double::<CMH>(m, counter_move, piece, bonus, &searched);
-
-            if let Some((followup_move, piece)) = self.followup {
-                self.update_double::<FUH>(m, followup_move, piece, bonus, &searched);
-            }
+        }
+        if let Some((followup_move, piece)) = self.followup {
+            self.update_double::<FUH>(m, followup_move, piece, bonus, &searched);
         }
     }
 }
@@ -230,13 +229,13 @@ impl MoveSorter {
             let prev_tgt = counter_move.get_tgt() as usize;
 
             score += self.counter_moves[piece as usize][prev_tgt][src][tgt];
+        }
 
-            // followup move
-            if let Some((followup_move, piece)) = self.followup {
-                let prev_tgt = followup_move.get_tgt() as usize;
+        // followup move
+        if let Some((followup_move, piece)) = self.followup {
+            let prev_tgt = followup_move.get_tgt() as usize;
 
-                score += self.followup_moves[piece as usize][prev_tgt][src][tgt];
-            }
+            score += self.followup_moves[piece as usize][prev_tgt][src][tgt];
         }
 
         HISTORY_OFFSET + score
