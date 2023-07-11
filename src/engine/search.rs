@@ -741,7 +741,7 @@ impl<'a> SearchInfo<'a> {
     /// Push a null move to the search stack
     pub fn push_null(&mut self) {
         self.search_stack[self.ply] = (NULL_MOVE, Piece::WP, self.ply_from_null);
-        self.sorter.followup = None;
+        self.sorter.followup = self.sorter.counter;
         self.sorter.counter = None;
 
         self.ply += 1;
@@ -752,13 +752,20 @@ impl<'a> SearchInfo<'a> {
     /// Pop a move from the search stack
     pub fn pop_move(&mut self) {
         self.ply -= 1;
-        let (_, _, old_ply) = self.search_stack[self.ply];
+        self.ply_from_null = self.search_stack[self.ply].2;
 
-        self.ply_from_null = old_ply;
-        self.sorter.counter = self.sorter.followup;
-        if self.ply_from_null > 1 {
+        if self.ply > 0 && self.search_stack[self.ply - 1].0 != NULL_MOVE {
+            let (m, p, _) = self.search_stack[self.ply - 1];
+            self.sorter.counter = Some((m, p));
+        } else {
+            self.sorter.counter = None;
+        }
+        
+        if self.ply > 1 && self.search_stack[self.ply - 2].0 != NULL_MOVE {
             let (m, p, _) = self.search_stack[self.ply - 2];
             self.sorter.followup = Some((m, p));
+        } else {
+            self.sorter.followup = None;
         }
     }
 
