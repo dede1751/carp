@@ -1,7 +1,7 @@
-use std::{cmp::min, str::FromStr};
+use std::str::FromStr;
 
-use crate::chess::{bitboard::*, board::*, move_list::*, moves::*, piece::*};
-use crate::engine::{move_sorter::*, nnue::*, search_info::*, search_params::*};
+use crate::chess::{bitboard::*, board::*, moves::*, piece::*};
+use crate::engine::{move_picker::*, nnue::*, search_info::*, search_params::*};
 
 /// Position, represents a Board's evolution along the game tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -66,13 +66,15 @@ impl Default for Position {
 }
 
 impl Position {
-    /// Generate and sort either all moves or only captures in a position.
-    /// In case of only captures, ply is superfluous.
-    pub fn generate_moves<const QUIETS: bool>(&self, info: &mut SearchInfo) -> MoveList {
-        let mut move_list = self.board.gen_moves::<QUIETS>();
+    /// Produce a move picker for the current position
+    pub fn gen_moves<const QUIETS: bool>(
+        &self,
+        tt_move: Option<Move>,
+        see_threshold: Eval,
+    ) -> MovePicker<QUIETS> {
+        let move_list = self.board.gen_moves::<QUIETS>();
 
-        MoveSorter::score_moves::<QUIETS>(info, &self.board, &mut move_list);
-        move_list
+        MovePicker::<QUIETS>::new(move_list, tt_move, see_threshold)
     }
 
     /// Makes the given move within the game tree
@@ -148,7 +150,7 @@ impl Position {
     /// Check for repetitions in hash history.
     /// We stop at the first occurrence of the position and consider that a draw.
     fn is_repetition(&self, ply_from_null: usize) -> bool {
-        let rollback = min(self.board.halfmoves, ply_from_null);
+        let rollback = ply_from_null.min(self.board.halfmoves);
 
         self.history
             .iter()

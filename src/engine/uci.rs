@@ -20,7 +20,7 @@ option name Threads type spin default 1 min 1 max 512";
 /// UCI reader responsible of reading input and forwarding commands to the main controller
 /// We keep a global stop flag that we hand out through an reference counted pointer to all search
 /// threads, to be able to stop the search upon receiving the stop/quit command.
-/// 
+///
 /// implementation inspired by weiawaga/asymptote
 pub struct UCIReader {
     stop: Arc<AtomicBool>,
@@ -75,6 +75,7 @@ impl UCIReader {
 
 /// Enum to represent UCI commands (and extra debug commands)
 enum UCICommand {
+    // Main UCI commands
     UciNewGame,
     Uci,
     IsReady,
@@ -140,7 +141,7 @@ struct UCIController {
 }
 
 impl UCIController {
-    /// Instantiate a new controller receiving commands on the controller_rx channel.
+    /// Initialize a new controller receiving commands on the controller_rx channel.
     fn new(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) -> UCIController {
         UCIController {
             position: Position::default(),

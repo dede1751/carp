@@ -39,7 +39,7 @@ pub const LMP_BASE: usize = 4; // lmp move count at depth = 0
 
 pub const SEE_THRESHOLD: usize = 9;
 pub const SEE_CAPTURE_MARGIN: Eval = -20; // threshold for see pruning for captures
-pub const SEE_QUIET_MARGIN: Eval = -65;   // threshold for see pruning for quiets
+pub const SEE_QUIET_MARGIN: Eval = -65; // threshold for see pruning for quiets
 
 pub const ASPIRATION_THRESHOLD: usize = 5; // depth at which windows are reduced
 pub const ASPIRATION_WINDOW: Eval = 25; // aspiration window width

@@ -1,7 +1,9 @@
 use std::thread;
 
-use crate::chess::{board::*, moves::*,  tables::*};
-use crate::engine::{clock::*, move_sorter::*, position::*, search_info::*, search_params::*, tt::*};
+use crate::chess::{board::*, moves::*, tables::*};
+use crate::engine::{
+    clock::*, move_picker::*, position::*, search_info::*, search_params::*, tt::*,
+};
 
 pub struct SearchResult {
     pub best_move: Move,
@@ -238,7 +240,7 @@ impl Position {
                     if !ROOT && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
                         return tt_eval;
                     }
-                    
+
                     if !pv_node {
                         match tt_flag {
                             TTFlag::Exact => return tt_eval,
@@ -346,11 +348,10 @@ impl Position {
             depth -= 1;
         }
 
-        info.tt_move = tt_move;
-        let move_list = self.generate_moves::<QUIETS>(info);
+        let mut picker = self.gen_moves::<QUIETS>(tt_move, 0);
 
         // Mate or stalemate. Don't save in the TT, simply return early
-        if move_list.is_empty() {
+        if picker.stage == Stage::Done {
             if in_check {
                 return -MATE + info.ply as Eval;
             } else {
@@ -362,16 +363,18 @@ impl Position {
         let mut best_move = NULL_MOVE;
         let mut best_eval = -INFINITY;
         let mut searched_quiets = Vec::with_capacity(20);
+        let mut move_count = 0;
 
         let lmp_count = LMP_BASE + (depth * depth);
         let see_margins = [
             SEE_CAPTURE_MARGIN * (depth * depth) as Eval,
-            SEE_QUIET_MARGIN * depth as Eval
+            SEE_QUIET_MARGIN * depth as Eval,
         ];
 
-        for (move_count, (m, s)) in move_list.enumerate() {
+        while let Some((m, s)) = picker.next(&self.board, info) {
             // Skip SE excluded move
             if excluded == Some(m) {
+                move_count += 1;
                 continue;
             }
 
@@ -381,9 +384,10 @@ impl Position {
             // SEE pruning for captures and quiets
             if best_eval > -MATE_IN_PLY
                 && depth <= SEE_THRESHOLD
-                && s < GOOD_CAPTURE
+                && s < GOOD_TACTICAL
                 && !self.board.see(m, see_margins[is_quiet as usize])
             {
+                move_count += 1;
                 continue;
             };
 
@@ -399,7 +403,7 @@ impl Position {
 
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
-                if depth <= HLP_THRESHOLD && s - HISTORY_OFFSET < HLP_MARGIN {
+                if depth <= HLP_THRESHOLD && s < HLP_MARGIN {
                     prune = true;
                 }
 
@@ -518,6 +522,8 @@ impl Position {
             if is_quiet {
                 searched_quiets.push(m);
             }
+
+            move_count += 1;
         }
 
         if !info.stop {
@@ -578,8 +584,7 @@ impl Position {
                 _ => (),
             }
 
-            // Use the tt move if it's a capture
-            tt_move = entry.get_capture();
+            tt_move = entry.get_move();
         };
 
         // Compute the static eval when not in check
@@ -618,22 +623,18 @@ impl Position {
 
         let mut best_move = NULL_MOVE;
         let mut best_eval = stand_pat;
-        info.tt_move = tt_move;
+        let mut picker = self.gen_moves::<CAPTURES>(tt_move, 0);
 
-        for (m, s) in self.generate_moves::<CAPTURES>(info) {
-            if !in_check {
-                // SEE pruning
-                // Avoid searching captures with bad static evaluation
-                if s < GOOD_CAPTURE {
-                    break;
-                }
-
-                // Futility Pruning
-                // Avoid searching captures that, even with an extra margin, would not raise alpha
-                let move_value = stand_pat + PIECE_VALUES[self.board.get_capture(m) as usize];
-                if !m.get_type().is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha {
-                    continue;
-                }
+        // The capture picker implicitly prunes bad SEE moves
+        while let Some((m, _)) = picker.next(&self.board, info) {
+            // Futility Pruning
+            // Avoid searching captures that, even with an extra margin, would not raise alpha
+            let move_value = stand_pat + PIECE_VALUES[self.board.get_capture(m) as usize];
+            if !in_check 
+                && !m.get_type().is_promotion()
+                && move_value + QS_FUTILITY_MARGIN < alpha
+            {
+                continue;
             }
 
             self.make_move(m, info);

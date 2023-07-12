@@ -1,4 +1,4 @@
-use crate::chess::{moves::*, piece::*, board::*};
+use crate::chess::{board::*, moves::*, piece::*};
 use crate::engine::{clock::*, history_table::*, search_params::*, tt::*};
 
 /// Information only relevant within the search tree (thread local)
@@ -8,23 +8,22 @@ pub struct SearchInfo<'a> {
     pub tt: &'a TT,
 
     // Search stacks
-    pub search_stack: [(Piece, Move, usize); MAX_DEPTH],
+    search_stack: [(Piece, Move, usize); MAX_DEPTH],
     pub eval_stack: [Eval; MAX_DEPTH],
     pub excluded: [Option<Move>; MAX_DEPTH],
 
     // Move ordering
     pub killer_moves: [[Move; 2]; MAX_DEPTH],
-    pub history: HistoryTable,
-    pub counter_moves: DoubleHistoryTable,
-    pub followup_moves: DoubleHistoryTable,
-    pub tt_move: Option<Move>,
+    history: HistoryTable,
+    counter_moves: DoubleHistoryTable,
+    followup_moves: DoubleHistoryTable,
 
     // Search stats
     pub nodes: u64,
     pub seldepth: usize,
     pub ply: usize,
     pub ply_from_null: usize,
-    
+
     // End of search
     pub best_move: Move,
     pub stop: bool,
@@ -47,7 +46,6 @@ impl<'a> SearchInfo<'a> {
             history: HistoryTable::default(),
             counter_moves: DoubleHistoryTable::default(),
             followup_moves: DoubleHistoryTable::default(),
-            tt_move: None,
 
             nodes: 0,
             seldepth: 0,
@@ -97,7 +95,7 @@ impl<'a> SearchInfo<'a> {
         } else {
             self.counter_moves.history_move = None;
         }
-        
+
         // Fetch followup move from stack[ply - 2]
         if self.ply > 1 && self.search_stack[self.ply - 2].1 != NULL_MOVE {
             let (p, m, _) = self.search_stack[self.ply - 2];
@@ -127,6 +125,13 @@ impl<'a> SearchInfo<'a> {
         self.history.update(bonus, m, side, &searched);
         self.counter_moves.update(bonus, m, &searched);
         self.followup_moves.update(bonus, m, &searched);
+    }
+
+    /// Return the full history score for a move made by the given side
+    pub fn score_history(&self, m: Move, side: Color) -> i32 {
+        self.history.get_score(m, side)
+            + self.counter_moves.get_score(m)
+            + self.followup_moves.get_score(m)
     }
 }
 

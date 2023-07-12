@@ -1,4 +1,4 @@
-use crate::chess::{square::*, piece::*, moves::*};
+use crate::chess::{moves::*, piece::*, square::*};
 
 pub type History = [[[i16; SQUARE_COUNT]; SQUARE_COUNT]; 2];
 pub type DoubleHistory = [[[[i16; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
@@ -12,7 +12,7 @@ pub fn history_bonus(depth: usize) -> i16 {
 /// This keeps us within i16 bounds.
 /// Discussed here:
 /// http://www.talkchess.com/forum3/viewtopic.php?f=7&t=76540
-fn taper_bonus(bonus: i16, old: i16) -> i16 {
+const fn taper_bonus(bonus: i16, old: i16) -> i16 {
     let o = old as i32;
     let b = bonus as i32;
 
@@ -66,7 +66,7 @@ impl HistoryTable {
 /// The first two indices are taken from the history move, the last two from the current move.
 ///    - Counter Move: the previous move by the opponent
 ///    - Followup Move: our previous move
-/// 
+///
 ///     Indexing: [piece][old_tgt][new_src][new_tgt]
 pub struct DoubleHistoryTable {
     history: Box<DoubleHistory>,
