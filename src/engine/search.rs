@@ -130,7 +130,7 @@ impl Position {
         }
 
         loop {
-            let eval = self.negamax::<true>(info, alpha, beta, depth);
+            let eval = self.negamax::<true>(info, alpha, beta, depth, false);
             if info.stop {
                 return 0;
             }
@@ -171,6 +171,7 @@ impl Position {
         mut alpha: Eval,
         mut beta: Eval,
         mut depth: usize,
+        cutnode: bool
     ) -> Eval {
         if info.stop || !info.clock.mid_check() {
             info.stop = true;
@@ -332,7 +333,7 @@ impl Position {
                 let r = (NMP_BASE_R + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(info);
-                let eval = -self.negamax::<false>(info, -beta, -beta + 1, depth - r);
+                let eval = -self.negamax::<false>(info, -beta, -beta + 1, depth - r, !cutnode);
                 self.undo_move(info);
 
                 // cutoff above beta
@@ -443,7 +444,7 @@ impl Position {
                 info.nodes -= 1;
                 info.excluded[info.ply] = Some(m);
 
-                let eval = self.negamax::<false>(info, se_beta - 1, se_beta, se_depth);
+                let eval = self.negamax::<false>(info, se_beta - 1, se_beta, se_depth, cutnode);
 
                 // Reset the line
                 info.excluded[info.ply] = None;
@@ -465,6 +466,7 @@ impl Position {
                         let mut r = lmr_reduction(depth, move_count) as i32;
 
                         r += !pv_node as i32; // reduce more in non-pv nodes
+                        r += cutnode as i32;  // reduce more for cutnodes
                         r -= in_check as i32 + is_check as i32; // reduce less when in check/checking the opponent
 
                         r.clamp(1, (depth - 1) as i32) as usize
@@ -473,20 +475,23 @@ impl Position {
                     };
 
                     // Reduced depth null window search
-                    eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - r);
+                    // Since we are speculating being an allnode, expect the child to be a cutnode
+                    eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - r, true);
                     eval > alpha && r > 1
                 } else {
                     !pv_node || move_count > 0
                 };
 
             // Full depth null window search when lmr fails or when using pvs
+            // Allnodes/Cutnodes alternate
             if full_depth_search {
-                eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - 1);
+                eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - 1, !cutnode);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
+            // We expect the child node to be a PV node
             if pv_node && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax::<false>(info, -beta, -alpha, ext_depth - 1);
+                eval = -self.negamax::<false>(info, -beta, -alpha, ext_depth - 1, false);
             }
 
             self.undo_move(info);
