@@ -99,15 +99,6 @@ impl TTEntry {
         }
     }
 
-    /// Returns the best move if it is a capture
-    pub fn get_capture(self) -> Option<Move> {
-        if self.best_move != NULL_MOVE && self.best_move.get_type().is_capture() {
-            Some(self.best_move)
-        } else {
-            None
-        }
-    }
-
     /// Gets search evaluation while normalizing mate scores
     pub fn get_eval(self, ply: usize) -> Eval {
         to_search(self.eval, ply)

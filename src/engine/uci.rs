@@ -17,29 +17,32 @@ const ENGINE_OPTIONS: &str = "
 option name Hash type spin default 16 min 1 max 1048576 
 option name Threads type spin default 1 min 1 max 512";
 
-/// UCI controller responsible of reading input and command the main engine thread
-/// uci implementation inspired by weiawaga/asymptote
-pub struct UCIController {
+/// UCI reader responsible of reading input and forwarding commands to the main controller
+/// We keep a global stop flag that we hand out through an reference counted pointer to all search
+/// threads, to be able to stop the search upon receiving the stop/quit command.
+///
+/// implementation inspired by weiawaga/asymptote
+pub struct UCIReader {
     stop: Arc<AtomicBool>,
-    thread_tx: mpsc::Sender<UCICommand>,
+    controller_tx: mpsc::Sender<UCICommand>,
 }
 
-impl Default for UCIController {
+impl Default for UCIReader {
     fn default() -> Self {
         let (tx, rx) = mpsc::channel::<UCICommand>();
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
-        thread::spawn(move || UCIEngine::new(rx, thread_stop).run());
+        thread::spawn(move || UCIController::new(rx, thread_stop).run());
 
-        UCIController {
+        UCIReader {
             stop,
-            thread_tx: tx,
+            controller_tx: tx,
         }
     }
 }
 
 /// Handles communication with the gui and communicates with main engine thread
-impl UCIController {
+impl UCIReader {
     /// Start UCI I/O loop
     pub fn run(&self) {
         println!("{NAME} by {AUTHOR}");
@@ -61,7 +64,7 @@ impl UCIController {
                         }
                         UCICommand::Stop => self.stop.store(true, Ordering::SeqCst), // strict ordering
                         UCICommand::Quit => return,
-                        _ => self.thread_tx.send(command).unwrap(),
+                        _ => self.controller_tx.send(command).unwrap(),
                     }
                 }
                 Err(e) => eprintln!("{e}"),
@@ -72,6 +75,7 @@ impl UCIController {
 
 /// Enum to represent UCI commands (and extra debug commands)
 enum UCICommand {
+    // Main UCI commands
     UciNewGame,
     Uci,
     IsReady,
@@ -127,7 +131,8 @@ impl FromStr for UCICommand {
     }
 }
 
-struct UCIEngine {
+/// Main controller for the engine. Handles setting up the search.
+struct UCIController {
     position: Position,
     tt: TT,
     controller_rx: mpsc::Receiver<UCICommand>,
@@ -135,9 +140,10 @@ struct UCIEngine {
     worker_count: usize,
 }
 
-impl UCIEngine {
-    fn new(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) -> UCIEngine {
-        UCIEngine {
+impl UCIController {
+    /// Initialize a new controller receiving commands on the controller_rx channel.
+    fn new(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) -> UCIController {
+        UCIController {
             position: Position::default(),
             tt: TT::default(),
             controller_rx: rx,
