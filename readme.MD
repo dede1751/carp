@@ -63,7 +63,7 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
 * Fully legal move generation with Fixed Shift Black Magic Bitboards
 * Fail-Hard Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
-* Move Ordering with Staged sorter:
+* Move Ordering with a staged sorter:
   - MVV-LVA with Threshold Static Exchange Evaluation
   - Killers
   - History / Counter Move History / Followup History

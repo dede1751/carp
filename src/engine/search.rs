@@ -384,7 +384,7 @@ impl Position {
             // SEE pruning for captures and quiets
             if best_eval > -MATE_IN_PLY
                 && depth <= SEE_THRESHOLD
-                && s < GOOD_TACTICAL
+                && picker.stage > Stage::GoodTacticals
                 && !self.board.see(m, see_margins[is_quiet as usize])
             {
                 move_count += 1;

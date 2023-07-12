@@ -51,10 +51,9 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         let stage = if move_list.is_empty() {
             // No moves, either mate or stalemate
             Stage::Done
-        } else if tt_move.is_none()  // no TT move
-            || (!QUIETS && tt_move.is_some_and(|m| m.get_type().is_quiet()))
-        {
-            // quiet TT move in qsearch
+        } else if tt_move.is_none()
+            || (!QUIETS && tt_move.is_some_and(|m| m.get_type().is_quiet())) {
+            // no TT move, or quiet TT move in qsearch
             Stage::ScoreTacticals
         } else {
             Stage::TTMove
@@ -148,7 +147,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         // Yield all captures/queen promotions with a negative SEE
         if self.stage == Stage::BadTacticals {
             if let Some((m, s)) = self.partial_sort(self.tactical_index) {
-                return Some((m, s));
+                return Some((m, s + BAD_TACTICAL));
             }
 
             // If we are skipping quiets, we are done.
@@ -228,16 +227,19 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
     }
 }
 
-/// Special move scoring
-pub const TT_SCORE: i32 = 1000;
-pub const KILLER1: i32 = 102;
-pub const KILLER2: i32 = 101;
+/// Special move scoring. We make sure these scores are much higher than any history score
+pub const TT_SCORE: i32 = i32::MAX;
+pub const KILLER1: i32 = GOOD_TACTICAL + 2;
+pub const KILLER2: i32 = GOOD_TACTICAL + 1;
 
-/// Tactical scoring: [10 - 170]
-pub const GOOD_TACTICAL: i32 = 100;
+/// Tactical scoring: [10 - 70] + [1.000.000 - 2.000.000]
+pub const GOOD_TACTICAL: i32 = 2_000_000;
+pub const BAD_TACTICAL: i32 = 1_000_000;
 
 const PROMO_SCORE: i32 = 70; // Queen promotions have best MVV-LVA value, but still less than good tacticals
 const EP_SCORE: i32 = 15; // EP equal to pxp
+
+const UNDERPROMO_SCORE: i32 = i32::MIN; // Underpromotions get the worst score.
 
 // Attacker is the row, victim is the column
 #[rustfmt::skip]
@@ -311,7 +313,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             let m = self.move_list.moves[i];
 
             self.scores[i] = if m.get_type().is_promotion() {
-                i32::MIN
+                UNDERPROMO_SCORE
             } else {
                 info.score_history(m, side)
             }
