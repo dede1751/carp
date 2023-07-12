@@ -51,10 +51,9 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         let stage = if move_list.is_empty() {
             // No moves, either mate or stalemate
             Stage::Done
-        } else if tt_move.is_none()  // no TT move
-            || (!QUIETS && tt_move.is_some_and(|m| m.get_type().is_quiet()))
-        {
-            // quiet TT move in qsearch
+        } else if tt_move.is_none()
+            || (!QUIETS && tt_move.is_some_and(|m| m.get_type().is_quiet())) {
+            // no TT move, or quiet TT move in qsearch
             Stage::ScoreTacticals
         } else {
             Stage::TTMove
@@ -229,7 +228,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 }
 
 /// Special move scoring
-pub const TT_SCORE: i32 = 1000;
+pub const TT_SCORE: i32 = i32::MAX;
 pub const KILLER1: i32 = 102;
 pub const KILLER2: i32 = 101;
 
