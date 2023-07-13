@@ -1,4 +1,10 @@
+<div align="center">
+
+  ![logo](images/carp_logo.png)
+</div>
+
 # <div align="center"> Carp </div>
+
 <div align="center">
 
   [![Build][build-badge]][build-link]
