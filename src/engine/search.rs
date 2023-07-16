@@ -467,7 +467,15 @@ impl Position {
 
                         r += !pv_node as i32; // reduce more in non-pv nodes
                         r += cutnode as i32;  // reduce more for cutnodes
-                        r -= in_check as i32 + is_check as i32; // reduce less when in check/checking the opponent
+
+                        r -= in_check as i32; // reduce less when in check
+                        r -= is_check as i32; // reduce less when giving check
+
+                        if s > HISTORY_MAX / 2 {
+                            r -= 1; // Reduce less high history moves
+                        } else if s < -HISTORY_MAX / 2 {
+                            r += 1; // Reduce more low history moves
+                        }
 
                         r.clamp(1, (depth - 1) as i32) as usize
                     } else {
