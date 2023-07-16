@@ -241,6 +241,8 @@ const EP_SCORE: i32 = 15; // EP equal to pxp
 
 const UNDERPROMO_SCORE: i32 = i32::MIN; // Underpromotions get the worst score.
 
+pub const HISTORY_MAX: i32 = 49152; // Quiet moves have scores between +- 49152
+
 // Attacker is the row, victim is the column
 #[rustfmt::skip]
 const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
