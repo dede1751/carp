@@ -315,8 +315,8 @@ impl Position {
         // need any further deep search.
         if !pv_node && !in_check && !in_singular_search {
             // Reverse Futility Pruning (static eval pruning)
-            // At pre-frontier nodes, check if the static eval minus a safety margin is enough to
-            // produce a beta cutoff.
+            // If the static eval is above beta by a certain margin at shallow depth, we can prune
+            // assuming a beta cutoff. If the static eval is improving, we reduce the margin.
             let rfp_margin =
                 RFP_MARGIN * (depth as Eval) - RFP_IMPROVING_MARGIN * (improving as Eval);
             if depth <= RFP_THRESHOLD && stand_pat - rfp_margin >= beta {
