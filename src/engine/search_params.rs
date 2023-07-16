@@ -17,8 +17,8 @@ pub const LMR_FACTOR: f32 = 2.0; // increase to reduce less further in the movel
 pub const SE_LOWER_LIMIT: usize = 8; // stop applying SE near leaves
 
 pub const RFP_THRESHOLD: usize = 8; // depth at which rfp kicks in
-pub const RFP_MARGIN: Eval = 130; // multiplier for eval safety margin for rfp cutoffs
-pub const RFP_IMPROVING_MARGIN: Eval = 50; // multiplier for improving flag
+pub const RFP_MARGIN: Eval = 80; // multiplier for eval safety margin for rfp cutoffs
+pub const RFP_IMPROVING_MARGIN: Eval = 55; // multiplier for improving flag
 
 pub const NMP_LOWER_LIMIT: usize = 3; // stop applying nmp near leaves
 pub const NMP_IMPROVING_MARGIN: Eval = 70; // multiplier for improving flag
