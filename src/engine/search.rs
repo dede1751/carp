@@ -382,7 +382,7 @@ impl Position {
             if !pv_node
                 && !in_check
                 && !picker.skip_quiets
-                && alpha > -MATE_IN_PLY
+                && best_eval > -MATE_IN_PLY
             {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
