@@ -37,7 +37,7 @@ pub const EFP_MARGIN: Eval = 90; // multiplier for eval bonus margin for efp
 pub const LMP_THRESHOLD: usize = 8; // depth at which late move pruning kicks in
 pub const LMP_BASE: usize = 4; // lmp move count at depth = 0
 
-pub const SEE_THRESHOLD: usize = 9;
+pub const SEE_PRUNING_THRESHOLD: usize = 9; // depth at which see pruning kicks in
 pub const SEE_CAPTURE_MARGIN: Eval = -20; // threshold for see pruning for captures
 pub const SEE_QUIET_MARGIN: Eval = -65; // threshold for see pruning for quiets
 
