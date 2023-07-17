@@ -378,26 +378,15 @@ impl Position {
             let start_nodes = info.nodes;
             let is_quiet = m.get_type().is_quiet();
 
-            // SEE pruning for captures and quiets
-            if best_eval > -MATE_IN_PLY
-                && depth <= SEE_PRUNING_THRESHOLD
-                && picker.stage > Stage::GoodTacticals
-                && !self.board.see(m, see_margins[is_quiet as usize])
-            {
-                move_count += 1;
-                continue;
-            };
-
             // Quiet move pruning
             if !pv_node
                 && !in_check
                 && !picker.skip_quiets
-                && picker.stage <= Stage::Quiets
                 && alpha > -MATE_IN_PLY
             {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
-                if depth <= HLP_THRESHOLD && s < HLP_MARGIN {
+                if is_quiet && depth <= HLP_THRESHOLD && s < HLP_MARGIN {
                     picker.skip_quiets = true;
                 }
 
@@ -415,6 +404,16 @@ impl Position {
                     picker.skip_quiets = true;
                 }
             }
+
+            // SEE pruning for captures and quiets
+            if best_eval > -MATE_IN_PLY
+                && depth <= SEE_PRUNING_THRESHOLD
+                && picker.stage > Stage::GoodTacticals
+                && !self.board.see(m, see_margins[is_quiet as usize])
+            {
+                move_count += 1;
+                continue;
+            };
 
             // Singular Extensions (second part):
             // We perform a verification search excluding the tt move, with a window around se_beta.

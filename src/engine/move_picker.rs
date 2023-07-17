@@ -180,10 +180,12 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             self.index = self.bad_tactical_index;
         }
 
-        // Yield all tactical moves with a negative SEE (and underpromotions)
+        // Yield all tactical moves with a negative SEE (and underpromotions if not skipping quiets)
         if self.true_stage == Stage::BadTacticals {
             if let Some((m, s)) = self.partial_sort(self.move_list.len()) {
-                return Some((m, s));
+                if !(self.skip_quiets && s == BAD_TACTICAL) {
+                    return Some((m, s));
+                }
             }
 
             self.stage = Stage::Done;
