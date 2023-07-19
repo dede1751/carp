@@ -5,7 +5,6 @@ use crate::engine::{search_info::*, search_params::*};
 /// Tacticals include both captures and promotions.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub enum Stage {
-    Init,
     TTMove,
     ScoreTacticals,
     GoodTacticals,
@@ -29,14 +28,13 @@ pub enum Stage {
 ///                            ^ good_tactical_index           ^ bad_tactical_index
 ///
 pub struct MovePicker<const QUIETS: bool> {
-    move_list: MoveList,
+    pub move_list: MoveList,
     scores: [i32; MAX_MOVES],
     index: usize,               // Index used for movelist traversal
     good_tactical_index: usize, // Index of the first non-tactical move
     bad_tactical_index: usize,  // Index of the first bad tactical move
     quiet_index: usize,         // Index of the first non-killer quiet move
-    pub stage: Stage,           // Stage we expose externally
-    true_stage: Stage,          // Stage we are actually in
+    pub stage: Stage,           // Stage is not totally accurate externally, use move scores
     tt_move: Option<Move>,
     pub skip_quiets: bool,
     see_threshold: Eval,
@@ -51,15 +49,14 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         see_threshold: i32,
     ) -> MovePicker<QUIETS> {
         let bad_tactical_index = move_list.len();
-        let true_stage = if move_list.is_empty() {
-            // No moves, either mate or stalemate
+        let stage = if move_list.is_empty() {
             Stage::Done
-        } else if tt_move.is_none() || (!QUIETS && tt_move.is_some_and(|m| m.get_type().is_quiet()))
-        {
-            // no TT move, or quiet TT move in qsearch
-            Stage::ScoreTacticals
         } else {
-            Stage::TTMove
+            match tt_move {
+                Some(m) if !QUIETS && m.get_type().is_quiet() => Stage::ScoreTacticals,
+                None => Stage::ScoreTacticals,
+                _ => Stage::TTMove,
+            }
         };
 
         MovePicker {
@@ -69,8 +66,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             good_tactical_index: 0,
             bad_tactical_index,
             quiet_index: 0,
-            stage: Stage::Init,
-            true_stage,
+            stage,
             tt_move,
             skip_quiets: false,
             see_threshold,
@@ -81,56 +77,51 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Note that most of the logic here is "fall through" where a stage may quietly pass without
     /// yielding a move (e.g. all scoring stages)
     pub fn next(&mut self, board: &Board, info: &SearchInfo) -> Option<(Move, i32)> {
-        if self.true_stage == Stage::Done {
+        if self.stage == Stage::Done {
             return None;
         }
 
         // Lazily look for the TT move
-        if self.true_stage == Stage::TTMove {
-            self.true_stage = Stage::ScoreTacticals;
+        if self.stage == Stage::TTMove {
+            self.stage = Stage::ScoreTacticals;
 
             let tt_move = self.tt_move.unwrap(); // We know it's Some
             if let Some(m) = self.find_pred(self.index, self.move_list.len(), |m| m == tt_move) {
                 self.index += 1;
-                self.stage = Stage::TTMove;
                 return Some((m, TT_SCORE));
             }
         }
 
         // Assign a score to all captures/queen promotions and move them to the front.
-        if self.true_stage == Stage::ScoreTacticals {
+        if self.stage == Stage::ScoreTacticals {
             self.stage = Stage::GoodTacticals;
-            self.true_stage = Stage::GoodTacticals;
             self.score_tacticals(board);
         }
 
         // Yield all captures/queen promotions with a positive SEE
-        if self.true_stage == Stage::GoodTacticals {
+        if self.stage == Stage::GoodTacticals {
             if let Some((m, s)) = self.partial_sort(self.good_tactical_index) {
                 return Some((m, s));
             }
 
             // In QSearch we implicitly skip all captures with negative SEE and underpromotions.
             if QUIETS {
-                self.true_stage = Stage::Killer1;
+                self.stage = Stage::Killer1;
             } else {
                 self.stage = Stage::Done;
-                self.true_stage = Stage::Done;
                 return None;
             }
         }
 
         // Lazily look for the first killer move (if we are not skipping quiets)
-        if self.true_stage == Stage::Killer1 {
-            self.quiet_index = self.good_tactical_index; // Killers are after good tacticals
-            self.true_stage = Stage::Killer2;
+        if self.stage == Stage::Killer1 {
+            self.stage = Stage::Killer2;
 
             let k1 = info.killer_moves[info.ply][0];
             if !self.skip_quiets && k1 != NULL_MOVE && self.tt_move != Some(k1) {
                 let killer = self.find_pred(self.quiet_index, self.bad_tactical_index, |m| m == k1);
 
                 if let Some(m) = killer {
-                    self.stage = Stage::Killer1;
                     self.quiet_index += 1;
                     return Some((m, KILLER1));
                 }
@@ -138,13 +129,12 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         }
 
         // Lazily look for the second killer move (if we are not skipping quiets)
-        if self.true_stage == Stage::Killer2 {
+        if self.stage == Stage::Killer2 {
             // If we are skipping quiets, we can just move to bad tacticals
             if !self.skip_quiets {
-                self.true_stage = Stage::ScoreQuiets;
+                self.stage = Stage::ScoreQuiets;
             } else {
                 self.stage = Stage::BadTacticals;
-                self.true_stage = Stage::BadTacticals;
                 self.index = self.bad_tactical_index;
             }
 
@@ -153,7 +143,6 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
                 let killer = self.find_pred(self.quiet_index, self.bad_tactical_index, |m| m == k2);
 
                 if let Some(m) = killer {
-                    self.stage = Stage::Killer2;
                     self.quiet_index += 1;
                     return Some((m, KILLER2));
                 }
@@ -161,27 +150,25 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         }
 
         // Assign a history score to all quiet moves
-        if self.true_stage == Stage::ScoreQuiets {
+        if self.stage == Stage::ScoreQuiets {
             self.stage = Stage::Quiets;
-            self.true_stage = Stage::Quiets;
             self.score_quiets(board.side, info);
         }
 
         // Yield all quiet moves/underpromotions
-        if self.true_stage == Stage::Quiets {
+        if self.stage == Stage::Quiets {
             if !self.skip_quiets {
                 if let Some((m, s)) = self.partial_sort(self.bad_tactical_index) {
                     return Some((m, s));
                 }
             }
 
-            self.true_stage = Stage::BadTacticals;
             self.stage = Stage::BadTacticals;
             self.index = self.bad_tactical_index;
         }
 
         // Yield all tactical moves with a negative SEE (and underpromotions if not skipping quiets)
-        if self.true_stage == Stage::BadTacticals {
+        if self.stage == Stage::BadTacticals {
             if let Some((m, s)) = self.partial_sort(self.move_list.len()) {
                 if !(self.skip_quiets && s == BAD_TACTICAL) {
                     return Some((m, s));
@@ -189,7 +176,6 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             }
 
             self.stage = Stage::Done;
-            self.true_stage = Stage::Done;
         }
 
         None
@@ -333,6 +319,8 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
                 i += 1;
             }
         }
+
+        self.quiet_index = self.good_tactical_index; // quiets start after killers
     }
 
     /// Assign a score to each quiet move.

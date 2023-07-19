@@ -420,7 +420,7 @@ impl Position {
             // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
 
-            if possible_singularity && picker.stage == Stage::TTMove {
+            if possible_singularity && s == TT_SCORE {
                 let tt_eval = tt_entry.unwrap().get_eval(info.ply); // Can't panic
                 let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
