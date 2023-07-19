@@ -1,6 +1,6 @@
 /// NNUE Implementation
 /// Carp uses a 768->768->1 perspective net architecture, fully trained on self play data.
-/// Network is initialized at compile time from the binary files in the net folder.
+/// Network is initialized at compile time from the 'net.bin' file in this directory.
 /// A new net can be loaded by running the convert_json.py script in the scripts folder.
 ///
 /// Huge thanks to Cosmo, author of Viridithas, for the help. The code here is heavily inspired by
@@ -24,7 +24,7 @@ const CR_MAX: i16 = 255;
 const QA: i32 = 255;
 const QAB: i32 = 255 * 64;
 
-// eval scale factor
+// Eval scaling factor
 const SCALE: i32 = 400;
 
 /// Container for all network parameters
@@ -36,11 +36,10 @@ struct NNUEParams {
     output_bias: i16,
 }
 
-/// NNUE model is initialized from binary values
-/// Taken from Viri
+/// NNUE model is initialized from binary values (Viridithas format)
 static MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("net.bin")) };
 
-/// Generic wrapper for types aligned to 64B for AVX512
+/// Generic wrapper for types aligned to 64B for AVX512 (also a Viridithas trick)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(C, align(64))]
 struct Align64<T>(pub T);

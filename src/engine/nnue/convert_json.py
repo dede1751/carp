@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Simple script converting json nets to the binary representation used by carp
+# Simple script converting json nets to the binary representation used by Carp
 import sys
 import json
 import struct
@@ -9,7 +9,7 @@ HIDDEN = 768
 QA = 255
 QB = 64
 QAB = QA * QB
-PARAM_SIZE = 2
+PARAM_SIZE = 2 # param size in bytes
 
 def write_bytes(array):
     with open('net.bin', 'ab') as file:
@@ -51,21 +51,18 @@ if len(sys.argv) != 2:
     print("Usage: python convert_json.py <json_file>")
     sys.exit(1)
 
-# Clear the old net
-open('net.bin', 'w').close()
-
 json_file = sys.argv[1]
 with open(json_file, 'r') as file:
     data = json.load(file)
 
 feature_weights = convert_weight(data["ft.weight"], HIDDEN, HIDDEN * FEATURES, QA, True)
-write_bytes(feature_weights)
-
 feature_biases = convert_bias(data["ft.bias"], QA)
-write_bytes(feature_biases)
-
 output_weights = convert_weight(data["out.weight"], HIDDEN * 2, HIDDEN * 2, QB, False)
-write_bytes(output_weights)
+output_biases = convert_bias(data["out.bias"], QAB)  
 
-output_biases = convert_bias(data["out.bias"], QAB)    
+# Clear the old net and write the new data (ordering is important!)
+open('net.bin', 'w').close()
+write_bytes(feature_weights)
+write_bytes(feature_biases)
+write_bytes(output_weights)
 write_bytes(output_biases)
