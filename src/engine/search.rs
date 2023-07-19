@@ -171,7 +171,7 @@ impl Position {
         mut alpha: Eval,
         mut beta: Eval,
         mut depth: usize,
-        cutnode: bool
+        cutnode: bool,
     ) -> Eval {
         if info.stop || !info.clock.mid_check() {
             info.stop = true;
@@ -185,10 +185,6 @@ impl Position {
             info.seldepth = 0;
         } else {
             info.seldepth = info.seldepth.max(info.ply);
-        }
-
-        if !pv_node && alpha != beta - 1 {
-            println!("DANGER");
         }
 
         // Check extension
@@ -382,30 +378,12 @@ impl Position {
             let start_nodes = info.nodes;
             let is_quiet = m.get_type().is_quiet();
 
-            // SEE pruning for captures and quiets
-            if best_eval > -MATE_IN_PLY
-                && depth <= SEE_THRESHOLD
-                && picker.stage > Stage::GoodTacticals
-                && !self.board.see(m, see_margins[is_quiet as usize])
-            {
-                move_count += 1;
-                continue;
-            };
-
-            self.make_move(m, info);
-            info.tt.prefetch(self.board.hash); // prefetch next hash
-
-            // After make move, in_check tells us if this move gives check
-            let is_check = self.king_in_check();
-
             // Quiet move pruning
-            if !pv_node && !in_check && is_quiet && !is_check && alpha >= -MATE_IN_PLY {
-                let mut prune = false;
-
+            if !pv_node && !in_check && !picker.skip_quiets && best_eval > -MATE_IN_PLY {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
-                if depth <= HLP_THRESHOLD && s < HLP_MARGIN {
-                    prune = true;
+                if is_quiet && depth <= HLP_THRESHOLD && s < HLP_MARGIN {
+                    picker.skip_quiets = true;
                 }
 
                 let lmr_depth = depth - lmr_reduction(depth, move_count).min(depth);
@@ -413,25 +391,29 @@ impl Position {
                 // Extended Futility pruning
                 // Below a certain depth, prune moves which will most likely not improve alpha
                 let efp_margin = EFP_BASE + EFP_MARGIN * (lmr_depth as Eval);
-                if !prune && lmr_depth <= EFP_THRESHOLD && stand_pat + efp_margin < alpha {
-                    prune = true;
+                if lmr_depth <= EFP_THRESHOLD && stand_pat + efp_margin < alpha {
+                    picker.skip_quiets = true;
                 }
 
                 // Late move pruning
-                if !prune && depth <= LMP_THRESHOLD && move_count >= lmp_count {
-                    prune = true;
-                }
-
-                // even when all moves get pruned, save something to the tt
-                if prune {
-                    self.undo_move(info);
-                    break;
+                if depth <= LMP_THRESHOLD && move_count >= lmp_count {
+                    picker.skip_quiets = true;
                 }
             }
 
+            // SEE pruning for captures and quiets
+            if best_eval > -MATE_IN_PLY
+                && depth <= SEE_PRUNING_THRESHOLD
+                && picker.stage > Stage::GoodTacticals
+                && !self.board.see(m, see_margins[is_quiet as usize])
+            {
+                move_count += 1;
+                continue;
+            };
+
             // Singular Extensions (second part):
-            // We perform a verification search excluding the tt move, with a window around beta.
-            // If this search fails below beta, we accept singularity and extend the depth by one.
+            // We perform a verification search excluding the tt move, with a window around se_beta.
+            // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
 
             if possible_singularity && s == TT_SCORE {
@@ -439,21 +421,17 @@ impl Position {
                 let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
 
-                // Revert the line and exclude the possibly singular move
-                self.undo_move(info);
-                info.nodes -= 1;
                 info.excluded[info.ply] = Some(m);
-
                 let eval = self.negamax::<false>(info, se_beta - 1, se_beta, se_depth, cutnode);
-
-                // Reset the line
                 info.excluded[info.ply] = None;
-                self.make_move(m, info);
 
                 if eval < se_beta {
                     ext_depth += 1;
                 }
             }
+
+            self.make_move(m, info);
+            info.tt.prefetch(self.board.hash); // prefetch next hash
 
             // Principal Variation Search + Late Move Reductions
             // Before most searches, we run a "verification" search on a null window to prove it
@@ -464,15 +442,16 @@ impl Position {
                 if depth >= LMR_LOWER_LIMIT && move_count >= LMR_THRESHOLD + pv_node as usize {
                     let r = if is_quiet {
                         let mut r = lmr_reduction(depth, move_count) as i32;
+                        let is_check = self.king_in_check();
 
                         r += !pv_node as i32; // reduce more in non-pv nodes
-                        r += cutnode as i32;  // reduce more for cutnodes
+                        r += cutnode as i32; // reduce more for cutnodes
 
                         r -= in_check as i32; // reduce less when in check
                         r -= is_check as i32; // reduce less when giving check
 
                         if s > HISTORY_MAX / 2 {
-                            r -= 1; // Reduce less high history moves
+                            r -= 1; // Reduce less high history moves/killers
                         } else if s < -HISTORY_MAX / 2 {
                             r += 1; // Reduce more low history moves
                         }
@@ -643,9 +622,7 @@ impl Position {
             // Futility Pruning
             // Avoid searching captures that, even with an extra margin, would not raise alpha
             let move_value = stand_pat + PIECE_VALUES[self.board.get_capture(m) as usize];
-            if !in_check 
-                && !m.get_type().is_promotion()
-                && move_value + QS_FUTILITY_MARGIN < alpha
+            if !in_check && !m.get_type().is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha
             {
                 continue;
             }
