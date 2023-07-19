@@ -379,11 +379,7 @@ impl Position {
             let is_quiet = m.get_type().is_quiet();
 
             // Quiet move pruning
-            if !pv_node
-                && !in_check
-                && !picker.skip_quiets
-                && best_eval > -MATE_IN_PLY
-            {
+            if !pv_node && !in_check && !picker.skip_quiets && best_eval > -MATE_IN_PLY {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
                 if is_quiet && depth <= HLP_THRESHOLD && s < HLP_MARGIN {

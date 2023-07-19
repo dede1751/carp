@@ -28,7 +28,7 @@ pub enum Stage {
 ///                            ^ good_tactical_index           ^ bad_tactical_index
 ///
 pub struct MovePicker<const QUIETS: bool> {
-    pub move_list: MoveList,
+    move_list: MoveList,
     scores: [i32; MAX_MOVES],
     index: usize,               // Index used for movelist traversal
     good_tactical_index: usize, // Index of the first non-tactical move
