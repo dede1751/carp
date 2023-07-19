@@ -5,15 +5,23 @@ import json
 import struct
 
 FEATURES = 768
-HIDDEN = 512
+HIDDEN = 768
 QA = 255
 QB = 64
 QAB = QA * QB
+PARAM_SIZE = 2
 
-def write_bytes(array, path):
-    with open(path, 'wb') as file:
+def write_bytes(array):
+    with open('net.bin', 'ab') as file:
         for num in array:
             file.write(struct.pack('<h', num))
+        
+        # Pad the array so we get 64B alignment
+        overhead = ((len(array) * 2) % 64)
+        if overhead != 0:
+            padding = 64 - overhead
+            file.write(struct.pack('<' + str(padding) + 'x'))
+        
 
 def convert_weight(json_weight, stride, length, q, transpose):
     weights = [0 for _ in range(length)]
@@ -43,20 +51,21 @@ if len(sys.argv) != 2:
     print("Usage: python convert_json.py <json_file>")
     sys.exit(1)
 
+# Clear the old net
+open('net.bin', 'w').close()
+
 json_file = sys.argv[1]
 with open(json_file, 'r') as file:
     data = json.load(file)
 
-for key, value in data.items():
-    if key == "ft.weight":
-        weights = convert_weight(value, HIDDEN, HIDDEN * FEATURES, QA, True)
-        write_bytes(weights, "net/feature_weights.bin")
-    elif key == "ft.bias":
-        biases = convert_bias(value, QA)
-        write_bytes(biases, "net/feature_bias.bin")
-    elif key == "out.weight":
-        weights = convert_weight(value, HIDDEN * 2, HIDDEN * 2, QB, False)
-        write_bytes(weights, "net/output_weights.bin")
-    elif key == "out.bias":
-        biases = convert_bias(value, QAB)    
-        write_bytes(biases, "net/output_bias.bin")
+feature_weights = convert_weight(data["ft.weight"], HIDDEN, HIDDEN * FEATURES, QA, True)
+write_bytes(feature_weights)
+
+feature_biases = convert_bias(data["ft.bias"], QA)
+write_bytes(feature_biases)
+
+output_weights = convert_weight(data["out.weight"], HIDDEN * 2, HIDDEN * 2, QB, False)
+write_bytes(output_weights)
+
+output_biases = convert_bias(data["out.bias"], QAB)    
+write_bytes(output_biases)

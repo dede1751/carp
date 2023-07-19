@@ -71,7 +71,27 @@
 │  (CURR)  │ lr=1e-3    wdl=0.3     │           29.21 +- 12.00            │                                              │
 │          │ 45 epoch, drop at 30   │               vs 0010               │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0014 │                        │                                     │                                              │
+│ carp0014 │ 1.08B d8 self-play fens│           -5.65 +- 6.11             │ Testing with more nodes. Still overfitting   │
+│          │ 768 hidden nodes       │               vs 0013               │ Loss just sticks to ~0.0066                  │
+│          │ lr=1e-3    wdl=0.3     │                                     │                                              │
+│          │ 45 epoch, drop at 30   │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0015 │ 1.08B d8 self-play fens│          -10.29 +- 7.86             │ Same as carp0014 but with custom lr schedule │
+│          │ 768 hidden nodes       │               vs 0013               │ in Marlinflow, starting at 0.01 and scaling  │
+│          │ lr=1e-2    wdl=0.3     │                                     │ by 0.3 every 10 epochs.                      │
+│          │ 40 epoch, .3x/10 epoch │                                     │ Bench is scary high                          │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0016 │ 1.68B d8 self-play fens│                                     │ Properly interleaved all data. Also uses the │
+│          │ 768 hidden nodes       │                                     │ full dataset bar the first 60M positions.    │
+│          │ lr=1e-3    wdl=0.4     │                                     │ Uses the custom LR scheduler and higher WDL  │
+│          │ 65 epoch, .3x/10 epoch │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0017 │                        │                                     │                                              │
+│          │                        │                                     │                                              │
+│          │                        │                                     │                                              │
+│          │                        │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0018 │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
