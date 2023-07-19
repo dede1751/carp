@@ -43,9 +43,9 @@ impl MoveType {
         self as usize & 0b0100 != 0
     }
 
-    /// Returns true if the move is either a capture or a queen promotion
-    pub const fn is_good_tactical(self) -> bool {
-        self as usize & 0b1100 == 0b1000 || self as usize & 0b0111 == 0b0111
+    /// Returns true if the move is an underpromotion.
+    pub const fn is_underpromotion(self) -> bool {
+        self.is_promotion() && self as usize & 0b0111 != 0b0111
     }
 
     /// Returns true if the move is a capture (include enpassant)
