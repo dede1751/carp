@@ -233,18 +233,12 @@ impl Position {
                 let tt_eval = entry.get_eval(info.ply);
 
                 // TT Cutoffs
-                if tt_depth >= depth {
-                    if !ROOT && pv_node && tt_flag == TTFlag::Exact && depth == 1 {
-                        return tt_eval;
-                    }
-
-                    if !pv_node {
-                        match tt_flag {
-                            TTFlag::Exact => return tt_eval,
-                            TTFlag::Lower if tt_eval >= beta => return beta,
-                            TTFlag::Upper if tt_eval <= alpha => return alpha,
-                            _ => (),
-                        }
+                if tt_depth >= depth && !pv_node {
+                    match tt_flag {
+                        TTFlag::Exact => return tt_eval,
+                        TTFlag::Lower if tt_eval >= beta => return beta,
+                        TTFlag::Upper if tt_eval <= alpha => return alpha,
+                        _ => (),
                     }
                 }
 
