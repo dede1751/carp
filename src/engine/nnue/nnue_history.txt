@@ -81,10 +81,10 @@
 │          │ lr=1e-2    wdl=0.3     │                                     │ by 0.3 every 10 epochs.                      │
 │          │ 40 epoch, .3x/10 epoch │                                     │ Bench is scary high                          │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0016 │ 1.68B d8 self-play fens│                                     │ Properly interleaved all data. Also uses the │
-│          │ 768 hidden nodes       │                                     │ full dataset bar the first 60M positions.    │
-│          │ lr=1e-3    wdl=0.4     │                                     │ Uses the custom LR scheduler and higher WDL  │
-│          │ 65 epoch, .3x/10 epoch │                                     │                                              │
+│ carp0016 │ 1.68B d8 self-play fens│           44.29 +- 14.26            │ Properly interleaved all data. Also uses the │
+│  (CURR)  │ 768 hidden nodes       │       epoch40 vs 0013               │ full dataset bar the first 60M positions.    │
+│          │ lr=1e-3    wdl=0.4     │            1.39 +- 2.11             │ Uses the custom LR scheduler and higher WDL  │
+│          │ 50 epoch, .3x/10 epoch │       epoch50 vs epoch40            │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0017 │                        │                                     │                                              │
 │          │                        │                                     │                                              │
