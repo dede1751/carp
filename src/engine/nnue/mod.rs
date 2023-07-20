@@ -1,36 +1,66 @@
 /// NNUE Implementation
-/// Carp uses a 768->512->1 perspective net architecture, fully trained on self play data.
-/// Network is initialized at compile time from the binary files in the net folder.
+/// Carp uses a 768->768->1 perspective net architecture, fully trained on self play data.
+/// Network is initialized at compile time from the 'net.bin' file in this directory.
 /// A new net can be loaded by running the convert_json.py script in the scripts folder.
 ///
 /// Huge thanks to Cosmo, author of Viridithas, for the help. The code here is heavily inspired by
 /// his engine.
 use std::alloc;
 use std::mem;
+use std::ops::{Deref, DerefMut};
 
 use super::search_params::*;
 use crate::chess::{board::*, piece::*, square::*};
 
-// network arch
+// Network Arch
 const FEATURES: usize = 768;
-const HIDDEN: usize = 512;
+const HIDDEN: usize = 768;
 
-// clipped relu bounds
+// Clipped ReLu bounds
 const CR_MIN: i16 = 0;
 const CR_MAX: i16 = 255;
 
-// quantization factor
+// Quantization factors
 const QA: i32 = 255;
 const QAB: i32 = 255 * 64;
 
-// eval scale factor
+// Eval scaling factor
 const SCALE: i32 = 400;
 
-type SideAccumulator = [i16; HIDDEN];
+/// Container for all network parameters
+#[repr(C)]
+struct NNUEParams {
+    feature_weights: Align64<[i16; FEATURES * HIDDEN]>,
+    feature_bias: Align64<[i16; HIDDEN]>,
+    output_weights: Align64<[i16; HIDDEN * 2]>,
+    output_bias: i16,
+}
+
+/// NNUE model is initialized from binary values (Viridithas format)
+static MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("net.bin")) };
+
+/// Generic wrapper for types aligned to 64B for AVX512 (also a Viridithas trick)
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(C, align(64))]
+struct Align64<T>(pub T);
+
+impl<T, const SIZE: usize> Deref for Align64<[T; SIZE]> {
+    type Target = [T; SIZE];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T, const SIZE: usize> DerefMut for Align64<[T; SIZE]> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+type SideAccumulator = Align64<[i16; HIDDEN]>;
 
 /// Accumulators contain the efficiently updated hidden layer values
 /// Each accumulator is perspective, hence both contains the white and black pov
-#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Accumulator {
     white: SideAccumulator,
     black: SideAccumulator,
@@ -77,31 +107,13 @@ impl Accumulator {
             );
 
             for (acc_val, (&remove_weight, &add_weight)) in zip {
-                let new_val = add_weight - remove_weight;
-
-                *acc_val += new_val
+                *acc_val += add_weight - remove_weight;
             }
         }
 
         add_sub(&mut self.white, from.0, to.0);
         add_sub(&mut self.black, from.1, to.1);
     }
-}
-
-/// NNUE model is initialized from binary values
-/// Taken from Viri
-static MODEL: NNUEParams = NNUEParams {
-    feature_weights: unsafe { mem::transmute(*include_bytes!("net/feature_weights.bin")) },
-    feature_bias: unsafe { mem::transmute(*include_bytes!("net/feature_bias.bin")) },
-    output_weights: unsafe { mem::transmute(*include_bytes!("net/output_weights.bin")) },
-    output_bias: unsafe { mem::transmute(*include_bytes!("net/output_bias.bin")) },
-};
-
-struct NNUEParams {
-    feature_weights: [i16; FEATURES * HIDDEN],
-    feature_bias: [i16; HIDDEN],
-    output_weights: [i16; HIDDEN * 2],
-    output_bias: i16,
 }
 
 /// NNUEState is simply a stack of accumulators, updated along the search tree
@@ -130,10 +142,8 @@ impl NNUEState {
 
         // init with feature biases and add in all features of the board
         boxed.accumulator_stack[0] = Accumulator::default();
-        for piece in ALL_PIECES {
-            for sq in board.piece_bb[piece as usize] {
-                boxed.manual_update::<ON>(piece, sq);
-            }
+        for sq in board.occupancy {
+            boxed.manual_update::<ON>(board.piece_at(sq), sq);
         }
 
         boxed
@@ -166,9 +176,7 @@ impl NNUEState {
 
     /// Manually turn on or off the single given feature
     pub fn manual_update<const ON: bool>(&mut self, piece: Piece, sq: Square) {
-        let idx = nnue_index(piece, sq);
-
-        self.accumulator_stack[self.current_acc].update_weights::<ON>(idx);
+        self.accumulator_stack[self.current_acc].update_weights::<ON>(nnue_index(piece, sq));
     }
 
     /// Efficiently update accumulator for a quiet move (that is, only changes from/to features)
@@ -237,7 +245,10 @@ mod tests {
         s2.push();
         s2.pop();
 
-        assert_eq!(s1.accumulator_stack[0], s2.accumulator_stack[0]);
+        for i in 0..HIDDEN {
+            assert_eq!(s1.accumulator_stack[0].white[i], s2.accumulator_stack[0].white[i]);
+            assert_eq!(s1.accumulator_stack[0].black[i], s2.accumulator_stack[0].black[i]);
+        }
         assert_eq!(s1.current_acc, s2.current_acc);
     }
 
@@ -264,7 +275,10 @@ mod tests {
         s1.manual_update::<ON>(Piece::WP, Square::A3);
         s1.manual_update::<OFF>(Piece::WP, Square::A3);
 
-        assert_eq!(old_acc, s1.accumulator_stack[0]);
+        for i in 0..HIDDEN {
+            assert_eq!(old_acc.white[i], s1.accumulator_stack[0].white[i]);
+            assert_eq!(old_acc.black[i], s1.accumulator_stack[0].black[i]);
+        }
     }
 
     #[test]
@@ -278,6 +292,9 @@ mod tests {
 
         s1.move_update(b1.piece_at(m.get_src()), m.get_src(), m.get_tgt());
 
-        assert_eq!(s1.accumulator_stack[0], s2.accumulator_stack[0]);
+        for i in 0..HIDDEN {
+            assert_eq!(s1.accumulator_stack[0].white[i], s2.accumulator_stack[0].white[i]);
+            assert_eq!(s1.accumulator_stack[0].black[i], s2.accumulator_stack[0].black[i]);
+        }
     }
 }

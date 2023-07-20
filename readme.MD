@@ -47,7 +47,7 @@ levels][arch-link] for the running OS through ```make release```.
 ## Performance
 
 Move generation is fully legal, inspired by [this article][movegen-link]
-and perft(8) on startpos will achieve ~300 MNodes/s on a 7950x.
+and perft(8) on startpos will achieve ~340 MNodes/s on a 7950x.
 
 Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
 time to depth and reduced the branching factor greatly. During search, Carp will usually run at ~2MNodes/s on a single
@@ -57,7 +57,7 @@ Carp is rigorously tested with SPRT, and has recently joined the [Engine Program
 
 ## NNUE
 
-Carp uses a 768->(512x2)->1 perspective net trained with MarlinFlow.
+Carp uses a 768->(768x2)->1 perspective net trained with MarlinFlow.
 It fully relies on its own self-play data for training the network. Data can be generated with the
 utilities provided in the Tools module, which can be conditionally compiled by passing the tools 
 feature to Cargo.

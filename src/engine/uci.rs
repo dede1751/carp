@@ -9,7 +9,7 @@ use std::{
 
 use crate::engine::{clock::*, position::*, tt::*};
 
-const NAME: &str = env!("CARGO_PKG_NAME");
+const NAME: &str = "Carp";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
@@ -45,7 +45,7 @@ impl Default for UCIReader {
 impl UCIReader {
     /// Start UCI I/O loop
     pub fn run(&self) {
-        println!("{NAME} by {AUTHOR}");
+        println!("{NAME} v{VERSION} by {AUTHOR}");
 
         let stream = io::stdin().lock();
 
