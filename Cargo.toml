@@ -1,6 +1,6 @@
 [package]
 name = "carp"
-version = "2.0.0"
+version = "3.0.0"
 edition = "2021"
 authors = ["Andrea Sgobbi"]
 description = "A didactic chess engine written in Rust."

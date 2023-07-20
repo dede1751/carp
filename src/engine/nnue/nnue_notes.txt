@@ -113,3 +113,32 @@ EVALUATION:
     total quantization constant:
 
     out * SCALE / QAB
+
+LAYERS:
+    This sort of perspective network has 2 types of layers:
+
+    - Linear: this is the case of the (double) 768->256 input layer.
+    - Non-Linear: this is the case of the (256x2)->1 output layer, which uses SCReLu.
+
+PERSPECTIVE:
+    This sort of network is considered "perspective" as it maintains a board
+    representation for both the white and black side.
+    The whole idea is centered around switching from the "White" or "Black"
+    standard labels to concepts of "ours" and "theirs"
+
+    First of all, for each feature we generate two indices, one for black and
+    one for white, which we use to separately update the accumulators.
+    This ends up creating two different accumulators (although they go through
+    the same weights and biases) which we call the two perspectives.
+    These accumulators are positionally symmetrical: imagine we completely
+    swapped the sides, and black got the board white sees but with the piece
+    colors flipped, then black's accumulator would be identical to white's old
+    one.
+
+    The second idea in perspective nets is to use a non-linear layer that takes
+    as input not just a set of features, but first the features seen from The
+    current player's perspective, and then the features seen from the opponent's
+    perspective. 
+
+    By concatenating either first white and then black or vice versa, we can
+    now judge a position from a more "neutral" perspective.
