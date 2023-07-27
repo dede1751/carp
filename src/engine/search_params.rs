@@ -7,8 +7,6 @@ pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
 pub const MATE_IN_PLY: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
 
-pub const HISTORY_LOWER_LIMIT: usize = 3; // minimum depth at which history updates happen
-
 pub const LMR_THRESHOLD: usize = 2; // moves to execute before any reduction
 pub const LMR_LOWER_LIMIT: usize = 2; // stop applying lmr near leaves
 pub const LMR_BASE: f32 = 0.75; // increase to reduce every move more

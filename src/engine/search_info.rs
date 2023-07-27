@@ -114,11 +114,6 @@ impl<'a> SearchInfo<'a> {
             self.killer_moves[self.ply][0] = m;
         }
 
-        // Leaves can introduce a lot of random noise to history scores, don't consider them
-        if depth < HISTORY_LOWER_LIMIT {
-            return;
-        }
-
         // Score histories
         let bonus = history_bonus(depth);
 
