@@ -246,8 +246,14 @@ mod tests {
         s2.pop();
 
         for i in 0..HIDDEN {
-            assert_eq!(s1.accumulator_stack[0].white[i], s2.accumulator_stack[0].white[i]);
-            assert_eq!(s1.accumulator_stack[0].black[i], s2.accumulator_stack[0].black[i]);
+            assert_eq!(
+                s1.accumulator_stack[0].white[i],
+                s2.accumulator_stack[0].white[i]
+            );
+            assert_eq!(
+                s1.accumulator_stack[0].black[i],
+                s2.accumulator_stack[0].black[i]
+            );
         }
         assert_eq!(s1.current_acc, s2.current_acc);
     }
@@ -293,8 +299,14 @@ mod tests {
         s1.move_update(b1.piece_at(m.get_src()), m.get_src(), m.get_tgt());
 
         for i in 0..HIDDEN {
-            assert_eq!(s1.accumulator_stack[0].white[i], s2.accumulator_stack[0].white[i]);
-            assert_eq!(s1.accumulator_stack[0].black[i], s2.accumulator_stack[0].black[i]);
+            assert_eq!(
+                s1.accumulator_stack[0].white[i],
+                s2.accumulator_stack[0].white[i]
+            );
+            assert_eq!(
+                s1.accumulator_stack[0].black[i],
+                s2.accumulator_stack[0].black[i]
+            );
         }
     }
 }

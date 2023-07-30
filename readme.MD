@@ -84,7 +84,6 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
 * History Leaf Pruning
 * Extended Futility Pruning
 * Late Move Pruning
-* SEE/Futility pruning in QS
 * Singular Extensions
 
 ## Dependencies
