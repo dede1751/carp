@@ -152,7 +152,13 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         // Assign a history score to all quiet moves
         if self.stage == Stage::ScoreQuiets {
             self.stage = Stage::Quiets;
-            self.score_quiets(board.side, info);
+            self.index = self.quiet_index; // skip over killers
+
+            info.assign_history_scores(
+                board.side,
+                &self.move_list.moves[self.index..self.bad_tactical_index],
+                &mut self.scores[self.index..self.bad_tactical_index],
+            );
         }
 
         // Yield all quiet moves/underpromotions
@@ -269,7 +275,7 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
     }
 
     // Enpassant/QueenCapPromo are always good
-    let mut score = match m.get_type() {
+    let score = match m.get_type() {
         MoveType::EnPassant => return GOOD_TACTICAL + EP_SCORE,
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
@@ -283,12 +289,10 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
 
     // Give a bonus to moves with positive SEE
     if board.see(m, see_threshold) {
-        score += GOOD_TACTICAL;
+        score + GOOD_TACTICAL
     } else {
-        score += BAD_TACTICAL;
+        score + BAD_TACTICAL
     }
-
-    score
 }
 
 /// Implement ordering functions
@@ -321,18 +325,6 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         }
 
         self.quiet_index = self.good_tactical_index; // quiets start after killers
-    }
-
-    /// Assign a score to each quiet move.
-    /// Given the minimum score to underpromotions and a history score to the rest.
-    fn score_quiets(&mut self, side: Color, info: &SearchInfo) {
-        self.index = self.quiet_index; // skip over killers
-
-        for i in self.index..self.bad_tactical_index {
-            let m = self.move_list.moves[i];
-
-            self.scores[i] = info.score_history(m, side);
-        }
     }
 }
 

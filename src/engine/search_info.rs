@@ -60,11 +60,6 @@ impl<'a> SearchInfo<'a> {
     /// Push a non-null move to the search stack
     pub fn push_move(&mut self, piece: Piece, m: Move) {
         self.search_stack[self.ply] = (piece, m, self.ply_from_null);
-
-        // Old counter becomes new followup, and the new move becomes the new counter
-        self.followup_moves.history_move = self.counter_moves.history_move;
-        self.counter_moves.history_move = Some((piece, m.get_tgt()));
-
         self.ply += 1;
         self.ply_from_null += 1;
         self.nodes += 1;
@@ -73,60 +68,64 @@ impl<'a> SearchInfo<'a> {
     /// Push a null move to the search stack
     pub fn push_null(&mut self) {
         self.search_stack[self.ply] = (Piece::WP, NULL_MOVE, self.ply_from_null);
-
-        // Null move only invalidates the counter move
-        self.followup_moves.history_move = self.counter_moves.history_move;
-        self.counter_moves.history_move = None;
-
         self.ply += 1;
         self.ply_from_null = 0;
         self.nodes += 1;
     }
 
-    /// Pop a move from the search stack
+    /// Pop a move from the search stack (panics if called at ply 0)
     pub fn pop_move(&mut self) {
         self.ply -= 1;
         self.ply_from_null = self.search_stack[self.ply].2;
-
-        // Fetch counter move from stack[ply - 1]
-        if self.ply > 0 && self.search_stack[self.ply - 1].1 != NULL_MOVE {
-            let (p, m, _) = self.search_stack[self.ply - 1];
-            self.counter_moves.history_move = Some((p, m.get_tgt()));
-        } else {
-            self.counter_moves.history_move = None;
-        }
-
-        // Fetch followup move from stack[ply - 2]
-        if self.ply > 1 && self.search_stack[self.ply - 2].1 != NULL_MOVE {
-            let (p, m, _) = self.search_stack[self.ply - 2];
-            self.followup_moves.history_move = Some((p, m.get_tgt()));
-        } else {
-            self.followup_moves.history_move = None;
-        }
     }
 
     /// Upon a fail-high, update killer and history tables.
-    pub fn update_tables(&mut self, m: Move, depth: usize, side: Color, searched: Vec<Move>) {
-        let first_killer = self.killer_moves[self.ply][0];
-
-        if first_killer != m {
-            self.killer_moves[self.ply][1] = first_killer;
-            self.killer_moves[self.ply][0] = m;
+    pub fn update_tables(&mut self, best: Move, depth: usize, side: Color, searched: Vec<Move>) {
+        if best != self.killer_moves[self.ply][0] {
+            self.killer_moves[self.ply][1] = self.killer_moves[self.ply][0];
+            self.killer_moves[self.ply][0] = best;
         }
 
         // Score histories
         let bonus = history_bonus(depth);
 
-        self.history.update(bonus, m, side, &searched);
-        self.counter_moves.update(bonus, m, &searched);
-        self.followup_moves.update(bonus, m, &searched);
+        self.history.update(bonus, best, side, &searched);
+
+        if let Some((p, m, _)) = self.get_previous_entry(1) {
+            self.counter_moves.update(bonus, best, p, m.get_tgt(), &searched);
+        }
+
+        if let Some((p, m, _)) = self.get_previous_entry(2) {
+            self.followup_moves.update(bonus, best, p, m.get_tgt(), &searched);
+        }
     }
 
-    /// Return the full history score for a move made by the given side
-    pub fn score_history(&self, m: Move, side: Color) -> i32 {
-        self.history.get_score(m, side)
-            + self.counter_moves.get_score(m)
-            + self.followup_moves.get_score(m)
+    /// Assign history scores to movelist slices
+    pub fn assign_history_scores(&self, side: Color, moves: &[Move], scores: &mut [i32]) {
+        for i in 0..moves.len() {
+            scores[i] = self.history.get_score(moves[i], side);
+        }
+
+        if let Some((prev_p, prev_m, _)) = self.get_previous_entry(1) {
+            for j in 0..moves.len() {
+                scores[j] += self.counter_moves.get_score(moves[j], prev_p, prev_m.get_tgt());
+            }
+        }
+
+        if let Some((prev_p, prev_m, _)) = self.get_previous_entry(2) {
+            for j in 0..moves.len() {
+                scores[j] += self.followup_moves.get_score(moves[j], prev_p, prev_m.get_tgt());
+            }
+        }
+    }
+
+    /// Get the stack entry from 'rollback' ply ago
+    fn get_previous_entry(&self, rollback: usize) -> Option<(Piece, Move, usize)> {
+        if self.ply >= rollback && self.search_stack[self.ply - rollback].1 != NULL_MOVE {
+            Some(self.search_stack[self.ply - rollback])
+        } else {
+            None
+        }
     }
 }
 
