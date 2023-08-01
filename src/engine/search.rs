@@ -613,14 +613,6 @@ impl Position {
 
         // The capture picker implicitly prunes bad SEE moves
         while let Some((m, _)) = picker.next(&self.board, info) {
-            // Futility Pruning
-            // Avoid searching captures that, even with an extra margin, would not raise alpha
-            let move_value = stand_pat + PIECE_VALUES[self.board.get_capture(m) as usize];
-            if !in_check && !m.get_type().is_promotion() && move_value + QS_FUTILITY_MARGIN < alpha
-            {
-                continue;
-            }
-
             self.make_move(m, info);
             info.tt.prefetch(self.board.hash); // prefetch next hash
             let eval = -self.quiescence(info, -beta, -alpha);
