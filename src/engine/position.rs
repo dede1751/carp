@@ -208,6 +208,11 @@ pub const NO_ADJ: bool = false;
 
 /// Datagen-specific implementations
 impl Position {
+    /// Returns the number of plies in the game
+    pub fn ply(&self) -> usize {
+        self.history.len()
+    }
+
     /// Push the move without updating search-specific data.
     /// Accumulator is refreshed to avoid overflows
     pub fn push_move(&mut self, m: Move) {

@@ -53,14 +53,14 @@ Newer versions added much more aggressive pruning techniques, which have brought
 time to depth and reduced the branching factor greatly. During search, Carp will usually run at ~2MNodes/s on a single
 core (up to 3.8MN/s with PGO).
 
-Carp is rigorously tested with SPRT, and has recently joined the [Engine Programming OB instance][ob-link].
+Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance][ob-link].
 
 ## NNUE
 
 Carp uses a 768->(768x2)->1 perspective net trained with MarlinFlow.
 It fully relies on its own self-play data for training the network. Data can be generated with the
-utilities provided in the Tools module, which can be conditionally compiled by passing the tools 
-feature to Cargo.
+utilities provided in the Tools module. To build for datagen, simply run ```make datagen``` which
+also performs PGO.
 
 As of Carp 2.0, NNUE has compltely replaced the old HCE.
 
