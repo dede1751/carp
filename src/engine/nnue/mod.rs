@@ -119,7 +119,7 @@ impl Accumulator {
 /// NNUEState is simply a stack of accumulators, updated along the search tree
 #[derive(Debug, Clone)]
 pub struct NNUEState {
-    accumulator_stack: [Accumulator; MAX_DEPTH],
+    accumulator_stack: [Accumulator; MAX_DEPTH + 1],
     current_acc: usize,
 }
 

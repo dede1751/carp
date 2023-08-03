@@ -193,7 +193,7 @@ impl Position {
         }
 
         // Quiescence search
-        if depth == 0 {
+        if depth == 0 || info.ply >= MAX_DEPTH {
             return self.quiescence(info, alpha, beta);
         }
 
