@@ -21,6 +21,7 @@ panic = "abort"
 
 [features]
 tools = ["dep:clap", "dep:chrono", "dep:fastrand", "dep:ctrlc", "dep:itertools"]
+datagen = []
 
 [dependencies]
 clap = { version = "4.2.1", features = ["derive"], optional = true }

@@ -1,5 +1,6 @@
 /// Utilities to merge and deduplicate data generation files.
 /// Code is completely taken from Viri, and adapted to merge an entire directory.
+use super::*;
 use std::{
     collections::{hash_map::DefaultHasher, BinaryHeap},
     error::Error,
@@ -7,12 +8,18 @@ use std::{
     fs::{self, File},
     io::{BufWriter, Read, Write},
     ops::Range,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use itertools::Itertools;
+use clap::Args;
 
-use super::*;
+/// Merge and deduplicate dategen files in a given directory.
+#[derive(Args)]
+pub struct MergeOptions {
+    /// Path to the directory containing the datagen files.
+    pub path: PathBuf,
+}
 
 /// The number of FEN strings in a single deduplication batch.
 const CHUNK_SIZE: usize = 10_000_000;
@@ -78,7 +85,7 @@ impl<'a> PartialOrd for QuicklySortableString<'a> {
 
 /// Merge all datagen files in the given directory.
 /// This will read all the data into memory, so be careful with dataset size.
-pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
+pub fn merge<P1: AsRef<Path>>(input_dir: &P1) -> Result<(), Box<dyn Error>> {
     let out = input_dir.as_ref().join(format!(
         "merged_{}.txt",
         chrono::Local::now().format("%d-%m-%Y_%H-%M-%S")
@@ -91,7 +98,7 @@ pub fn merge<P1: AsRef<Path>>(input_dir: P1) -> Result<(), Box<dyn Error>> {
     // Read all data into a single string buffer
     let read_time = std::time::Instant::now();
     let mut buffer = Vec::new();
-    let dir = fs::read_dir(&input_dir)?;
+    let dir = fs::read_dir(input_dir)?;
     for path in dir {
         let path = path?.path();
 

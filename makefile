@@ -36,15 +36,15 @@ x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native:
 datagen:
 	rm -rf $(TMPDIR)
 	RUSTFLAGS="-C profile-generate=$(TMPDIR)" \
-		cargo rustc --features tools --release -- -C target-cpu=native --emit link=$(PGO)
+		cargo rustc --features tools,datagen --release -- -C target-cpu=native --emit link=$(PGO)
 	
-	./$(PGO) --datagen '200g-32t-5000n'
-	./$(PGO) --datagen '200g-32t-8d'
+	./$(PGO) datagen -g 256 -t 32 -n 5000
+	./$(PGO) datagen -g 256 -t 32 -d 8
 
 	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 
 	RUSTFLAGS="-C profile-use=$(TMPDIR)/merged.profdata" \
-		cargo rustc --features tools --release -- -C target-cpu=native --emit link=datagen$(EXT)
+		cargo rustc --features tools,datagen --release -- -C target-cpu=native --emit link=datagen$(EXT)
 
 	rm -rf $(TMPDIR)
 	rm $(PGO)

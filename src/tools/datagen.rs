@@ -11,6 +11,27 @@ use std::{
 
 use super::*;
 use crate::engine::{clock::*, position::*, search_params::*, tt::*};
+use clap::Args;
+
+/// Generate training data through self-play, defaulting to depth 8 searches.
+#[derive(Args)]
+pub struct DatagenOptions {
+    /// Number of games to run.
+    #[arg(long, short = 'g', required = true)]
+    games: usize,
+
+    /// Number of threads to run parallel games on.
+    #[arg(long, short = 't', required = true)]
+    threads: usize,
+
+    /// Limit searches to 'x' nodes.
+    #[arg(long, short = 'n', conflicts_with = "depth")]
+    nodes: Option<u64>,
+
+    /// Limit searches to 'x' plies.
+    #[arg(long, short = 'd')]
+    depth: Option<usize>,
+}
 
 static STOP_FLAG: AtomicBool = AtomicBool::new(false);
 static FENS: AtomicU64 = AtomicU64::new(0);
@@ -21,76 +42,15 @@ static BLACK_WIN_ADJ: AtomicU64 = AtomicU64::new(0);
 static DRAWS: AtomicU64 = AtomicU64::new(0);
 static DRAW_ADJ: AtomicU64 = AtomicU64::new(0);
 
-pub struct DatagenOptions {
-    games: u32,
-    threads: u32,
-    time_control: TimeControl,
-}
-
-fn parse_token(token: &str, suffix: char, err: &str) -> Result<u32, String> {
-    token
-        .strip_suffix(suffix)
-        .ok_or_else(|| format!("{}: {}", err, token))?
-        .parse()
-        .map_err(|_| format!("{}: {}", err, token))
-}
-
-impl std::str::FromStr for DatagenOptions {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split('-').collect::<Vec<_>>();
-        if parts.len() != 3 {
-            return Err(format!("Invalid datagen string: {}", s));
-        }
-
-        let games = parse_token(parts[0], 'g', "Invalid number of games")?;
-        let threads = parse_token(parts[1], 't', "Invalid number of threads")?;
-
-        let limit_type = parts[2]
-            .chars()
-            .last()
-            .ok_or_else(|| format!("Invalid limit: {}", parts[2]))?;
-        let limit_value = parse_token(parts[2], limit_type, "Invalid limit")?;
-
-        let time_control = match limit_type {
-            'd' => TimeControl::FixedDepth(limit_value as usize),
-            'n' => TimeControl::FixedNodes(limit_value as u64),
-            _ => return Err(format!("Invalid limit: {}", parts[2])),
-        };
-
-        Ok(DatagenOptions {
-            games,
-            threads,
-            time_control,
-        })
-    }
-}
-
-impl std::fmt::Display for DatagenOptions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let limit = match self.time_control {
-            TimeControl::FixedDepth(depth) => format!("{}d", depth),
-            TimeControl::FixedNodes(nodes) => format!("{}n", nodes),
-            _ => unreachable!(),
-        };
-
-        write!(f, "{}g-{}t-{}", self.games, self.threads, limit)
-    }
-}
-
 /// Dispatch the datagen threads
-pub fn run_datagen(options: DatagenOptions) {
+pub fn run_datagen(options: &DatagenOptions) {
     ctrlc::set_handler(move || {
         STOP_FLAG.store(true, Ordering::SeqCst);
         println!("Stopping generation...");
     })
     .expect("Failed to set CTRL+C handler.");
 
-    let run_id = format!(
-        "run_{}_{options}",
-        chrono::Local::now().format("%d-%m-%Y_%H-%M-%S")
-    );
+    let run_id = format!("run_{}", chrono::Local::now().format("%d-%m-%Y_%H-%M-%S"));
     println!("Data is being saved to {WHITE}data/{run_id}{DEFAULT}");
 
     let data_dir = PathBuf::from("data").join(run_id);
@@ -104,32 +64,26 @@ pub fn run_datagen(options: DatagenOptions) {
     std::thread::scope(|s| {
         for id in 0..options.threads {
             let path = &data_dir;
-            let tc = &options.time_control;
+            let mut tc = TimeControl::FixedDepth(8);
+
+            if let Some(nodes) = options.nodes {
+                tc = TimeControl::FixedNodes(nodes);
+            } else if let Some(depth) = options.depth {
+                tc = TimeControl::FixedDepth(depth);
+            }
 
             s.spawn(move || {
                 datagen_thread(id, games_per_thread, tc, path);
             });
         }
     });
-
-    // After all threads are finished, merge and dedup all the data into a single file
-    match merge::merge(data_dir) {
-        Ok(()) => {
-            if STOP_FLAG.load(Ordering::SeqCst) {
-                println!("\n\t{ORANGE}Data generation stopped prematurely.{DEFAULT}");
-            } else {
-                println!("\n\t{GREEN}Data generation completed successfully.{DEFAULT}");
-            }
-        }
-        Err(e) => println!("{ORANGE}MERGE ERROR{DEFAULT}: {}", e),
-    }
 }
 
 /// Run a single datagen thread
 /// Each thread will play the given number of games at the given time control, and save the results
 /// to a file named after its id.
 /// Each game starts with 12 random moves.
-fn datagen_thread(id: u32, games: u32, tc: &TimeControl, path: &Path) {
+fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
     let rng = fastrand::Rng::new();
 
     let mut position;

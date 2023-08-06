@@ -356,7 +356,10 @@ impl Position {
         let mut searched_quiets = Vec::with_capacity(20);
         let mut move_count = 0;
 
+        #[cfg(not(feature = "datagen"))]
         let lmp_count = LMP_BASE + (depth * depth);
+
+        #[cfg(not(feature = "datagen"))]
         let see_margins = [
             SEE_CAPTURE_MARGIN * (depth * depth) as Eval,
             SEE_QUIET_MARGIN * depth as Eval,
@@ -373,6 +376,7 @@ impl Position {
             let is_quiet = m.get_type().is_quiet();
 
             // Quiet move pruning
+            #[cfg(not(feature = "datagen"))]
             if !pv_node && !in_check && !picker.skip_quiets && best_eval > -MATE_IN_PLY {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
@@ -396,6 +400,7 @@ impl Position {
             }
 
             // SEE pruning for captures and quiets
+            #[cfg(not(feature = "datagen"))]
             if best_eval > -MATE_IN_PLY
                 && depth <= SEE_PRUNING_THRESHOLD
                 && picker.stage > Stage::GoodTacticals
@@ -409,7 +414,6 @@ impl Position {
             // We perform a verification search excluding the tt move, with a window around se_beta.
             // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
-
             if possible_singularity && s == TT_SCORE {
                 let tt_eval = tt_entry.unwrap().get_eval(info.ply); // Can't panic
                 let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);

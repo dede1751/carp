@@ -3,7 +3,7 @@
 mod datagen;
 mod merge;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 /// ANSI escape codes for coloured output
 pub const DEFAULT: &str = "\x1b[0m";
@@ -12,42 +12,34 @@ pub const ORANGE: &str = "\x1b[38;5;208m";
 pub const GREEN: &str = "\x1b[38;5;40m";
 pub const RED: &str = "\x1b[38;5;196m";
 
-/// Carp, a didactic chess engine.
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+/// CLI tools for Carp development.
+#[derive(Parser)]
+#[command(author, version, long_about = None)]
 struct Cli {
-    /// Run nnue datagen, formatted like so: '{games}g-{threads}t-{value}[d/n]'
-    #[arg(short, long, value_name = "OPTIONS")]
-    datagen: Option<String>,
-
-    /// Merge and dedup all datagen files in the given directory
-    #[clap(short, long, value_parser, value_name = "PATH")]
-    pub merge: Option<std::path::PathBuf>,
+    #[clap(subcommand)]
+    command: Option<Command>,
 }
 
+#[derive(Subcommand)]
+enum Command {
+    Datagen(datagen::DatagenOptions),
+    Merge(merge::MergeOptions),
+}
+
+/// Parse command line arguments. Any subcommand will terminate the program after execution.
 pub fn parse_cli() {
     let args = Cli::parse();
 
-    if let Some(option_string) = args.datagen {
-        match option_string.parse() {
-            Ok(options) => {
-                datagen::run_datagen(options);
-                std::process::exit(0)
-            }
-            Err(err) => {
-                eprintln!("{ORANGE}{err}");
-                std::process::exit(1)
-            }
+    if let Some(cmd) = &args.command {
+        match cmd {
+            Command::Datagen(opts) => datagen::run_datagen(opts),
+            Command::Merge(opts) => {
+                if let Err(err) = merge::merge(&opts.path) {
+                    eprintln!("{ORANGE}{err}");
+                    std::process::exit(1)
+                }
+            },
         }
-    }
-
-    if let Some(marge_dir) = args.merge {
-        match merge::merge(marge_dir) {
-            Ok(_) => std::process::exit(0),
-            Err(err) => {
-                eprintln!("{ORANGE}{err}");
-                std::process::exit(1)
-            }
-        }
+        std::process::exit(0);
     }
 }
