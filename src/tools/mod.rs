@@ -38,7 +38,7 @@ pub fn parse_cli() {
                     eprintln!("{ORANGE}{err}");
                     std::process::exit(1)
                 }
-            },
+            }
         }
         std::process::exit(0);
     }

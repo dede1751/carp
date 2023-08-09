@@ -10,7 +10,7 @@ use std::{
 };
 
 use super::*;
-use crate::engine::{clock::*, position::*, search_params::*, tt::*};
+use crate::engine::{clock::*, position::*, search_params::*, thread::*, tt::*};
 use clap::Args;
 
 /// Generate training data through self-play, defaulting to depth 8 searches.
@@ -148,13 +148,13 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
 
         // Avoid positions that are too unbalanced
         tt.clear();
-        let clock = Clock::new(
+        let mut t = Thread::new(Clock::new(
             TimeControl::FixedDepth(10),
             Arc::new(AtomicBool::new(false)),
             position.white_to_move(),
-        );
-        let exit_eval = position.iterative_search::<false>(clock, &tt).eval;
-        if exit_eval.abs() >= 1000 {
+        ));
+        position.iterative_search::<false>(&mut t, &tt);
+        if t.eval.abs() >= 1000 {
             continue 'main;
         }
 
@@ -169,33 +169,33 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
             }
 
             tt.increment_age();
-            let clock = Clock::new(
+            t.advance_ply();
+            t.clock = Clock::new(
                 tc.clone(),
                 Arc::new(AtomicBool::new(false)),
                 position.white_to_move(),
             );
 
-            let search_result = position.iterative_search::<false>(clock, &tt);
-            let (mut eval, best_move) = (search_result.eval, search_result.best_move);
+            position.iterative_search::<false>(&mut t, &tt);
 
             // filter noisy positions
             if !position.king_in_check()
-                && eval.abs() < MATE_IN_PLY
-                && best_move.get_type().is_quiet()
+                && t.eval.abs() < MATE_IN_PLY
+                && t.best_move.get_type().is_quiet()
                 && position.ply() > 16
             {
                 // Always report scores from white's perspective
-                eval = if position.white_to_move() {
-                    eval
+                let eval = if position.white_to_move() {
+                    t.eval
                 } else {
-                    -eval
+                    -t.eval
                 };
 
                 game_buffer.push((eval, position.board.to_fen()));
             }
 
             // Increment adjudication counters
-            let abs_eval = eval.abs();
+            let abs_eval = t.eval.abs();
             if abs_eval >= 2000 {
                 win_adj_counter += 1;
                 draw_adj_counter = 0;
@@ -221,7 +221,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
                 break GameResult::Draw(ADJ);
             }
 
-            position.push_move(best_move);
+            position.push_move(t.best_move);
         };
 
         // Always report wins from white's perspective

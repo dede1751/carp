@@ -1,155 +1,61 @@
-use std::thread;
-
 use crate::chess::{board::*, moves::*, tables::*};
-use crate::engine::{
-    clock::*, move_picker::*, position::*, search_info::*, search_params::*, tt::*,
-};
+use crate::engine::{move_picker::*, position::*, search_params::*, thread::*, tt::*};
 
-pub struct SearchResult {
-    pub best_move: Move,
-    pub eval: Eval,
-    pub depth: usize,
-    pub nodes: u64,
-}
-
-/// Implement tree search functions for a position
 impl Position {
-    /// Deploy a multitreaded search with given number of workers using Lazy SMP
-    /// Returns the move at the highest depth which occurs the most
-    pub fn smp_search(&mut self, worker_count: usize, main_clock: Clock, tt: &TT) -> Move {
-        let move_list = self.board.gen_moves::<true>();
-        let move_count = move_list.len();
-
-        // Return immediately in forced situations.
-        if move_count == 0 {
-            return NULL_MOVE;
-        } else if move_count == 1 || main_clock.no_search_time() {
-            return move_list.moves[0];
-        };
-
-        thread::scope(|scope| {
-            let mut worker_handles = Vec::with_capacity(worker_count);
-            let mut results = Vec::with_capacity(worker_count + 1);
-
-            // Deploy all worker search threads.
-            for _ in 1..worker_count {
-                let mut worker_pos = self.clone();
-                let worker_clock = main_clock.get_child_clock();
-
-                worker_handles.push(
-                    scope.spawn(move || worker_pos.iterative_search::<false>(worker_clock, tt)),
-                );
-            }
-
-            // Run the main search in this thread (with info enabled)
-            results.push(self.iterative_search::<true>(main_clock, tt));
-
-            for handle in worker_handles {
-                match handle.join() {
-                    Ok(result) => results.push(result),
-                    Err(e) => eprintln!("{e:?}"),
-                }
-            }
-
-            // Take the moves at highest depth, and from those the ones which occur the most
-            let highest_depth = results.iter().max_by_key(|i| i.depth).unwrap().depth;
-
-            results
-                .into_iter()
-                .filter_map(|i| {
-                    if i.depth == highest_depth {
-                        Some(i.best_move)
-                    } else {
-                        None
-                    }
-                })
-                .fold(
-                    std::collections::HashMap::<Move, u8>::new(),
-                    |mut map, x| {
-                        *map.entry(x).or_default() += 1;
-                        map
-                    },
-                )
-                .into_iter()
-                .max_by_key(|(_, value)| *value)
-                .unwrap()
-                .0 // always at least one search, impossible panic
-        })
-    }
-
     /// Iteratively searches the position at increasing depth
-    pub fn iterative_search<const INFO: bool>(&mut self, clock: Clock, tt: &TT) -> SearchResult {
-        let mut info = SearchInfo::new(tt, clock);
-        let mut result = SearchResult {
-            best_move: NULL_MOVE,
-            eval: -INFINITY,
-            depth: 0,
-            nodes: 0,
-        };
+    /// Search results remain stored within the thread.
+    pub fn iterative_search<const INFO: bool>(&mut self, t: &mut Thread, tt: &TT) {
+        while t.depth < MAX_DEPTH && t.clock.start_check(t.depth + 1, t.nodes, t.best_move) {
+            let eval = self.aspiration_window(t, tt);
 
-        for d in 1..MAX_DEPTH {
-            if !info.clock.start_check(d, info.nodes, result.best_move) {
+            if t.stop {
                 break;
             }
 
-            let eval = self.aspiration_window(&mut info, &mut result.best_move, result.eval, d);
-
-            if !info.stop {
-                result.best_move = info.best_move;
-                result.eval = eval;
-                result.depth = d;
-
-                if INFO {
-                    info.print(self.board.clone(), eval, d);
-                }
+            // Update thread data after a search finishes.
+            t.eval = eval;
+            t.depth += 1;
+            if INFO {
+                t.print(self.board.clone(), tt);
             }
         }
-
-        result.nodes = info.nodes;
-        result
     }
 
     /// Aspiration Window loop
     /// Run searches on progressively wider windows until we find a value within the window.
-    fn aspiration_window(
-        &mut self,
-        info: &mut SearchInfo,
-        best_move: &mut Move,
-        prev: Eval,
-        mut depth: usize,
-    ) -> Eval {
-        let base_depth = depth;
-
-        // Setup aspiration window when searching a sufficient depth
+    /// This may update the best move even though we do not fully complete the loop.
+    fn aspiration_window(&mut self, t: &mut Thread, tt: &TT) -> Eval {
+        let mut new_depth = t.depth + 1;
         let mut alpha = -INFINITY;
         let mut beta = INFINITY;
         let mut delta = ASPIRATION_WINDOW;
-        if depth >= ASPIRATION_THRESHOLD {
-            alpha = (-INFINITY).max(prev - delta);
-            beta = (INFINITY).min(prev + delta);
+
+        // Setup aspiration windows when searching a sufficient depth
+        if new_depth >= ASPIRATION_THRESHOLD {
+            alpha = (-INFINITY).max(t.eval - delta);
+            beta = (INFINITY).min(t.eval + delta);
         }
 
         loop {
-            let eval = self.negamax::<true>(info, alpha, beta, depth, false);
-            if info.stop {
-                return 0;
+            let prev_best = t.best_move;
+            let eval = self.negamax::<true>(t, tt, alpha, beta, new_depth, false);
+            if t.stop {
+                return -INFINITY;
             }
 
             if eval <= alpha {
-                // Fail-low, reset search depth, widen window down
+                // Fail-low: widen window down, reset depth, keep the old best move
                 beta = (alpha + beta) / 2;
                 alpha = (-INFINITY).max(alpha - delta);
-                depth = base_depth;
+                new_depth = t.depth + 1;
+                t.best_move = prev_best;
             } else if eval >= beta {
-                // Fail-high, reduce depth, widen window up
+                // Fail-high: widen window up, reduce depth and save the best move
                 beta = (INFINITY).min(beta + delta);
 
-                if eval.abs() < MATE_IN_PLY && depth > 1 {
-                    depth -= 1;
+                if eval.abs() < MATE_IN_PLY && new_depth > 1 {
+                    new_depth -= 1;
                 }
-
-                // Short circuit saving the best move when failing high
-                *best_move = info.best_move;
             } else {
                 // Search within window, success
                 return eval;
@@ -167,14 +73,15 @@ impl Position {
     /// Standard alpha-beta negamax tree search
     fn negamax<const ROOT: bool>(
         &mut self,
-        info: &mut SearchInfo,
+        t: &mut Thread,
+        tt: &TT,
         mut alpha: Eval,
         mut beta: Eval,
         mut depth: usize,
         cutnode: bool,
     ) -> Eval {
-        if info.stop || !info.clock.mid_check() {
-            info.stop = true;
+        if t.stop || !t.clock.mid_check() {
+            t.stop = true;
             return 0;
         }
 
@@ -182,9 +89,9 @@ impl Position {
         let in_check = self.king_in_check();
 
         if ROOT {
-            info.seldepth = 0;
+            t.seldepth = 0;
         } else {
-            info.seldepth = info.seldepth.max(info.ply);
+            t.seldepth = t.seldepth.max(t.ply);
         }
 
         // Check extension
@@ -193,8 +100,8 @@ impl Position {
         }
 
         // Quiescence search
-        if depth == 0 || info.ply >= MAX_DEPTH {
-            return self.quiescence(info, alpha, beta);
+        if depth == 0 || t.ply >= MAX_DEPTH {
+            return self.quiescence(t, tt, alpha, beta);
         }
 
         if !ROOT {
@@ -202,14 +109,14 @@ impl Position {
             // Shrink the window based on the best/worst possible outcomes, which are being mated
             // now or mating in the next ply. Prune if even these extreme situations would not
             // produce a line better than the PV
-            alpha = alpha.max(-MATE + info.ply as Eval);
-            beta = beta.min(MATE - info.ply as Eval - 1);
+            alpha = alpha.max(-MATE + t.ply as Eval);
+            beta = beta.min(MATE - t.ply as Eval - 1);
             if alpha >= beta {
                 return alpha;
             }
 
             // Stop searching if the position is a rule-based draw
-            if self.is_draw(info.ply_from_null) {
+            if self.is_draw(t.ply_from_null) {
                 return 0;
             }
         }
@@ -217,12 +124,12 @@ impl Position {
         // Singular Extension (first part):
         // If we are excluding a move to verify singularity, limit pruning in this node.
         // Otherwise, identify possibly singular moves based on the tt hit.
-        let excluded = info.excluded[info.ply];
+        let excluded = t.excluded[t.ply];
         let in_singular_search = excluded.is_some();
         let mut possible_singularity = false;
 
         // Probe tt for the best move and possible cutoffs.
-        let tt_entry = info.tt.probe(self.board.hash);
+        let tt_entry = tt.probe(self.board.hash);
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
@@ -230,7 +137,7 @@ impl Position {
             if !in_singular_search {
                 let tt_depth = entry.get_depth();
                 let tt_flag = entry.get_flag();
-                let tt_eval = entry.get_eval(info.ply);
+                let tt_eval = entry.get_eval(t.ply);
 
                 // TT Cutoffs
                 if tt_depth >= depth && !pv_node {
@@ -256,12 +163,12 @@ impl Position {
         let mut stand_pat = -INFINITY;
 
         if in_singular_search {
-            stand_pat = info.eval_stack[info.ply];
+            stand_pat = t.eval_stack[t.ply];
         } else if !in_check {
             // If we have a tt entry, use the static eval from there
             if let Some(entry) = tt_entry {
                 let tt_flag = entry.get_flag();
-                let tt_eval = entry.get_eval(info.ply);
+                let tt_eval = entry.get_eval(t.ply);
                 let tt_static_eval = entry.get_static_eval();
 
                 if tt_static_eval == -INFINITY {
@@ -281,24 +188,24 @@ impl Position {
                 stand_pat = self.evaluate();
 
                 // Chuck the static eval into the tt. This won't overwrite any relevant entry
-                info.tt.insert(
+                tt.insert(
                     self.board.hash,
                     TTFlag::None,
                     NULL_MOVE,
                     -INFINITY,
                     stand_pat,
                     0,
-                    info.ply,
+                    t.ply,
                 );
             }
         };
 
-        info.eval_stack[info.ply] = stand_pat;
+        t.eval_stack[t.ply] = stand_pat;
 
         // Improving is true when the current static eval is better than that of a move ago
         // Assuming this trend continues down this branch, we can prune high more aggressively,
         // while we should be less aggressive when pruning low.
-        let improving = !in_check && info.ply > 1 && stand_pat > info.eval_stack[info.ply - 2];
+        let improving = !in_check && t.ply > 1 && stand_pat > t.eval_stack[t.ply - 2];
 
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
@@ -317,14 +224,14 @@ impl Position {
             // Give the opponent a "free shot" and see if that improves beta.
             if depth > NMP_LOWER_LIMIT
                 && stand_pat + NMP_IMPROVING_MARGIN * (improving as Eval) >= beta
-                && info.ply_from_null > 0
+                && t.ply_from_null > 0
                 && !self.only_king_pawns_left()
             {
                 let r = (NMP_BASE_R + depth / NMP_FACTOR).min(depth);
 
-                self.make_null(info);
-                let eval = -self.negamax::<false>(info, -beta, -beta + 1, depth - r, !cutnode);
-                self.undo_move(info);
+                self.make_null(t);
+                let eval = -self.negamax::<false>(t, tt, -beta, -beta + 1, depth - r, !cutnode);
+                self.undo_move(t);
 
                 // cutoff above beta
                 if eval >= beta {
@@ -344,7 +251,7 @@ impl Position {
         // Mate or stalemate. Don't save in the TT, simply return early
         if picker.stage == Stage::Done {
             if in_check {
-                return -MATE + info.ply as Eval;
+                return -MATE + t.ply as Eval;
             } else {
                 return 0;
             }
@@ -365,14 +272,14 @@ impl Position {
             SEE_QUIET_MARGIN * depth as Eval,
         ];
 
-        while let Some((m, s)) = picker.next(&self.board, info) {
+        while let Some((m, s)) = picker.next(&self.board, t) {
             // Skip SE excluded move
             if excluded == Some(m) {
                 move_count += 1;
                 continue;
             }
 
-            let start_nodes = info.nodes;
+            let start_nodes = t.nodes;
             let is_quiet = m.get_type().is_quiet();
 
             // Quiet move pruning
@@ -415,21 +322,21 @@ impl Position {
             // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
             if possible_singularity && s == TT_SCORE {
-                let tt_eval = tt_entry.unwrap().get_eval(info.ply); // Can't panic
+                let tt_eval = tt_entry.unwrap().get_eval(t.ply); // Can't panic
                 let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
 
-                info.excluded[info.ply] = Some(m);
-                let eval = self.negamax::<false>(info, se_beta - 1, se_beta, se_depth, cutnode);
-                info.excluded[info.ply] = None;
+                t.excluded[t.ply] = Some(m);
+                let eval = self.negamax::<false>(t, tt, se_beta - 1, se_beta, se_depth, cutnode);
+                t.excluded[t.ply] = None;
 
                 if eval < se_beta {
                     ext_depth += 1;
                 }
             }
 
-            self.make_move(m, info);
-            info.tt.prefetch(self.board.hash); // prefetch next hash
+            self.make_move(m, t);
+            tt.prefetch(self.board.hash); // prefetch next hash
 
             // Principal Variation Search + Late Move Reductions
             // Before most searches, we run a "verification" search on a null window to prove it
@@ -461,7 +368,7 @@ impl Position {
 
                     // Reduced depth null window search
                     // Since we are speculating being an allnode, expect the child to be a cutnode
-                    eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - r, true);
+                    eval = -self.negamax::<false>(t, tt, -alpha - 1, -alpha, ext_depth - r, true);
                     eval > alpha && r > 1
                 } else {
                     !pv_node || move_count > 0
@@ -470,24 +377,24 @@ impl Position {
             // Full depth null window search when lmr fails or when using pvs
             // Allnodes/Cutnodes alternate
             if full_depth_search {
-                eval = -self.negamax::<false>(info, -alpha - 1, -alpha, ext_depth - 1, !cutnode);
+                eval = -self.negamax::<false>(t, tt, -alpha - 1, -alpha, ext_depth - 1, !cutnode);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
             // We expect the child node to be a PV node
             if pv_node && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax::<false>(info, -beta, -alpha, ext_depth - 1, false);
+                eval = -self.negamax::<false>(t, tt, -beta, -alpha, ext_depth - 1, false);
             }
 
-            self.undo_move(info);
+            self.undo_move(t);
 
-            if info.stop {
+            if t.stop {
                 return 0;
             }
 
             // In root, update the node counts used by the clock
             if ROOT {
-                info.clock.update_node_counts(m, info.nodes - start_nodes);
+                t.clock.update_node_counts(m, t.nodes - start_nodes);
             }
 
             if eval > best_eval {
@@ -500,7 +407,7 @@ impl Position {
 
                 if eval >= beta {
                     if is_quiet {
-                        info.update_tables(m, depth, self.board.side, searched_quiets);
+                        t.update_tables(m, depth, self.board.side, searched_quiets);
                     };
 
                     alpha = beta;
@@ -516,7 +423,7 @@ impl Position {
             move_count += 1;
         }
 
-        if !info.stop {
+        if !t.stop {
             let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
             } else if best_eval > old_alpha {
@@ -525,46 +432,46 @@ impl Position {
                 TTFlag::Upper
             };
 
-            info.tt.insert(
+            tt.insert(
                 self.board.hash,
                 tt_flag,
                 best_move,
                 alpha,
                 stand_pat,
                 depth,
-                info.ply,
+                t.ply,
             );
         }
 
         if ROOT {
-            info.best_move = best_move;
+            t.best_move = best_move;
         }
 
         alpha
     }
 
     /// Quiescence search: only search captures to avoid the horizon effect
-    fn quiescence(&mut self, info: &mut SearchInfo, mut alpha: Eval, beta: Eval) -> Eval {
-        if info.stop || !info.clock.mid_check() {
-            info.stop = true;
+    fn quiescence(&mut self, t: &mut Thread, tt: &TT, mut alpha: Eval, beta: Eval) -> Eval {
+        if t.stop || !t.clock.mid_check() {
+            t.stop = true;
             return 0;
         }
 
-        info.seldepth = info.seldepth.max(info.ply);
+        t.seldepth = t.seldepth.max(t.ply);
 
         // Return early when reaching max depth
-        if info.ply >= MAX_DEPTH {
+        if t.ply >= MAX_DEPTH {
             return self.evaluate();
         }
 
         let in_check = self.king_in_check();
 
         // Probe the TT and if possible get a tt move
-        let tt_entry = info.tt.probe(self.board.hash);
+        let tt_entry = tt.probe(self.board.hash);
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
-            let tt_eval = entry.get_eval(info.ply);
+            let tt_eval = entry.get_eval(t.ply);
 
             // TT Cutoffs
             match entry.get_flag() {
@@ -584,7 +491,7 @@ impl Position {
         if !in_check {
             if let Some(entry) = tt_entry {
                 let tt_flag = entry.get_flag();
-                let tt_eval = entry.get_eval(info.ply);
+                let tt_eval = entry.get_eval(t.ply);
                 let tt_static_eval = entry.get_static_eval();
 
                 if tt_static_eval == -INFINITY {
@@ -616,13 +523,13 @@ impl Position {
         let mut picker = self.gen_moves::<CAPTURES>(tt_move, 0);
 
         // The capture picker implicitly prunes bad SEE moves
-        while let Some((m, _)) = picker.next(&self.board, info) {
-            self.make_move(m, info);
-            info.tt.prefetch(self.board.hash); // prefetch next hash
-            let eval = -self.quiescence(info, -beta, -alpha);
-            self.undo_move(info);
+        while let Some((m, _)) = picker.next(&self.board, t) {
+            self.make_move(m, t);
+            tt.prefetch(self.board.hash); // prefetch next hash
+            let eval = -self.quiescence(t, tt, -beta, -alpha);
+            self.undo_move(t);
 
-            if info.stop {
+            if t.stop {
                 return 0;
             }
 
@@ -647,7 +554,7 @@ impl Position {
         }
 
         // Save to TT if we at least improved on the static eval.
-        if !info.stop {
+        if !t.stop {
             let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
             } else if best_eval > old_alpha {
@@ -656,14 +563,14 @@ impl Position {
                 TTFlag::Upper
             };
 
-            info.tt.insert(
+            tt.insert(
                 self.board.hash,
                 tt_flag,
                 best_move,
                 alpha,
                 stand_pat,
                 0,
-                info.ply,
+                t.ply,
             );
         }
 
@@ -679,7 +586,7 @@ mod tests {
     use std::sync::{atomic::AtomicBool, Arc};
     use std::time::Instant;
 
-    use crate::chess::piece::Color;
+    use crate::engine::clock::*;
 
     #[test]
     fn search_suite() {
@@ -697,21 +604,21 @@ mod tests {
             println!("Searching: {}", name);
 
             let mut position: Position = format!("fen {}", fen).parse().unwrap();
-            let tt = TT::default();
-            let clock = Clock::new(
+            let mut t = Thread::new(Clock::new(
                 TimeControl::FixedDepth(depth),
                 Arc::new(AtomicBool::new(false)),
-                position.board.side == Color::White,
-            );
+                position.white_to_move(),
+            ));
 
             println!("\n{}\n\n", position.board);
 
             let start = Instant::now();
-            let best_move = position.iterative_search::<true>(clock, &tt).best_move;
+            position.iterative_search::<true>(&mut t, &TT::default());
             let duration = start.elapsed();
 
             println!(
-                "\nDEPTH: {depth} Found {best_move} in {duration:?}\n--------------------------------\n",
+                "\nDEPTH: {depth} Found {} in {duration:?}\n--------------------------------\n",
+                t.best_move,
             );
         }
     }

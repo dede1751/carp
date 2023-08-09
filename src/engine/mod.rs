@@ -6,8 +6,8 @@ pub mod move_picker;
 pub mod nnue;
 pub mod position;
 pub mod search;
-pub mod search_info;
 pub mod search_params;
+pub mod thread;
 pub mod tt;
 pub mod uci;
 
