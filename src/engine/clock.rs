@@ -1,4 +1,4 @@
-/// Handles time management for iterative deepening
+/// Handles time management for iterative deepening and async search.
 use std::str::{FromStr, SplitWhitespace};
 use std::time::{Duration, Instant};
 use std::{
@@ -8,6 +8,7 @@ use std::{
 
 use crate::chess::{moves::*, square::*};
 
+/// Time Controls supported by the UCI protocol.
 #[derive(Clone, Debug)]
 pub enum TimeControl {
     Infinite,
@@ -77,7 +78,7 @@ const CHECK_FREQUENCY: u64 = 2048; // Nodes between checking time/atomic access
 const OVERHEAD: u64 = 5;
 
 /// Clocks handle time management during search.
-/// Contains async counters used to synchronize time management across threads.
+/// Contains async counters used to synchronize time management/node counting across threads.
 #[derive(Clone, Debug)]
 pub struct Clock {
     global_stop: Arc<AtomicBool>,
@@ -176,7 +177,7 @@ impl Clock {
     }
 
     /// Checks whether there is any time to begin the search
-    /// This should only every be called before beginning a search.
+    /// This should only ever be called before beginning a search.
     pub fn no_search_time(&self) -> bool {
         match self.time_control {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
@@ -192,8 +193,8 @@ impl Clock {
         self.node_count[m.get_src() as usize][m.get_tgt() as usize] += delta;
     }
 
-    /// Checks whether to deepen the search (true -> continue deepening)
-    /// Information passed to this function is thread-local.
+    /// Checks whether to deepen the search.
+    /// Information passed to this function should be thread-local.
     pub fn start_search(&mut self, depth: usize, nodes: u64, best_move: Move) -> bool {
         if self.global_stop.load(Ordering::SeqCst) {
             return false;
@@ -233,7 +234,7 @@ impl Clock {
         start
     }
 
-    /// Checks whether to continue searching during the search (true -> continue searching)
+    /// Checks whether to halt an ongoing search.
     /// Only loads/stores atomics and checks the time every CHECK_FREQUENCY nodes.
     pub fn continue_search(&mut self, nodes: u64) -> bool {
         let searched = nodes - self.last_nodes;

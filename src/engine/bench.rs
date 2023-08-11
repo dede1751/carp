@@ -1,4 +1,4 @@
-/// Benchmark required by OpenBench
+/// Benchmark required by OpenBench, searching a set of positions at fixed depth.
 /// Test positions from Ethereal
 use std::time::Instant;
 

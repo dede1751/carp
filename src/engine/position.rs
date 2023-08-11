@@ -1,5 +1,4 @@
-use std::str::FromStr;
-
+/// Position wraps the entire game state.
 use crate::chess::{bitboard::*, board::*, moves::*, piece::*};
 use crate::engine::{move_picker::*, nnue::*, search_params::*, thread::*};
 
@@ -13,7 +12,7 @@ pub struct Position {
 }
 
 /// Get position from uci position string
-impl FromStr for Position {
+impl std::str::FromStr for Position {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

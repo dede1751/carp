@@ -1,3 +1,7 @@
+/// History Tables are structures used for ordering quiet moves.
+/// Whenever a quiet move fails high, it receives a history bonus.
+/// Since it would be impossible to precisely index each move, history tables have different indexing
+/// schemes depending on the sort of "history" they are trying to track.
 use crate::chess::{moves::*, piece::*, square::*};
 
 pub type History = [[[i16; SQUARE_COUNT]; SQUARE_COUNT]; 2];
@@ -8,7 +12,7 @@ pub fn history_bonus(depth: usize) -> i16 {
     400.min(depth * depth) as i16
 }
 
-/// Taper history so that it's bounded to +-16384
+/// Taper history so that it's bounded to +-(2048 * 8)
 /// This keeps us within i16 bounds.
 /// Discussed here:
 /// http://www.talkchess.com/forum3/viewtopic.php?f=7&t=76540

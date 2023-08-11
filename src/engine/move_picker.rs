@@ -1,3 +1,4 @@
+/// The Move Picker is responsible for choosing which move to search next at a node.
 use crate::chess::{board::*, move_list::*, moves::*, piece::*};
 use crate::engine::{search_params::*, thread::*};
 

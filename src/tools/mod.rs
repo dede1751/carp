@@ -12,7 +12,7 @@ pub const ORANGE: &str = "\x1b[38;5;208m";
 pub const GREEN: &str = "\x1b[38;5;40m";
 pub const RED: &str = "\x1b[38;5;196m";
 
-/// CLI tools for Carp development.
+/// CLI tools for Carp development, each implemented as a Clap subcommand.
 #[derive(Parser)]
 #[command(author, version, long_about = None)]
 struct Cli {
@@ -20,6 +20,8 @@ struct Cli {
     command: Option<Command>,
 }
 
+/// Commands represent the various tools available.
+/// Each tool has its own Option struct defined in its module.
 #[derive(Subcommand)]
 enum Command {
     Datagen(datagen::DatagenOptions),

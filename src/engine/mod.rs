@@ -1,4 +1,4 @@
-/// Engine module contains all the logic used by the Carp engine
+/// Engine module contains all the logic used by Carp to play chess.
 pub mod bench;
 pub mod clock;
 pub mod history_table;

@@ -1,3 +1,4 @@
+/// The Search module implements Carp's Alpha-Beta algorithm for single-threaded tree search.
 use crate::chess::{board::*, moves::*, tables::*};
 use crate::engine::{move_picker::*, position::*, search_params::*, thread::*, tt::*};
 
@@ -31,7 +32,7 @@ impl Position {
         let mut delta = ASPIRATION_WINDOW;
 
         // Setup aspiration windows when searching a sufficient depth
-        if new_depth >= ASPIRATION_THRESHOLD {
+        if new_depth >= ASPIRATION_LOWER_LIMIT {
             alpha = (-INFINITY).max(t.eval - delta);
             beta = (INFINITY).min(t.eval + delta);
         }
@@ -227,7 +228,7 @@ impl Position {
                 && t.ply_from_null > 0
                 && !self.only_king_pawns_left()
             {
-                let r = (NMP_BASE_R + depth / NMP_FACTOR).min(depth);
+                let r = (NMP_BASE + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(t);
                 let eval = -self.negamax::<false>(t, tt, -beta, -beta + 1, depth - r, !cutnode);
@@ -287,7 +288,7 @@ impl Position {
             if !pv_node && !in_check && !picker.skip_quiets && best_eval > -MATE_IN_PLY {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
-                if is_quiet && depth <= HLP_THRESHOLD && s < HLP_MARGIN {
+                if is_quiet && depth <= HLP_THRESHOLD && s < HLP_BASE {
                     picker.skip_quiets = true;
                 }
 

@@ -1,4 +1,4 @@
-/// Carp chess engine by Andrea Sgobbi
+/// Carp UCI Chess Engine by Andrea Sgobbi
 ///
 /// This is a didactic chess engine for both approaching chess programming and learning to code
 /// in Rust.
