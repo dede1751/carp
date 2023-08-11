@@ -148,11 +148,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
 
         // Avoid positions that are too unbalanced
         tt.clear();
-        let mut t = Thread::new(Clock::new(
-            TimeControl::FixedDepth(10),
-            Arc::new(AtomicBool::new(false)),
-            position.white_to_move(),
-        ));
+        let mut t = Thread::fixed_depth(10);
         position.iterative_search::<false>(&mut t, &tt);
         if t.eval.abs() >= 1000 {
             continue 'main;
@@ -171,8 +167,9 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
             tt.increment_age();
             t.advance_ply();
             t.clock = Clock::new(
-                tc.clone(),
                 Arc::new(AtomicBool::new(false)),
+                Arc::new(AtomicU64::new(0)),
+                tc.clone(),
                 position.white_to_move(),
             );
 

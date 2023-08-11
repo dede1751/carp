@@ -1,9 +1,8 @@
 /// Benchmark required by OpenBench
 /// Test positions from Ethereal
-use std::sync::{atomic::AtomicBool, Arc};
 use std::time::Instant;
 
-use crate::engine::{clock::*, position::*, thread::*, tt::*};
+use crate::engine::{position::*, thread::*, tt::*};
 
 const TEST_POSITIONS: [&str; 50] = [
     "fen r3k2r/2pb1ppp/2pp1q2/p7/1nP1B3/1P2P3/P2N1PPP/R2QK2R w KQkq a6 0 14",
@@ -65,11 +64,7 @@ pub fn run_benchmark() {
 
     for fen in TEST_POSITIONS {
         let mut position: Position = fen.parse().unwrap();
-        let mut t = Thread::new(Clock::new(
-            TimeControl::FixedDepth(16),
-            Arc::new(AtomicBool::new(false)),
-            position.white_to_move(),
-        ));
+        let mut t = Thread::fixed_depth(16);
 
         let start = Instant::now();
         position.iterative_search::<false>(&mut t, &TT::default());

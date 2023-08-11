@@ -332,7 +332,6 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 mod tests {
     use super::*;
     use crate::chess::{square::*, tables::*};
-    use std::sync;
 
     #[test]
     fn test_quiet_picker() {
@@ -351,7 +350,7 @@ mod tests {
         let bad_quiet = Move::new(Square::G1, Square::H2, MoveType::Quiet);
 
         let mut picker = MovePicker::<QUIETS>::new(move_list, Some(tt_move), 0);
-        let mut t = Thread::spinner(sync::Arc::new(sync::atomic::AtomicBool::new(false)));
+        let mut t = Thread::fixed_depth(0);
 
         t.update_tables(good_quiet, 10, Color::White, vec![bad_quiet]);
         t.killer_moves[t.ply][0] = k1;
@@ -387,7 +386,7 @@ mod tests {
         let good_cap = Move::new(Square::B7, Square::C8, MoveType::QueenCapPromo);
 
         let mut picker = MovePicker::<CAPTURES>::new(move_list, Some(tt_move), 0);
-        let t = Thread::spinner(sync::Arc::new(sync::atomic::AtomicBool::new(false)));
+        let t = Thread::fixed_depth(0);
 
         println!("{b}");
 

@@ -6,7 +6,7 @@
 /// only stop when the main thread modifies the global stop flag.
 use std::iter;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
 };
 use std::thread;
@@ -42,7 +42,7 @@ pub struct Thread {
 }
 
 impl Thread {
-    /// Create a new SearchInfo struct with the given TT and time control
+    /// Create a new Thread struct with the given Clock.
     /// All other fields are initialized as empty.
     pub fn new(clock: Clock) -> Thread {
         Thread {
@@ -68,10 +68,20 @@ impl Thread {
         }
     }
 
-    /// Initialize a spinner thread controlled by the given stop flag.
+    /// Initialize a spinner thread with the given shared counters.
     /// Use this as either a placeholder thread to then set TC, or as a SMP worker thread.
-    pub fn spinner(stop: Arc<AtomicBool>) -> Thread {
-        Thread::new(Clock::new(TimeControl::Infinite, stop, false))
+    pub fn spinner(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Thread {
+        Thread::new(Clock::spin_clock(global_stop, global_nodes))
+    }
+
+    /// Initialize a thread searching at a fixed depth.
+    pub fn fixed_depth(depth: usize) -> Thread {
+        Thread::new(Clock::new(
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicU64::new(0)),
+            TimeControl::FixedDepth(depth),
+            false,
+        ))
     }
 
     /// Clear a thread's previous results.
@@ -84,6 +94,7 @@ impl Thread {
         self.followup_moves = DoubleHistoryTable::default();
 
         self.nodes = 0;
+        self.clock.last_nodes = 0; // reset SMP worker threads
         self.seldepth = 0;
         self.ply = 0;
         self.ply_from_null = 0;
@@ -213,6 +224,7 @@ impl Thread {
         };
 
         let time = self.clock.elapsed().as_millis().max(1);
+        let nodes = self.clock.global_nodes();
 
         print!(
             "info time {} score {} depth {} seldepth {} nodes {} nps {} pv",
@@ -220,8 +232,8 @@ impl Thread {
             score,
             self.depth,
             self.seldepth,
-            self.nodes,
-            (self.nodes as u128 * 1000) / time,
+            nodes,
+            (nodes as u128 * 1000) / time,
         );
 
         self.print_pv(board, tt, self.depth);
@@ -232,30 +244,34 @@ impl Thread {
 pub struct ThreadPool {
     main_thread: Thread,
     workers: Vec<Thread>,
-    stop: Arc<AtomicBool>,
+    global_stop: Arc<AtomicBool>,
+    global_nodes: Arc<AtomicU64>,
 }
 
 impl ThreadPool {
-    /// Initialize a new threadpool with one single worker, holding the given global stop flag
-    pub fn new(stop: Arc<AtomicBool>) -> ThreadPool {
+    /// Initialize a new threadpool with one single worker, holding the given global stop flag.
+    pub fn new(global_stop: Arc<AtomicBool>) -> ThreadPool {
+        let global_nodes = Arc::new(AtomicU64::new(0));
+
         ThreadPool {
-            main_thread: Thread::spinner(stop.clone()),
+            main_thread: Thread::spinner(global_stop.clone(), global_nodes.clone()),
             workers: Vec::new(),
-            stop,
+            global_stop,
+            global_nodes,
         }
     }
 
     /// Resize the threadpool to the given size, reinitializing all threads.
-    /// Do not call with size = 0
-    pub fn resize(&mut self, size: usize) {
-        self.main_thread = Thread::spinner(self.stop.clone());
-        self.workers
-            .resize_with(size - 1, || Thread::spinner(self.stop.clone()));
+    pub fn resize(&mut self, workers: usize) {
+        self.main_thread = Thread::spinner(self.global_stop.clone(), self.global_nodes.clone());
+        self.workers.resize_with(workers, || {
+            Thread::spinner(self.global_stop.clone(), self.global_nodes.clone())
+        });
     }
 
     /// Reset a threadpool to prepare for the start of the game.
     pub fn reset(&mut self) {
-        self.resize(self.workers.len() + 1);
+        self.resize(self.workers.len());
     }
 
     /// Deploy a parallel search using LazySMP, returning the agreed-upon best move.
@@ -266,10 +282,17 @@ impl ThreadPool {
         time_control: TimeControl,
     ) -> Move {
         // Setup all threads to start the search.
-        self.main_thread.clock = Clock::new(time_control, self.stop.clone(), pos.white_to_move());
+        self.main_thread.clock = Clock::new(
+            self.global_stop.clone(),
+            self.global_nodes.clone(),
+            time_control,
+            pos.white_to_move(),
+        );
         self.main_thread.advance_ply();
         self.workers.iter_mut().for_each(|t| t.advance_ply());
-        self.stop.store(false, Ordering::SeqCst);
+
+        self.global_stop.store(false, Ordering::SeqCst);
+        self.global_nodes.store(0, Ordering::SeqCst);
 
         // Return immediately in forced situations.
         let move_list = pos.board.gen_moves::<QUIETS>();

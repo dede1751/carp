@@ -148,17 +148,17 @@ impl UCIController {
             match command {
                 UCICommand::UciNewGame => {
                     position = Position::default();
-                    thread_pool.reset();
                     tt.clear();
+                    thread_pool.reset();
                 }
 
                 UCICommand::Option(name, value) => match &name[..] {
                     "Hash" => match value.parse::<usize>() {
-                        Ok(size) if size > 1 => tt.resize(size),
+                        Ok(size) if size > 0 => tt.resize(size),
                         _ => eprintln!("Could not parse hash option value!"),
                     },
                     "Threads" => match value.parse::<usize>() {
-                        Ok(size) if size > 1 => thread_pool.resize(size),
+                        Ok(size) if size > 0 => thread_pool.resize(size - 1),
                         _ => eprintln!("Could not parse threads option value!"),
                     },
                     _ => eprintln!("Unsupported option command!"),

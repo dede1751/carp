@@ -5,7 +5,7 @@ impl Position {
     /// Iteratively searches the position at increasing depth
     /// Search results remain stored within the thread.
     pub fn iterative_search<const INFO: bool>(&mut self, t: &mut Thread, tt: &TT) {
-        while t.depth < MAX_DEPTH && t.clock.start_check(t.depth + 1, t.nodes, t.best_move) {
+        while t.depth < MAX_DEPTH && t.clock.start_search(t.depth + 1, t.nodes, t.best_move) {
             let eval = self.aspiration_window(t, tt);
 
             if t.stop {
@@ -80,7 +80,7 @@ impl Position {
         mut depth: usize,
         cutnode: bool,
     ) -> Eval {
-        if t.stop || !t.clock.mid_check() {
+        if t.stop || !t.clock.continue_search(t.nodes) {
             t.stop = true;
             return 0;
         }
@@ -452,7 +452,7 @@ impl Position {
 
     /// Quiescence search: only search captures to avoid the horizon effect
     fn quiescence(&mut self, t: &mut Thread, tt: &TT, mut alpha: Eval, beta: Eval) -> Eval {
-        if t.stop || !t.clock.mid_check() {
+        if t.stop || !t.clock.continue_search(t.nodes) {
             t.stop = true;
             return 0;
         }
@@ -583,10 +583,7 @@ impl Position {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{atomic::AtomicBool, Arc};
     use std::time::Instant;
-
-    use crate::engine::clock::*;
 
     #[test]
     fn search_suite() {
@@ -604,11 +601,7 @@ mod tests {
             println!("Searching: {}", name);
 
             let mut position: Position = format!("fen {}", fen).parse().unwrap();
-            let mut t = Thread::new(Clock::new(
-                TimeControl::FixedDepth(depth),
-                Arc::new(AtomicBool::new(false)),
-                position.white_to_move(),
-            ));
+            let mut t = Thread::fixed_depth(depth);
 
             println!("\n{}\n\n", position.board);
 
