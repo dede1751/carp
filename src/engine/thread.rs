@@ -88,11 +88,6 @@ impl Thread {
     pub fn advance_ply(&mut self) {
         self.killer_moves = [[NULL_MOVE; 2]; MAX_DEPTH];
 
-        // Remove these to not reinitialize histories every move.
-        self.history = HistoryTable::default();
-        self.counter_moves = DoubleHistoryTable::default();
-        self.followup_moves = DoubleHistoryTable::default();
-
         self.nodes = 0;
         self.clock.last_nodes = 0; // reset SMP worker threads
         self.seldepth = 0;
