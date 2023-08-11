@@ -1,3 +1,5 @@
+/// Implement structures which allow Carp to communicate via the UCI protocol
+/// https://en.wikipedia.org/wiki/Universal_Chess_Interface
 use std::{
     io,
     io::BufRead,
@@ -7,7 +9,7 @@ use std::{
     thread,
 };
 
-use crate::engine::{clock::*, position::*, tt::*};
+use crate::engine::{clock::*, position::*, thread::*, tt::*};
 
 const NAME: &str = "Carp";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -32,7 +34,7 @@ impl Default for UCIReader {
         let (tx, rx) = mpsc::channel::<UCICommand>();
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
-        thread::spawn(move || UCIController::new(rx, thread_stop).run());
+        thread::spawn(move || UCIController::run(rx, thread_stop));
 
         UCIReader {
             stop,
@@ -131,75 +133,59 @@ impl FromStr for UCICommand {
     }
 }
 
-/// Main controller for the engine. Handles setting up the search.
-struct UCIController {
-    position: Position,
-    tt: TT,
-    controller_rx: mpsc::Receiver<UCICommand>,
-    stop: Arc<AtomicBool>,
-    worker_count: usize,
-}
+/// Main runnable controller for the engine, handling search commands.
+struct UCIController();
 
 impl UCIController {
-    /// Initialize a new controller receiving commands on the controller_rx channel.
-    fn new(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) -> UCIController {
-        UCIController {
-            position: Position::default(),
-            tt: TT::default(),
-            controller_rx: rx,
-            stop,
-            worker_count: 0,
-        }
-    }
+    /// Directly handle the "active" uci commands forwarded by the controller.
+    /// Meant to be run on a separate thread, to allow for async search interruption.
+    fn run(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) {
+        let mut position = Position::default();
+        let mut tt = TT::default();
+        let mut thread_pool = ThreadPool::new(stop);
 
-    /// Dispatch main engine thread.
-    /// Handles the "active" uci commands forwarded by the controller and dispatches helpers.
-    fn run(&mut self) {
-        for command in &self.controller_rx {
+        for command in &rx {
             match command {
                 UCICommand::UciNewGame => {
-                    self.position = Position::default();
-                    self.tt.clear();
+                    position = Position::default();
+                    tt.clear();
+                    thread_pool.reset();
                 }
 
                 UCICommand::Option(name, value) => match &name[..] {
                     "Hash" => match value.parse::<usize>() {
-                        Ok(size) => self.tt.resize(size),
-                        Err(_) => eprintln!("Could not parse hash option value!"),
+                        Ok(size) if size > 0 => tt.resize(size),
+                        _ => eprintln!("Could not parse hash option value!"),
                     },
                     "Threads" => match value.parse::<usize>() {
-                        Ok(size) => self.worker_count = size,
-                        Err(_) => eprintln!("Could not parse threads option value!"),
+                        Ok(size) if size > 0 => thread_pool.resize(size - 1),
+                        _ => eprintln!("Could not parse threads option value!"),
                     },
                     _ => eprintln!("Unsupported option command!"),
                 },
 
                 UCICommand::Perft(d) => {
-                    self.position.board.perft(d);
+                    position.board.perft(d);
                 }
 
                 UCICommand::Print => {
-                    println!("{}", self.position.board);
+                    println!("{}", position.board);
                 }
 
                 UCICommand::Eval => {
-                    println!("Static evaluation: {}", self.position.evaluate());
+                    println!("Static evaluation: {}", position.evaluate());
                 }
 
-                UCICommand::Position(position) => {
-                    self.position = *position;
+                UCICommand::Position(pos) => {
+                    position = *pos;
                 }
 
                 UCICommand::Go(tc) => {
-                    self.stop.store(false, Ordering::Relaxed);
-                    self.tt.increment_age();
-                    let main_clock =
-                        Clock::new(tc, self.stop.clone(), self.position.white_to_move());
-                    let best_move =
-                        self.position
-                            .smp_search(self.worker_count, main_clock, &self.tt);
-
-                    println!("bestmove {best_move}");
+                    tt.increment_age();
+                    println!(
+                        "bestmove {}",
+                        thread_pool.deploy_search(&mut position, &tt, tc),
+                    );
                 }
 
                 _ => eprintln!("Unexpected UCI command!"),

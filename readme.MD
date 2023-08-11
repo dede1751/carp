@@ -57,7 +57,7 @@ Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance]
 
 ## NNUE
 
-Carp uses a 768->(768x2)->1 perspective net trained with MarlinFlow.
+Carp uses a (768->768)x2->1 perspective net trained with MarlinFlow.
 It fully relies on its own self-play data for training the network. Data can be generated with the
 utilities provided in the Tools module. To build for datagen, simply run ```make datagen``` which
 also performs PGO.

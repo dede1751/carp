@@ -1,15 +1,14 @@
-/// Handles time management for iterative deepening
-/// Time control implementation closely follows Weiawaga
+/// Handles time management for iterative deepening and async search.
 use std::str::{FromStr, SplitWhitespace};
-
 use std::time::{Duration, Instant};
 use std::{
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
     sync::Arc,
 };
 
 use crate::chess::{moves::*, square::*};
 
+/// Time Controls supported by the UCI protocol.
 #[derive(Clone, Debug)]
 pub enum TimeControl {
     Infinite,
@@ -75,25 +74,32 @@ impl FromStr for TimeControl {
     }
 }
 
-// number of nodes between clock checks
-const CHECK_FREQUENCY: u64 = 2048;
+const CHECK_FREQUENCY: u64 = 2048; // Nodes between checking time/atomic access
 const OVERHEAD: u64 = 5;
 
+/// Clocks handle time management during search.
+/// Contains async counters used to synchronize time management/node counting across threads.
 #[derive(Clone, Debug)]
 pub struct Clock {
-    stop: Arc<AtomicBool>,
+    global_stop: Arc<AtomicBool>,
+    global_nodes: Arc<AtomicU64>,
     time_control: TimeControl,
     start_time: Instant,
     opt_time: Duration,
     max_time: Duration,
-    check_count: u64,
+    pub last_nodes: u64,
     node_count: [[u64; SQUARE_COUNT]; SQUARE_COUNT],
 }
 
 impl Clock {
     /// Init a new clock for the given timecontrol.
     /// Only meant to be used by the main thread in SMP.
-    pub fn new(time_control: TimeControl, stop: Arc<AtomicBool>, white_to_move: bool) -> Clock {
+    pub fn new(
+        global_stop: Arc<AtomicBool>,
+        global_nodes: Arc<AtomicU64>,
+        time_control: TimeControl,
+        white_to_move: bool,
+    ) -> Clock {
         let (opt_time, max_time) = match time_control {
             TimeControl::FixedTime(time) => (
                 Duration::from_millis(time - OVERHEAD.min(time)),
@@ -144,36 +150,34 @@ impl Clock {
         };
 
         Clock {
-            stop,
+            global_stop,
+            global_nodes,
             time_control,
             start_time: Instant::now(),
             opt_time,
             max_time,
-            check_count: 0,
+            last_nodes: 0,
             node_count: [[0; SQUARE_COUNT]; SQUARE_COUNT],
         }
     }
 
-    /// Returns a child clock with the same stop flag,to be given to parallel threads
-    pub fn get_child_clock(&self) -> Clock {
-        Clock {
-            stop: self.stop.clone(),
-            time_control: TimeControl::Infinite,
-            start_time: Instant::now(),
-            opt_time: Duration::ZERO,
-            max_time: Duration::ZERO,
-            check_count: 0,
-            node_count: [[0; SQUARE_COUNT]; SQUARE_COUNT],
-        }
+    /// Initialize a spinner clock (used as a placeholder or for SMP workers)
+    pub fn spin_clock(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Clock {
+        Clock::new(global_stop, global_nodes, TimeControl::Infinite, false)
     }
 
-    /// Returns time elapsed from clock start
+    /// Returns the global node count across threads.
+    pub fn global_nodes(&self) -> u64 {
+        self.global_nodes.load(Ordering::SeqCst)
+    }
+
+    /// Returns time elapsed from clock start.
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
     }
 
     /// Checks whether there is any time to begin the search
-    /// This should only every be called before beginning a search.
+    /// This should only ever be called before beginning a search.
     pub fn no_search_time(&self) -> bool {
         match self.time_control {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
@@ -189,9 +193,10 @@ impl Clock {
         self.node_count[m.get_src() as usize][m.get_tgt() as usize] += delta;
     }
 
-    /// Checks whether to deepen the search (true -> continue deepening)
-    pub fn start_check(&mut self, depth: usize, nodes: u64, best_move: Move) -> bool {
-        if self.stop.load(Ordering::SeqCst) {
+    /// Checks whether to deepen the search.
+    /// Information passed to this function should be thread-local.
+    pub fn start_search(&mut self, depth: usize, nodes: u64, best_move: Move) -> bool {
+        if self.global_stop.load(Ordering::SeqCst) {
             return false;
         }
 
@@ -202,10 +207,10 @@ impl Clock {
 
         let start = match self.time_control {
             TimeControl::FixedDepth(d) => depth <= d,
-            TimeControl::FixedNodes(n) => nodes <= n,
+            TimeControl::FixedNodes(n) => self.global_nodes() <= n,
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 // At the start, we scale the opt time based on how many nodes were dedicated
-                // to searching the best move.
+                // to searching the best move (on this thread)
                 let opt_scale = if best_move != NULL_MOVE && nodes != 0 {
                     let bm_nodes =
                         self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
@@ -222,38 +227,36 @@ impl Clock {
             _ => true, // Infinite tc does not depend on start check
         };
 
-        // global stop
         if !start {
-            self.stop.store(true, Ordering::SeqCst);
+            self.global_stop.store(true, Ordering::SeqCst);
         }
 
         start
     }
 
-    /// Checks whether to continue searching during the search (true -> continue searching)
-    pub fn mid_check(&mut self) -> bool {
-        self.check_count += 1;
+    /// Checks whether to halt an ongoing search.
+    /// Only loads/stores atomics and checks the time every CHECK_FREQUENCY nodes.
+    pub fn continue_search(&mut self, nodes: u64) -> bool {
+        let searched = nodes - self.last_nodes;
 
-        // load atomic value only every CHECK_FREQUENCY checks
-        if self.check_count % CHECK_FREQUENCY == 0 && self.stop.load(Ordering::SeqCst) {
-            return false;
+        if searched >= CHECK_FREQUENCY {
+            self.global_nodes.fetch_add(searched, Ordering::SeqCst);
+            self.last_nodes = nodes;
+
+            if self.global_stop.load(Ordering::SeqCst) {
+                return false;
+            }
         }
 
         let proceed = match self.time_control {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
-                // check elapsed time only every CHECK_FREQUENCY checks
-                if self.check_count % CHECK_FREQUENCY == 0 {
-                    self.elapsed() < self.max_time
-                } else {
-                    true
-                }
+                searched < CHECK_FREQUENCY || self.elapsed() < self.max_time
             }
             _ => true,
         };
 
-        // global stop
         if !proceed {
-            self.stop.store(true, Ordering::SeqCst);
+            self.global_stop.store(true, Ordering::SeqCst);
         }
 
         proceed

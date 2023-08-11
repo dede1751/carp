@@ -41,13 +41,14 @@ pub struct TTEntry {
     static_eval: i16, // 16b
 }
 
-// Masks for the data field
+// Offsets for the data fields
 const DEPTH_OFFSET: u64 = 7;
 const FLAG_OFFSET: u64 = 14;
 const MOVE_OFFSET: u64 = 16;
 const SEARCH_OFFSET: u64 = 32;
 const EVAL_OFFSET: u64 = 48;
 
+// Masks for the data fields
 const AGE_MASK: u64 = 0x7F;
 const DEPTH_MASK: u64 = 0x3F80;
 const FLAG_MASK: u64 = 0xC000;

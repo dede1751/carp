@@ -1,5 +1,6 @@
+/// The Move Picker is responsible for choosing which move to search next at a node.
 use crate::chess::{board::*, move_list::*, moves::*, piece::*};
-use crate::engine::{search_info::*, search_params::*};
+use crate::engine::{search_params::*, thread::*};
 
 /// Stages of the move picker.
 /// Tacticals include both captures and promotions.
@@ -76,7 +77,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Fetch the next best move from the move list along with a move score.
     /// Note that most of the logic here is "fall through" where a stage may quietly pass without
     /// yielding a move (e.g. all scoring stages)
-    pub fn next(&mut self, board: &Board, info: &SearchInfo) -> Option<(Move, i32)> {
+    pub fn next(&mut self, board: &Board, t: &Thread) -> Option<(Move, i32)> {
         if self.stage == Stage::Done {
             return None;
         }
@@ -117,7 +118,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         if self.stage == Stage::Killer1 {
             self.stage = Stage::Killer2;
 
-            let k1 = info.killer_moves[info.ply][0];
+            let k1 = t.killer_moves[t.ply][0];
             if !self.skip_quiets && k1 != NULL_MOVE && self.tt_move != Some(k1) {
                 let killer = self.find_pred(self.quiet_index, self.bad_tactical_index, |m| m == k1);
 
@@ -138,7 +139,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
                 self.index = self.bad_tactical_index;
             }
 
-            let k2 = info.killer_moves[info.ply][1];
+            let k2 = t.killer_moves[t.ply][1];
             if !self.skip_quiets && k2 != NULL_MOVE && self.tt_move != Some(k2) {
                 let killer = self.find_pred(self.quiet_index, self.bad_tactical_index, |m| m == k2);
 
@@ -154,7 +155,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             self.stage = Stage::Quiets;
             self.index = self.quiet_index; // skip over killers
 
-            info.assign_history_scores(
+            t.assign_history_scores(
                 board.side,
                 &self.move_list.moves[self.index..self.bad_tactical_index],
                 &mut self.scores[self.index..self.bad_tactical_index],
@@ -332,8 +333,6 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 mod tests {
     use super::*;
     use crate::chess::{square::*, tables::*};
-    use crate::engine::{clock::*, tt::*};
-    use std::sync;
 
     #[test]
     fn test_quiet_picker() {
@@ -352,23 +351,16 @@ mod tests {
         let bad_quiet = Move::new(Square::G1, Square::H2, MoveType::Quiet);
 
         let mut picker = MovePicker::<QUIETS>::new(move_list, Some(tt_move), 0);
+        let mut t = Thread::fixed_depth(0);
 
-        let tt = TT::default();
-        let clock = Clock::new(
-            TimeControl::Infinite,
-            sync::Arc::new(sync::atomic::AtomicBool::new(false)),
-            true,
-        );
-
-        let mut info = SearchInfo::new(&tt, clock);
-        info.update_tables(good_quiet, 10, Color::White, vec![bad_quiet]);
-        info.killer_moves[info.ply][0] = k1;
-        info.killer_moves[info.ply][1] = k2; // impossible move
+        t.update_tables(good_quiet, 10, Color::White, vec![bad_quiet]);
+        t.killer_moves[t.ply][0] = k1;
+        t.killer_moves[t.ply][1] = k2; // impossible move
 
         println!("{b}");
 
         let mut moves = Vec::new();
-        while let Some(m) = picker.next(&b, &info) {
+        while let Some(m) = picker.next(&b, &t) {
             println!("{:?} -- Move: {} Score: {}", picker.stage, m.0, m.1);
             moves.push(m);
         }
@@ -395,19 +387,12 @@ mod tests {
         let good_cap = Move::new(Square::B7, Square::C8, MoveType::QueenCapPromo);
 
         let mut picker = MovePicker::<CAPTURES>::new(move_list, Some(tt_move), 0);
-
-        let tt = TT::default();
-        let clock = Clock::new(
-            TimeControl::Infinite,
-            sync::Arc::new(sync::atomic::AtomicBool::new(false)),
-            true,
-        );
-        let info = SearchInfo::new(&tt, clock);
+        let t = Thread::fixed_depth(0);
 
         println!("{b}");
 
         let mut moves = Vec::new();
-        while let Some(m) = picker.next(&b, &info) {
+        while let Some(m) = picker.next(&b, &t) {
             println!("{:?} -- Move: {} Score: {}", picker.stage, m.0, m.1);
             moves.push(m);
             assert!(!m.0.get_type().is_quiet());

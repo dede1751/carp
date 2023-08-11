@@ -1,7 +1,6 @@
-use std::str::FromStr;
-
+/// Position wraps the entire game state.
 use crate::chess::{bitboard::*, board::*, moves::*, piece::*};
-use crate::engine::{move_picker::*, nnue::*, search_info::*, search_params::*};
+use crate::engine::{move_picker::*, nnue::*, search_params::*, thread::*};
 
 /// Position, represents a Board's evolution along the game tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -13,7 +12,7 @@ pub struct Position {
 }
 
 /// Get position from uci position string
-impl FromStr for Position {
+impl std::str::FromStr for Position {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -79,35 +78,35 @@ impl Position {
 
     /// Makes the given move within the game tree
     /// We use std::mem::replace to avoid cloning the board
-    pub fn make_move(&mut self, m: Move, info: &mut SearchInfo) {
+    pub fn make_move(&mut self, m: Move, t: &mut Thread) {
         let new = self.board.make_move_nnue(m, &mut self.nnue_state);
         let old = std::mem::replace(&mut self.board, new);
 
         let piece = old.piece_at(m.get_src());
         self.history.push(old);
 
-        info.push_move(piece, m);
+        t.push_move(piece, m);
     }
 
-    /// Passes turn to opponent (this resets the ply_from_null clock in the search info)
-    pub fn make_null(&mut self, info: &mut SearchInfo) {
+    /// Passes turn to opponent (this resets the ply_from_null clock in the thread)
+    pub fn make_null(&mut self, t: &mut Thread) {
         let new = self.board.make_null();
         let old = std::mem::replace(&mut self.board, new);
 
         self.nnue_state.push();
         self.history.push(old);
 
-        info.push_null();
+        t.push_null();
     }
 
     /// Pops the current board, going back to previous history entry
     /// Panics if the history vector is empty!
-    pub fn undo_move(&mut self, info: &mut SearchInfo) {
+    pub fn undo_move(&mut self, t: &mut Thread) {
         let old_board = self.history.pop().unwrap();
         self.nnue_state.pop();
         self.board = old_board;
 
-        info.pop_move();
+        t.pop_move();
     }
 
     /// Returns true if it's white to move

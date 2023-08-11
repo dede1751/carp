@@ -11,8 +11,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use itertools::Itertools;
 use clap::Args;
+use itertools::Itertools;
 
 /// Merge and deduplicate dategen files in a given directory.
 #[derive(Args)]
