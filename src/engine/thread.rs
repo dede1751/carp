@@ -84,9 +84,13 @@ impl Thread {
         ))
     }
 
-    /// Clear a thread's previous results.
-    pub fn advance_ply(&mut self) {
-        self.killer_moves = [[NULL_MOVE; 2]; MAX_DEPTH];
+    /// Advance a thread by the given amount of ply, resetting previous results.
+    pub fn advance_ply(&mut self, ply: usize) {
+        // Killers are shifted back by the ply advance
+        self.killer_moves.copy_within(ply.., 0);
+        for k in &mut self.killer_moves[MAX_DEPTH - ply..] {
+            *k = [NULL_MOVE; 2];
+        }
 
         self.nodes = 0;
         self.clock.last_nodes = 0; // reset SMP worker threads
@@ -283,8 +287,8 @@ impl ThreadPool {
             time_control,
             pos.white_to_move(),
         );
-        self.main_thread.advance_ply();
-        self.workers.iter_mut().for_each(|t| t.advance_ply());
+        self.main_thread.advance_ply(2);
+        self.workers.iter_mut().for_each(|t| t.advance_ply(2));
 
         self.global_stop.store(false, Ordering::SeqCst);
         self.global_nodes.store(0, Ordering::SeqCst);
