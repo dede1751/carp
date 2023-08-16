@@ -48,6 +48,4 @@ pub const SEE_PRUNING_THRESHOLD: usize = 9;
 pub const SEE_CAPTURE_MARGIN: Eval = -20;
 pub const SEE_QUIET_MARGIN: Eval = -65;
 
-pub const PIECE_VALUES: [Eval; 12] = [
-    161, 161, 446, 446, 464, 464, 705, 705, 1322, 1322, 0, 0,
-];
+pub const PIECE_VALUES: [Eval; 12] = [161, 161, 446, 446, 464, 464, 705, 705, 1322, 1322, 0, 0];

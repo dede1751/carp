@@ -12,7 +12,7 @@ use std::sync::{
 use std::thread;
 
 use crate::chess::{board::*, moves::*, piece::*};
-use crate::engine::{clock::*, history_table::*, position::*, search_params::*, tt::*};
+use crate::engine::{clock::*, position::*, search_params::*, search_tables::*, tt::*};
 
 /// Information only relevant within the search tree (thread local)
 pub struct Thread {
@@ -35,7 +35,7 @@ pub struct Thread {
     pub ply_from_null: usize,
 
     // End of search
-    pub best_move: Move,
+    pub pv: PVTable,
     pub eval: Eval,
     pub depth: usize,
     pub stop: bool,
@@ -61,7 +61,7 @@ impl Thread {
             ply: 0,
             ply_from_null: 0,
 
-            best_move: NULL_MOVE,
+            pv: PVTable::default(),
             eval: -INFINITY,
             depth: 0,
             stop: false,
@@ -84,6 +84,11 @@ impl Thread {
         ))
     }
 
+    /// Get the current best move for the searching thread.
+    pub fn best_move(&self) -> Move {
+        self.pv.moves[0]
+    }
+
     /// Advance a thread by the given amount of ply, resetting previous results.
     pub fn advance_ply(&mut self, ply: usize) {
         // Killers are shifted back by the ply advance
@@ -98,7 +103,7 @@ impl Thread {
         self.ply = 0;
         self.ply_from_null = 0;
 
-        self.best_move = NULL_MOVE;
+        self.pv = PVTable::default();
         self.eval = -INFINITY;
         self.depth = 0;
         self.stop = false;
@@ -182,60 +187,33 @@ impl Thread {
     }
 }
 
-/// Print UCI info
 impl Thread {
-    /// Print pv by traversing the tt from the root
-    fn print_pv(&self, mut board: Board, tt: &TT, depth: usize) {
-        for _ in 0..depth {
-            let tt_move = match tt.probe(board.hash) {
-                Some(e) => e.get_move(),
-                None => break,
-            };
-
-            // move "sanity" check, since a hash collision is possible
-            let move_list = board.gen_moves::<true>();
-
-            if let Some(m) = tt_move {
-                if move_list.moves.contains(&m) {
-                    board = board.make_move(m);
-                    print!(" {m}");
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-        println!();
-    }
-
-    /// Print UCI score info
-    pub fn print(&self, board: Board, tt: &TT) {
+    /// Print UCI search info
+    pub fn print(&self) {
         let score = if self.eval.abs() >= MATE_IN_PLY {
             let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
             if self.eval > 0 {
-                format!("mate {} ", moves_to_mate)
+                format!("mate {}", moves_to_mate)
             } else {
-                format!("mate -{} ", moves_to_mate)
+                format!("mate -{}", moves_to_mate)
             }
         } else {
-            format!("cp {} ", self.eval)
+            format!("cp {}", self.eval)
         };
 
         let time = self.clock.elapsed().as_millis().max(1);
         let nodes = self.clock.global_nodes();
 
-        print!(
-            "info time {} score {} depth {} seldepth {} nodes {} nps {} pv",
+        println!(
+            "info time {} score {} depth {} seldepth {} nodes {} nps {} {}",
             time,
             score,
             self.depth,
             self.seldepth,
             nodes,
             (nodes as u128 * 1000) / time,
+            self.pv
         );
-
-        self.print_pv(board, tt, self.depth);
     }
 }
 
@@ -315,10 +293,6 @@ impl ThreadPool {
 
             // Run the main search thread with info enabled
             pos.iterative_search::<true>(&mut self.main_thread, tt);
-
-            for handle in worker_handles {
-                handle.join().unwrap();
-            }
         });
 
         // Take the moves at highest depth, and from those the ones which occur the most
@@ -328,7 +302,7 @@ impl ThreadPool {
         results
             .filter_map(|t| {
                 if t.depth == highest_depth {
-                    Some(t.best_move)
+                    Some(t.best_move())
                 } else {
                     None
                 }
