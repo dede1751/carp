@@ -19,7 +19,7 @@ impl Position {
             t.eval = eval;
             t.depth += 1;
             if INFO {
-                t.print();
+                println!("{t}");
             }
         }
     }
@@ -124,7 +124,7 @@ impl Position {
 
         // Quiescence search
         if depth == 0 || t.ply >= MAX_DEPTH {
-            return self.quiescence(t, tt, pv, alpha, beta);
+            return self.quiescence(t, tt, alpha, beta);
         }
 
         if !ROOT {
@@ -471,22 +471,12 @@ impl Position {
     }
 
     /// Quiescence search: only search captures to avoid the horizon effect
-    fn quiescence(
-        &mut self,
-        t: &mut Thread,
-        tt: &TT,
-        pv: &mut PVTable,
-        mut alpha: Eval,
-        beta: Eval,
-    ) -> Eval {
+    fn quiescence(&mut self, t: &mut Thread, tt: &TT, mut alpha: Eval, beta: Eval) -> Eval {
         if t.stop || !t.clock.continue_search(t.nodes) {
             t.stop = true;
             return 0;
         }
 
-        let mut old_pv = PVTable::default();
-        pv.length = 0;
-        
         t.seldepth = t.seldepth.max(t.ply);
 
         // Return early when reaching max depth
@@ -556,7 +546,7 @@ impl Position {
         while let Some((m, _)) = picker.next(&self.board, t) {
             self.make_move(m, t);
             tt.prefetch(self.board.hash); // prefetch next hash
-            let eval = -self.quiescence(t, tt, &mut old_pv, -beta, -alpha);
+            let eval = -self.quiescence(t, tt, -beta, -alpha);
             self.undo_move(t);
 
             if t.stop {
@@ -569,7 +559,6 @@ impl Position {
                 if eval > alpha {
                     best_move = m;
                     alpha = eval;
-                    pv.update_pv_line(m, &old_pv);
                 }
 
                 if eval >= beta {

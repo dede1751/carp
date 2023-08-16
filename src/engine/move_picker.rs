@@ -1,5 +1,5 @@
 /// The Move Picker is responsible for choosing which move to search next at a node.
-use crate::chess::{board::*, move_list::*, moves::*, piece::*};
+use crate::chess::{board::*, move_list::*, moves::*};
 use crate::engine::{search_params::*, thread::*};
 
 /// Stages of the move picker.
@@ -41,7 +41,6 @@ pub struct MovePicker<const QUIETS: bool> {
     see_threshold: Eval,
 }
 
-/// Implement iterator functions
 impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Initialize a new MovePicker for the given move list.
     pub fn new(
@@ -241,32 +240,14 @@ pub const TT_SCORE: i32 = i32::MAX;
 pub const KILLER1: i32 = GOOD_TACTICAL + 2;
 pub const KILLER2: i32 = GOOD_TACTICAL + 1;
 
-/// Tactical scoring: [10 - 70] + [1.000.000-2.000.000]
+/// Tactical scoring: [10 - 60] + [1.000.000-2.000.000]
 pub const GOOD_TACTICAL: i32 = 2_000_000;
 pub const BAD_TACTICAL: i32 = 1_000_000;
 
-const PROMO_SCORE: i32 = 70; // Queen promotions have best MVV-LVA value, but still less than good tacticals
-const EP_SCORE: i32 = 15; // EP equal to pxp
+const PROMO_SCORE: i32 = 60; // Queen promotions have best MVV-LVA value, but still less than good tacticals
+const EP_SCORE: i32 = 10; // EP equal to pxp
 
 pub const HISTORY_MAX: i32 = 49152; // Quiet moves have scores between +- 49152
-
-// Attacker is the row, victim is the column
-#[rustfmt::skip]
-const MVV_LVA: [[i32; PIECE_COUNT]; PIECE_COUNT] = [
-//    WP  BP  WN  BN  WB  BB  WR  BR  WQ  BQ  WK  BK 
-    [ 15, 15, 25, 25, 35, 35, 45, 45, 55, 55, 65, 65 ], // WP
-    [ 15, 15, 25, 25, 35, 35, 45, 45, 55, 55, 65, 65 ], // BP
-    [ 14, 14, 24, 24, 34, 34, 44, 44, 54, 54, 64, 64 ], // WN
-    [ 14, 14, 24, 24, 34, 34, 44, 44, 54, 54, 64, 64 ], // BN
-    [ 13, 13, 23, 23, 33, 33, 43, 43, 53, 53, 63, 63 ], // WB
-    [ 13, 13, 23, 23, 33, 33, 43, 43, 53, 53, 63, 63 ], // BB
-    [ 12, 12, 22, 22, 32, 32, 42, 42, 52, 52, 62, 62 ], // WR
-    [ 12, 12, 22, 22, 32, 32, 42, 42, 52, 52, 62, 62 ], // BR
-    [ 11, 11, 21, 21, 31, 31, 41, 41, 51, 51, 61, 61 ], // WQ
-    [ 11, 11, 21, 21, 31, 31, 41, 41, 51, 51, 61, 61 ], // BQ
-    [ 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60 ], // WK
-    [ 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60 ], // BK
-];
 
 /// Score a single tactical move. These moves are either captures or queen promotions.
 fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
@@ -281,10 +262,10 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
         _ => {
-            let attacker = board.piece_at(m.get_src()) as usize;
-            let victim = board.piece_at(m.get_tgt()) as usize;
+            let attacker = board.piece_at(m.get_src()) as i32;
+            let victim = board.piece_at(m.get_tgt()) as i32;
 
-            MVV_LVA[attacker][victim]
+            10 + (victim / 2) * 8 - (attacker / 2)
         }
     };
 
@@ -332,7 +313,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess::{square::*, tables::*};
+    use crate::chess::{square::*, tables::*, piece::*};
 
     #[test]
     fn test_quiet_picker() {

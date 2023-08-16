@@ -41,11 +41,42 @@ pub struct Thread {
     pub stop: bool,
 }
 
+/// Display UCI info
+impl std::fmt::Display for Thread {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let score = if self.eval.abs() >= MATE_IN_PLY {
+            let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
+            if self.eval > 0 {
+                format!("mate {}", moves_to_mate)
+            } else {
+                format!("mate -{}", moves_to_mate)
+            }
+        } else {
+            format!("cp {}", self.eval)
+        };
+
+        let time = self.clock.elapsed().as_millis().max(1);
+        let nodes = self.clock.global_nodes();
+
+        write!(
+            f,
+            "info time {} score {} depth {} seldepth {} nodes {} nps {} {}",
+            time,
+            score,
+            self.depth,
+            self.seldepth,
+            nodes,
+            (nodes as u128 * 1000) / time,
+            self.pv
+        )
+    }
+}
+
 impl Thread {
     /// Create a new Thread struct with the given Clock.
     /// All other fields are initialized as empty.
-    pub fn new(clock: Clock) -> Thread {
-        Thread {
+    pub fn new(clock: Clock) -> Self {
+        Self {
             clock,
             search_stack: [(Piece::WP, NULL_MOVE, 0); MAX_DEPTH],
             eval_stack: [0; MAX_DEPTH],
@@ -70,13 +101,13 @@ impl Thread {
 
     /// Initialize a spinner thread with the given shared counters.
     /// Use this as either a placeholder thread to then set TC, or as a SMP worker thread.
-    pub fn spinner(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Thread {
-        Thread::new(Clock::spin_clock(global_stop, global_nodes))
+    pub fn spinner(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Self {
+        Self::new(Clock::spin_clock(global_stop, global_nodes))
     }
 
     /// Initialize a thread searching at a fixed depth.
-    pub fn fixed_depth(depth: usize) -> Thread {
-        Thread::new(Clock::new(
+    pub fn fixed_depth(depth: usize) -> Self {
+        Self::new(Clock::new(
             Arc::new(AtomicBool::new(false)),
             Arc::new(AtomicU64::new(0)),
             TimeControl::FixedDepth(depth),
@@ -187,36 +218,6 @@ impl Thread {
     }
 }
 
-impl Thread {
-    /// Print UCI search info
-    pub fn print(&self) {
-        let score = if self.eval.abs() >= MATE_IN_PLY {
-            let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
-            if self.eval > 0 {
-                format!("mate {}", moves_to_mate)
-            } else {
-                format!("mate -{}", moves_to_mate)
-            }
-        } else {
-            format!("cp {}", self.eval)
-        };
-
-        let time = self.clock.elapsed().as_millis().max(1);
-        let nodes = self.clock.global_nodes();
-
-        println!(
-            "info time {} score {} depth {} seldepth {} nodes {} nps {} {}",
-            time,
-            score,
-            self.depth,
-            self.seldepth,
-            nodes,
-            (nodes as u128 * 1000) / time,
-            self.pv
-        );
-    }
-}
-
 /// ThreadPool specific for handling LazySMP
 pub struct ThreadPool {
     main_thread: Thread,
@@ -227,10 +228,10 @@ pub struct ThreadPool {
 
 impl ThreadPool {
     /// Initialize a new threadpool with one single worker, holding the given global stop flag.
-    pub fn new(global_stop: Arc<AtomicBool>) -> ThreadPool {
+    pub fn new(global_stop: Arc<AtomicBool>) -> Self {
         let global_nodes = Arc::new(AtomicU64::new(0));
 
-        ThreadPool {
+        Self {
             main_thread: Thread::spinner(global_stop.clone(), global_nodes.clone()),
             workers: Vec::new(),
             global_stop,

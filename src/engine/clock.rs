@@ -47,10 +47,10 @@ impl FromStr for TimeControl {
         while let Some(token) = tokens.next() {
             // needed to be able to pass tokens to parse_value
             match token {
-                "infinite" => return Ok(TimeControl::Infinite),
-                "depth" => return Ok(TimeControl::FixedDepth(parse_value(&mut tokens)?)),
-                "nodes" => return Ok(TimeControl::FixedNodes(parse_value(&mut tokens)?)),
-                "movetime" => return Ok(TimeControl::FixedTime(parse_value(&mut tokens)?)),
+                "infinite" => return Ok(Self::Infinite),
+                "depth" => return Ok(Self::FixedDepth(parse_value(&mut tokens)?)),
+                "nodes" => return Ok(Self::FixedNodes(parse_value(&mut tokens)?)),
+                "movetime" => return Ok(Self::FixedTime(parse_value(&mut tokens)?)),
                 "wtime" => wtime = Some(parse_value::<i64>(&mut tokens)?.max(0) as u64), // handle negative values
                 "btime" => btime = Some(parse_value::<i64>(&mut tokens)?.max(0) as u64),
                 "winc" => winc = Some(parse_value(&mut tokens)?),
@@ -61,7 +61,7 @@ impl FromStr for TimeControl {
         }
 
         if let (Some(wtime), Some(btime)) = (wtime, btime) {
-            Ok(TimeControl::Variable {
+            Ok(Self::Variable {
                 wtime,
                 btime,
                 winc,
@@ -99,7 +99,7 @@ impl Clock {
         global_nodes: Arc<AtomicU64>,
         time_control: TimeControl,
         white_to_move: bool,
-    ) -> Clock {
+    ) -> Self {
         let (opt_time, max_time) = match time_control {
             TimeControl::FixedTime(time) => (
                 Duration::from_millis(time - OVERHEAD.min(time)),
@@ -149,7 +149,7 @@ impl Clock {
             _ => (Duration::ZERO, Duration::ZERO),
         };
 
-        Clock {
+        Self {
             global_stop,
             global_nodes,
             time_control,
@@ -162,8 +162,8 @@ impl Clock {
     }
 
     /// Initialize a spinner clock (used as a placeholder or for SMP workers)
-    pub fn spin_clock(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Clock {
-        Clock::new(global_stop, global_nodes, TimeControl::Infinite, false)
+    pub fn spin_clock(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Self {
+        Self::new(global_stop, global_nodes, TimeControl::Infinite, false)
     }
 
     /// Returns the global node count across threads.

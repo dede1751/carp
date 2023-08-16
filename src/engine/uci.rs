@@ -19,62 +19,6 @@ const ENGINE_OPTIONS: &str = "
 option name Hash type spin default 16 min 1 max 1048576 
 option name Threads type spin default 1 min 1 max 512";
 
-/// UCI reader responsible of reading input and forwarding commands to the main controller
-/// We keep a global stop flag that we hand out through an reference counted pointer to all search
-/// threads, to be able to stop the search upon receiving the stop/quit command.
-///
-/// implementation inspired by weiawaga/asymptote
-pub struct UCIReader {
-    stop: Arc<AtomicBool>,
-    controller_tx: mpsc::Sender<UCICommand>,
-}
-
-impl Default for UCIReader {
-    fn default() -> Self {
-        let (tx, rx) = mpsc::channel::<UCICommand>();
-        let stop = Arc::new(AtomicBool::new(false));
-        let thread_stop = stop.clone();
-        thread::spawn(move || UCIController::run(rx, thread_stop));
-
-        UCIReader {
-            stop,
-            controller_tx: tx,
-        }
-    }
-}
-
-/// Handles communication with the gui and communicates with main engine thread
-impl UCIReader {
-    /// Start UCI I/O loop
-    pub fn run(&self) {
-        println!("{NAME} v{VERSION} by {AUTHOR}");
-
-        let stream = io::stdin().lock();
-
-        for line in stream.lines().map(|l| l.expect("Parsing error!")) {
-            match line.parse::<UCICommand>() {
-                Ok(command) => {
-                    match command {
-                        UCICommand::Uci => {
-                            println!("id name {NAME} {VERSION}");
-                            println!("id author {AUTHOR}");
-                            println!("{ENGINE_OPTIONS}");
-                            println!("uciok");
-                        }
-                        UCICommand::IsReady => {
-                            println!("readyok");
-                        }
-                        UCICommand::Stop => self.stop.store(true, Ordering::SeqCst), // strict ordering
-                        UCICommand::Quit => return,
-                        _ => self.controller_tx.send(command).unwrap(),
-                    }
-                }
-                Err(e) => eprintln!("{e}"),
-            };
-        }
-    }
-}
-
 /// Enum to represent UCI commands (and extra debug commands)
 enum UCICommand {
     // Main UCI commands
@@ -129,6 +73,61 @@ impl FromStr for UCICommand {
             Some("stop") => Ok(Self::Stop),
             Some("quit") => Ok(Self::Quit),
             _ => Err("Error parsing command!"),
+        }
+    }
+}
+
+/// UCI reader responsible of reading input and forwarding commands to the main controller
+/// We keep a global stop flag that we hand out through an reference counted pointer to all search
+/// threads, to be able to stop the search upon receiving the stop/quit command.
+///
+/// implementation inspired by weiawaga/asymptote
+pub struct UCIReader {
+    stop: Arc<AtomicBool>,
+    controller_tx: mpsc::Sender<UCICommand>,
+}
+
+impl Default for UCIReader {
+    fn default() -> Self {
+        let (tx, rx) = mpsc::channel::<UCICommand>();
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_stop = stop.clone();
+        thread::spawn(move || UCIController::run(rx, thread_stop));
+
+        UCIReader {
+            stop,
+            controller_tx: tx,
+        }
+    }
+}
+
+impl UCIReader {
+    /// Start UCI I/O loop
+    pub fn run(&self) {
+        println!("{NAME} v{VERSION} by {AUTHOR}");
+
+        let stream = io::stdin().lock();
+
+        for line in stream.lines().map(|l| l.expect("Parsing error!")) {
+            match line.parse::<UCICommand>() {
+                Ok(command) => {
+                    match command {
+                        UCICommand::Uci => {
+                            println!("id name {NAME} {VERSION}");
+                            println!("id author {AUTHOR}");
+                            println!("{ENGINE_OPTIONS}");
+                            println!("uciok");
+                        }
+                        UCICommand::IsReady => {
+                            println!("readyok");
+                        }
+                        UCICommand::Stop => self.stop.store(true, Ordering::SeqCst), // strict ordering
+                        UCICommand::Quit => return,
+                        _ => self.controller_tx.send(command).unwrap(),
+                    }
+                }
+                Err(e) => eprintln!("{e}"),
+            };
         }
     }
 }

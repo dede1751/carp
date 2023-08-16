@@ -49,7 +49,7 @@ impl std::str::FromStr for Position {
 
         let nnue_state = NNUEState::from_board(&board);
 
-        Ok(Position {
+        Ok(Self {
             board,
             history,
             nnue_state,
