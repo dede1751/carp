@@ -12,7 +12,7 @@ use std::sync::{
 use std::thread;
 
 use crate::chess::{board::*, moves::*, piece::*};
-use crate::engine::{clock::*, history_table::*, position::*, search_params::*, tt::*};
+use crate::engine::{clock::*, position::*, search_params::*, search_tables::*, tt::*};
 
 /// Information only relevant within the search tree (thread local)
 pub struct Thread {
@@ -35,17 +35,48 @@ pub struct Thread {
     pub ply_from_null: usize,
 
     // End of search
-    pub best_move: Move,
+    pub pv: PVTable,
     pub eval: Eval,
     pub depth: usize,
     pub stop: bool,
 }
 
+/// Display UCI info
+impl std::fmt::Display for Thread {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let score = if self.eval.abs() >= MATE_IN_PLY {
+            let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
+            if self.eval > 0 {
+                format!("mate {}", moves_to_mate)
+            } else {
+                format!("mate -{}", moves_to_mate)
+            }
+        } else {
+            format!("cp {}", self.eval)
+        };
+
+        let time = self.clock.elapsed().as_millis().max(1);
+        let nodes = self.clock.global_nodes();
+
+        write!(
+            f,
+            "info time {} score {} depth {} seldepth {} nodes {} nps {} {}",
+            time,
+            score,
+            self.depth,
+            self.seldepth,
+            nodes,
+            (nodes as u128 * 1000) / time,
+            self.pv
+        )
+    }
+}
+
 impl Thread {
     /// Create a new Thread struct with the given Clock.
     /// All other fields are initialized as empty.
-    pub fn new(clock: Clock) -> Thread {
-        Thread {
+    pub fn new(clock: Clock) -> Self {
+        Self {
             clock,
             search_stack: [(Piece::WP, NULL_MOVE, 0); MAX_DEPTH],
             eval_stack: [0; MAX_DEPTH],
@@ -61,7 +92,7 @@ impl Thread {
             ply: 0,
             ply_from_null: 0,
 
-            best_move: NULL_MOVE,
+            pv: PVTable::default(),
             eval: -INFINITY,
             depth: 0,
             stop: false,
@@ -70,18 +101,23 @@ impl Thread {
 
     /// Initialize a spinner thread with the given shared counters.
     /// Use this as either a placeholder thread to then set TC, or as a SMP worker thread.
-    pub fn spinner(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Thread {
-        Thread::new(Clock::spin_clock(global_stop, global_nodes))
+    pub fn spinner(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Self {
+        Self::new(Clock::spin_clock(global_stop, global_nodes))
     }
 
     /// Initialize a thread searching at a fixed depth.
-    pub fn fixed_depth(depth: usize) -> Thread {
-        Thread::new(Clock::new(
+    pub fn fixed_depth(depth: usize) -> Self {
+        Self::new(Clock::new(
             Arc::new(AtomicBool::new(false)),
             Arc::new(AtomicU64::new(0)),
             TimeControl::FixedDepth(depth),
             false,
         ))
+    }
+
+    /// Get the current best move for the searching thread.
+    pub fn best_move(&self) -> Move {
+        self.pv.moves[0]
     }
 
     /// Advance a thread by the given amount of ply, resetting previous results.
@@ -98,7 +134,7 @@ impl Thread {
         self.ply = 0;
         self.ply_from_null = 0;
 
-        self.best_move = NULL_MOVE;
+        self.pv = PVTable::default();
         self.eval = -INFINITY;
         self.depth = 0;
         self.stop = false;
@@ -182,63 +218,6 @@ impl Thread {
     }
 }
 
-/// Print UCI info
-impl Thread {
-    /// Print pv by traversing the tt from the root
-    fn print_pv(&self, mut board: Board, tt: &TT, depth: usize) {
-        for _ in 0..depth {
-            let tt_move = match tt.probe(board.hash) {
-                Some(e) => e.get_move(),
-                None => break,
-            };
-
-            // move "sanity" check, since a hash collision is possible
-            let move_list = board.gen_moves::<true>();
-
-            if let Some(m) = tt_move {
-                if move_list.moves.contains(&m) {
-                    board = board.make_move(m);
-                    print!(" {m}");
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-        println!();
-    }
-
-    /// Print UCI score info
-    pub fn print(&self, board: Board, tt: &TT) {
-        let score = if self.eval.abs() >= MATE_IN_PLY {
-            let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
-            if self.eval > 0 {
-                format!("mate {} ", moves_to_mate)
-            } else {
-                format!("mate -{} ", moves_to_mate)
-            }
-        } else {
-            format!("cp {} ", self.eval)
-        };
-
-        let time = self.clock.elapsed().as_millis().max(1);
-        let nodes = self.clock.global_nodes();
-
-        print!(
-            "info time {} score {} depth {} seldepth {} nodes {} nps {} pv",
-            time,
-            score,
-            self.depth,
-            self.seldepth,
-            nodes,
-            (nodes as u128 * 1000) / time,
-        );
-
-        self.print_pv(board, tt, self.depth);
-    }
-}
-
 /// ThreadPool specific for handling LazySMP
 pub struct ThreadPool {
     main_thread: Thread,
@@ -249,10 +228,10 @@ pub struct ThreadPool {
 
 impl ThreadPool {
     /// Initialize a new threadpool with one single worker, holding the given global stop flag.
-    pub fn new(global_stop: Arc<AtomicBool>) -> ThreadPool {
+    pub fn new(global_stop: Arc<AtomicBool>) -> Self {
         let global_nodes = Arc::new(AtomicU64::new(0));
 
-        ThreadPool {
+        Self {
             main_thread: Thread::spinner(global_stop.clone(), global_nodes.clone()),
             workers: Vec::new(),
             global_stop,
@@ -315,10 +294,6 @@ impl ThreadPool {
 
             // Run the main search thread with info enabled
             pos.iterative_search::<true>(&mut self.main_thread, tt);
-
-            for handle in worker_handles {
-                handle.join().unwrap();
-            }
         });
 
         // Take the moves at highest depth, and from those the ones which occur the most
@@ -328,7 +303,7 @@ impl ThreadPool {
         results
             .filter_map(|t| {
                 if t.depth == highest_depth {
-                    Some(t.best_move)
+                    Some(t.best_move())
                 } else {
                     None
                 }

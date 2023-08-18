@@ -1,8 +1,46 @@
-/// History Tables are structures used for ordering quiet moves.
-/// Whenever a quiet move fails high, it receives a history bonus.
-/// Since it would be impossible to precisely index each move, history tables have different indexing
-/// schemes depending on the sort of "history" they are trying to track.
+/// Implements various tables used within the search:
+///    - History Tables: used for ordering quiet moves
+///    - PV Table: holds the principal variation, which is the main line the engine predicts
 use crate::chess::{moves::*, piece::*, square::*};
+use crate::engine::search_params::*;
+
+/// PV Tables store the principal variation.
+/// Whenever a move scores within the window, it is added to the PV table of its child subtree.
+#[derive(Clone, Debug)]
+pub struct PVTable {
+    pub length: usize,
+    pub moves: [Move; MAX_DEPTH],
+}
+
+impl Default for PVTable {
+    fn default() -> Self {
+        Self {
+            length: 0,
+            moves: [NULL_MOVE; MAX_DEPTH],
+        }
+    }
+}
+
+impl std::fmt::Display for PVTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::from("pv");
+
+        for m in &self.moves[0..self.length] {
+            s.push_str(&format!(" {m}"));
+        }
+
+        write!(f, "{}", s)
+    }
+}
+
+impl PVTable {
+    /// Extend a shallower PV line with a new move, overwriting the old line.
+    pub fn update_pv_line(&mut self, m: Move, old: &Self) {
+        self.length = old.length + 1;
+        self.moves[0] = m;
+        self.moves[1..=old.length].copy_from_slice(&old.moves[..old.length]);
+    }
+}
 
 pub type History = [[[i16; SQUARE_COUNT]; SQUARE_COUNT]; 2];
 pub type DoubleHistory = [[[[i16; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
@@ -32,7 +70,7 @@ pub struct HistoryTable {
 
 impl Default for HistoryTable {
     fn default() -> Self {
-        HistoryTable {
+        Self {
             history: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
         }
     }
@@ -92,8 +130,8 @@ fn box_array<T>() -> Box<T> {
 
 impl Default for DoubleHistoryTable {
     fn default() -> Self {
-        DoubleHistoryTable {
-            history: box_array::<DoubleHistory>(),
+        Self {
+            history: box_array(),
         }
     }
 }

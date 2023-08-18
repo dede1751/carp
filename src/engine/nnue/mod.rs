@@ -37,7 +37,7 @@ struct NNUEParams {
 }
 
 /// NNUE model is initialized from binary values (Viridithas format)
-static MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("net.bin")) };
+const MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("net.bin")) };
 
 /// Generic wrapper for types aligned to 64B for AVX512 (also a Viridithas trick)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -213,7 +213,7 @@ impl NNUEState {
 }
 
 /// Returns white and black feature weight index for given feature
-fn nnue_index(piece: Piece, sq: Square) -> (usize, usize) {
+const fn nnue_index(piece: Piece, sq: Square) -> (usize, usize) {
     const COLOR_STRIDE: usize = 64 * 6;
     const PIECE_STRIDE: usize = 64;
     let p = (piece as usize) / 2;

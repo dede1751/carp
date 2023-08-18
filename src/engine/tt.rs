@@ -139,7 +139,7 @@ impl From<TTEntry> for (u64, u64) {
 /// Convert from compressed internal to external
 impl From<(u64, u64)> for TTEntry {
     fn from((key, data): (u64, u64)) -> Self {
-        TTEntry {
+        Self {
             key,
             age: (data & AGE_MASK) as u8,
             depth: ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8,
@@ -285,9 +285,6 @@ impl TT {
             || ((old.flag != TTFlag::Exact && (flag == TTFlag::Exact || depth >= old.depth as usize))
             || (old.flag == TTFlag::Exact && flag == TTFlag::Exact && depth > old.depth as usize))
         {
-            // Normalize search eval to node distance
-            let eval = to_tt(eval, ply);
-
             // Don't overwrite best moves with null moves
             let best_move = if best_move != NULL_MOVE {
                 best_move
@@ -301,7 +298,7 @@ impl TT {
                 depth: depth as u8,
                 flag,
                 best_move,
-                eval,
+                eval: to_tt(eval, ply),
                 static_eval: static_eval as i16,
             });
         }

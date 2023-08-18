@@ -178,7 +178,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
             // filter noisy positions
             if !position.king_in_check()
                 && thread.eval.abs() < MATE_IN_PLY
-                && thread.best_move.get_type().is_quiet()
+                && thread.best_move().get_type().is_quiet()
                 && position.ply() > 16
             {
                 // Always report scores from white's perspective
@@ -218,7 +218,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
                 break GameResult::Draw(ADJ);
             }
 
-            position.push_move(thread.best_move);
+            position.push_move(thread.best_move());
         };
 
         // Always report wins from white's perspective

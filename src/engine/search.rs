@@ -1,12 +1,14 @@
 /// The Search module implements Carp's Alpha-Beta algorithm for single-threaded tree search.
 use crate::chess::{board::*, moves::*, tables::*};
-use crate::engine::{move_picker::*, position::*, search_params::*, thread::*, tt::*};
+use crate::engine::{
+    move_picker::*, position::*, search_params::*, search_tables::*, thread::*, tt::*,
+};
 
 impl Position {
     /// Iteratively searches the position at increasing depth
     /// Search results remain stored within the thread.
     pub fn iterative_search<const INFO: bool>(&mut self, t: &mut Thread, tt: &TT) {
-        while t.depth < MAX_DEPTH && t.clock.start_search(t.depth + 1, t.nodes, t.best_move) {
+        while t.depth < MAX_DEPTH && t.clock.start_search(t.depth + 1, t.nodes, t.best_move()) {
             let eval = self.aspiration_window(t, tt);
 
             if t.stop {
@@ -17,7 +19,7 @@ impl Position {
             t.eval = eval;
             t.depth += 1;
             if INFO {
-                t.print(self.board.clone(), tt);
+                println!("{t}");
             }
         }
     }
@@ -26,6 +28,7 @@ impl Position {
     /// Run searches on progressively wider windows until we find a value within the window.
     /// This may update the best move even though we do not fully complete the loop.
     fn aspiration_window(&mut self, t: &mut Thread, tt: &TT) -> Eval {
+        let mut pv = PVTable::default();
         let mut new_depth = t.depth + 1;
         let mut alpha = -INFINITY;
         let mut beta = INFINITY;
@@ -38,8 +41,7 @@ impl Position {
         }
 
         loop {
-            let prev_best = t.best_move;
-            let eval = self.negamax::<true>(t, tt, alpha, beta, new_depth, false);
+            let eval = self.negamax::<true>(t, tt, &mut pv, alpha, beta, new_depth, false);
             if t.stop {
                 return -INFINITY;
             }
@@ -49,16 +51,17 @@ impl Position {
                 beta = (alpha + beta) / 2;
                 alpha = (-INFINITY).max(alpha - delta);
                 new_depth = t.depth + 1;
-                t.best_move = prev_best;
             } else if eval >= beta {
                 // Fail-high: widen window up, reduce depth and save the best move
                 beta = (INFINITY).min(beta + delta);
+                t.pv = pv.clone();
 
                 if eval.abs() < MATE_IN_PLY && new_depth > 1 {
                     new_depth -= 1;
                 }
             } else {
                 // Search within window, success
+                t.pv = pv;
                 return eval;
             }
 
@@ -71,11 +74,26 @@ impl Position {
         }
     }
 
+    /// Perform a Null-Window search to prove a position scores above/below the baseline eval.
+    fn zw_search(
+        &mut self,
+        t: &mut Thread,
+        tt: &TT,
+        pv: &mut PVTable,
+        eval: Eval,
+        depth: usize,
+        cutnode: bool,
+    ) -> Eval {
+        self.negamax::<false>(t, tt, pv, eval - 1, eval, depth, cutnode)
+    }
+
     /// Standard alpha-beta negamax tree search
+    #[allow(clippy::too_many_arguments)]
     fn negamax<const ROOT: bool>(
         &mut self,
         t: &mut Thread,
         tt: &TT,
+        pv: &mut PVTable,
         mut alpha: Eval,
         mut beta: Eval,
         mut depth: usize,
@@ -88,6 +106,10 @@ impl Position {
 
         let pv_node = alpha != beta - 1;
         let in_check = self.king_in_check();
+
+        let mut old_pv = PVTable::default();
+        let opv = &mut old_pv;
+        pv.length = 0;
 
         if ROOT {
             t.seldepth = 0;
@@ -231,7 +253,7 @@ impl Position {
                 let r = (NMP_BASE + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(t);
-                let eval = -self.negamax::<false>(t, tt, -beta, -beta + 1, depth - r, !cutnode);
+                let eval = -self.zw_search(t, tt, opv, -(beta - 1), depth - r, !cutnode);
                 self.undo_move(t);
 
                 // cutoff above beta
@@ -328,7 +350,7 @@ impl Position {
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
 
                 t.excluded[t.ply] = Some(m);
-                let eval = self.negamax::<false>(t, tt, se_beta - 1, se_beta, se_depth, cutnode);
+                let eval = self.zw_search(t, tt, opv, se_beta, se_depth, cutnode);
                 t.excluded[t.ply] = None;
 
                 if eval < se_beta {
@@ -369,7 +391,7 @@ impl Position {
 
                     // Reduced depth null window search
                     // Since we are speculating being an allnode, expect the child to be a cutnode
-                    eval = -self.negamax::<false>(t, tt, -alpha - 1, -alpha, ext_depth - r, true);
+                    eval = -self.zw_search(t, tt, opv, -alpha, ext_depth - r, true);
                     eval > alpha && r > 1
                 } else {
                     !pv_node || move_count > 0
@@ -378,13 +400,13 @@ impl Position {
             // Full depth null window search when lmr fails or when using pvs
             // Allnodes/Cutnodes alternate
             if full_depth_search {
-                eval = -self.negamax::<false>(t, tt, -alpha - 1, -alpha, ext_depth - 1, !cutnode);
+                eval = -self.zw_search(t, tt, opv, -alpha, ext_depth - 1, !cutnode);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
             // We expect the child node to be a PV node
             if pv_node && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax::<false>(t, tt, -beta, -alpha, ext_depth - 1, false);
+                eval = -self.negamax::<false>(t, tt, opv, -beta, -alpha, ext_depth - 1, false);
             }
 
             self.undo_move(t);
@@ -404,6 +426,7 @@ impl Position {
                 if eval > alpha {
                     best_move = m;
                     alpha = eval;
+                    pv.update_pv_line(m, opv);
                 }
 
                 if eval >= beta {
@@ -442,10 +465,6 @@ impl Position {
                 depth,
                 t.ply,
             );
-        }
-
-        if ROOT {
-            t.best_move = best_move;
         }
 
         alpha
@@ -487,7 +506,6 @@ impl Position {
 
         // Compute the static eval when not in check
         let mut stand_pat = -INFINITY;
-        let old_alpha = alpha;
 
         if !in_check {
             if let Some(entry) = tt_entry {
@@ -510,14 +528,15 @@ impl Position {
             } else {
                 stand_pat = self.evaluate();
             }
-
-            // Stand pat pruning
-            alpha = alpha.max(stand_pat);
-
-            if stand_pat >= beta {
-                return stand_pat;
-            }
         };
+
+        // Stand pat pruning
+        let old_alpha = alpha;
+        alpha = alpha.max(stand_pat);
+
+        if stand_pat >= beta {
+            return stand_pat;
+        }
 
         let mut best_move = NULL_MOVE;
         let mut best_eval = stand_pat;
@@ -612,7 +631,7 @@ mod tests {
 
             println!(
                 "\nDEPTH: {depth} Found {} in {duration:?}\n--------------------------------\n",
-                t.best_move,
+                t.best_move(),
             );
         }
     }
