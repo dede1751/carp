@@ -1,5 +1,5 @@
 /// The Move Picker is responsible for choosing which move to search next at a node.
-use crate::chess::{board::*, move_list::*, moves::*};
+use crate::chess::{board::*, move_list::*, moves::*, piece::*};
 use crate::engine::{search_params::*, thread::*};
 
 /// Stages of the move picker.
@@ -240,12 +240,15 @@ pub const TT_SCORE: i32 = i32::MAX;
 pub const KILLER1: i32 = GOOD_TACTICAL + 2;
 pub const KILLER2: i32 = GOOD_TACTICAL + 1;
 
-/// Tactical scoring: [10 - 60] + [1.000.000-2.000.000]
+/// Tactical scoring: [10 - 70] + [1.000.000-2.000.000]
 pub const GOOD_TACTICAL: i32 = 2_000_000;
 pub const BAD_TACTICAL: i32 = 1_000_000;
 
-const PROMO_SCORE: i32 = 60; // Queen promotions have best MVV-LVA value, but still less than good tacticals
-const EP_SCORE: i32 = 10; // EP equal to pxp
+const MVV: [i32; PIECE_COUNT] = [10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60];
+const LVA: [i32; PIECE_COUNT] = [5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0];
+
+const PROMO_SCORE: i32 = 70; // Queen promotions have best MVV-LVA value, but still less than good tacticals
+const EP_SCORE: i32 = 15; // EP equal to pxp
 
 pub const HISTORY_MAX: i32 = 49152; // Quiet moves have scores between +- 49152
 
@@ -262,10 +265,10 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
         _ => {
-            let attacker = board.piece_at(m.get_src()) as i32;
-            let victim = board.piece_at(m.get_tgt()) as i32;
+            let attacker = board.piece_at(m.get_src()) as usize;
+            let victim = board.piece_at(m.get_tgt()) as usize;
 
-            10 + (victim / 2) * 8 - (attacker / 2)
+            MVV[victim] + LVA[attacker]
         }
     };
 
@@ -313,7 +316,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chess::{square::*, tables::*, piece::*};
+    use crate::chess::{square::*, tables::*};
 
     #[test]
     fn test_quiet_picker() {
