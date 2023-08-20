@@ -140,7 +140,7 @@ impl From<TTEntry> for (u64, u64) {
 impl From<(u64, u64)> for TTEntry {
     fn from((key, data): (u64, u64)) -> Self {
         Self {
-            key,
+            key: key ^ data,
             age: (data & AGE_MASK) as u8,
             depth: ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8,
             flag: unsafe { transmute(((data & FLAG_MASK) >> FLAG_OFFSET) as u8) },
@@ -159,7 +159,7 @@ impl AtomicField {
         let data = self.data.load(Ordering::SeqCst);
 
         if key ^ checksum == data {
-            Some(TTEntry::from((checksum, data)))
+            Some(TTEntry::from((key, data)))
         } else {
             None
         }
@@ -271,7 +271,7 @@ impl TT {
         &self,
         hash: ZHash,
         flag: TTFlag,
-        best_move: Move,
+        mut best_move: Move,
         eval: Eval,
         static_eval: Eval,
         depth: usize,
@@ -286,11 +286,9 @@ impl TT {
             || (old.flag == TTFlag::Exact && flag == TTFlag::Exact && depth > old.depth as usize))
         {
             // Don't overwrite best moves with null moves
-            let best_move = if best_move != NULL_MOVE {
-                best_move
-            } else {
-                old.best_move
-            };
+            if best_move == NULL_MOVE && hash.0 == old.key {
+                best_move = old.best_move;
+            }
 
             old_slot.write(TTEntry {
                 key: hash.0,
