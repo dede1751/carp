@@ -219,6 +219,7 @@ impl Position {
                     stand_pat,
                     0,
                     t.ply,
+                    false,
                 );
             }
         };
@@ -469,6 +470,7 @@ impl Position {
                 stand_pat,
                 depth,
                 t.ply,
+                pv_node,
             );
         }
 
@@ -596,6 +598,7 @@ impl Position {
                 stand_pat,
                 0,
                 t.ply,
+                false,
             );
         }
 
