@@ -324,13 +324,13 @@ mod tests {
         let z = ZHash(0);
 
         tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 1, 0, false); // insert in empty field
-        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 2, 0, false); // replace
-        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 1, 0, false); // do not replace
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 12, 0, false); // replace
+        tt.insert(z, TTFlag::Upper, Move(1), 100, 100, 1, 0, false); // do not replace
 
         let target1 = tt.probe(z).unwrap();
         let target2 = tt.probe(ZHash(8));
 
-        assert_eq!(2, target1.get_depth());
+        assert_eq!(12, target1.get_depth());
         assert!(target2.is_none());
     }
 

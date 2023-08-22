@@ -74,7 +74,7 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
   - Killers
   - History / Counter Move History / Followup History
 * Multithreading with Lazy-SMP
-* Lockless Transposition table with newest + highest depth replacement scheme
+* Lockless Transposition table with aging
 * Principal Variation Search
 * Internal Iterative Reductions
 * Late Move Reductions
