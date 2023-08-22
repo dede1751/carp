@@ -140,7 +140,7 @@ impl From<TTEntry> for (u64, u64) {
 impl From<(u64, u64)> for TTEntry {
     fn from((key, data): (u64, u64)) -> Self {
         Self {
-            key,
+            key: key ^ data,
             age: (data & AGE_MASK) as u8,
             depth: ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8,
             flag: unsafe { transmute(((data & FLAG_MASK) >> FLAG_OFFSET) as u8) },
@@ -159,7 +159,7 @@ impl AtomicField {
         let data = self.data.load(Ordering::SeqCst);
 
         if key ^ checksum == data {
-            Some(TTEntry::from((checksum, data)))
+            Some(TTEntry::from((key, data)))
         } else {
             None
         }
@@ -271,26 +271,26 @@ impl TT {
         &self,
         hash: ZHash,
         flag: TTFlag,
-        best_move: Move,
+        mut best_move: Move,
         eval: Eval,
         static_eval: Eval,
         depth: usize,
-        ply: usize
+        ply: usize,
+        pv: bool,
     ) {
         let old_slot = unsafe { self.table.get_unchecked(self.get_key(hash)) };
         let old  = old_slot.read_unchecked();
+        let same_position = hash.0 == old.key;
 
         if  self.age != old.age // always replace entries with a different age
-            || old.depth == 0   // always replace qsearch/empty entries
-            || ((old.flag != TTFlag::Exact && (flag == TTFlag::Exact || depth >= old.depth as usize))
-            || (old.flag == TTFlag::Exact && flag == TTFlag::Exact && depth > old.depth as usize))
+            || !same_position
+            || flag == TTFlag::Exact
+            || depth + TT_REPLACE_OFFSET + 2 * usize::from(pv) > old.depth as usize
         {
             // Don't overwrite best moves with null moves
-            let best_move = if best_move != NULL_MOVE {
-                best_move
-            } else {
-                old.best_move
-            };
+            if best_move == NULL_MOVE && same_position {
+                best_move = old.best_move;
+            }
 
             old_slot.write(TTEntry {
                 key: hash.0,
@@ -323,9 +323,9 @@ mod tests {
         let tt = TT::default();
         let z = ZHash(0);
 
-        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 1, 0); // insert in empty field
-        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 2, 0); // replace
-        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 1, 0); // do not replace
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 1, 0, false); // insert in empty field
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 2, 0, false); // replace
+        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 1, 0, false); // do not replace
 
         let target1 = tt.probe(z).unwrap();
         let target2 = tt.probe(ZHash(8));
@@ -339,8 +339,8 @@ mod tests {
         let mut tt = TT::default();
         tt.resize(1);
 
-        tt.insert(ZHash(0), TTFlag::Exact, NULL_MOVE, 100, 100, 1, 0); // insert field 1
-        tt.insert(ZHash(1), TTFlag::Exact, NULL_MOVE, 100, 100, 2, 0); // insert field 2 in same slot as field 1, replacing it
+        tt.insert(ZHash(0), TTFlag::Exact, NULL_MOVE, 100, 100, 1, 0, false); // insert field 1
+        tt.insert(ZHash(1), TTFlag::Exact, NULL_MOVE, 100, 100, 2, 0, false); // insert field 2 in same slot as field 1, replacing it
 
         let new = tt.probe(ZHash(0)); // check no match on first hash
         assert!(new.is_none());

@@ -219,6 +219,7 @@ impl Position {
                     stand_pat,
                     0,
                     t.ply,
+                    false,
                 );
             }
         };
@@ -264,8 +265,13 @@ impl Position {
         }
 
         // Internal Iterative Reduction
-        // When no TT Move is found in any node, apply a 1-ply reduction
-        if !ROOT && tt_move.is_none() && depth >= IIR_LOWER_LIMIT {
+        // Without a TT hit, it's better to do a reduced search to then setup the TT entry for the next
+        // IID iteration.
+        if !ROOT
+            && depth >= IIR_LOWER_LIMIT
+            && !in_singular_search
+            && (tt_entry.is_none() || tt_entry.is_some_and(|e| e.get_flag() == TTFlag::None))
+        {
             depth -= 1;
         }
 
@@ -464,6 +470,7 @@ impl Position {
                 stand_pat,
                 depth,
                 t.ply,
+                pv_node,
             );
         }
 
@@ -591,6 +598,7 @@ impl Position {
                 stand_pat,
                 0,
                 t.ply,
+                false,
             );
         }
 
