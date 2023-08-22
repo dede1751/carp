@@ -64,7 +64,7 @@ pub fn run_benchmark() {
 
     for fen in TEST_POSITIONS {
         let mut position: Position = fen.parse().unwrap();
-        let mut t = Thread::fixed_depth(16);
+        let mut t = Thread::fixed_depth(13);
 
         let start = Instant::now();
         position.iterative_search::<false>(&mut t, &TT::default());
