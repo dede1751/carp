@@ -121,7 +121,7 @@ impl Thread {
     }
 
     /// Advance a thread by the given amount of ply, resetting previous results.
-    pub fn advance_ply(&mut self, ply: usize) {
+    pub fn advance_ply(&mut self, ply: usize, halfmoves: usize) {
         // Killers are shifted back by the ply advance
         self.killer_moves.copy_within(ply.., 0);
         for k in &mut self.killer_moves[MAX_DEPTH - ply..] {
@@ -132,7 +132,7 @@ impl Thread {
         self.clock.last_nodes = 0; // reset SMP worker threads
         self.seldepth = 0;
         self.ply = 0;
-        self.ply_from_null = 0;
+        self.ply_from_null = halfmoves;
 
         self.pv = PVTable::default();
         self.eval = -INFINITY;
@@ -266,8 +266,8 @@ impl ThreadPool {
             time_control,
             pos.white_to_move(),
         );
-        self.main_thread.advance_ply(2);
-        self.workers.iter_mut().for_each(|t| t.advance_ply(2));
+        self.main_thread.advance_ply(2, pos.board.halfmoves);
+        self.workers.iter_mut().for_each(|t| t.advance_ply(2, pos.board.halfmoves));
 
         self.global_stop.store(false, Ordering::SeqCst);
         self.global_nodes.store(0, Ordering::SeqCst);
@@ -293,6 +293,7 @@ impl ThreadPool {
             }
 
             // Run the main search thread with info enabled
+            // Explicitly stop all other workers in case we exceded the depth limit.
             pos.iterative_search::<true>(&mut self.main_thread, tt);
             self.global_stop.store(true, Ordering::SeqCst);
         });
