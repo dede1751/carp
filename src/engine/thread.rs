@@ -294,6 +294,7 @@ impl ThreadPool {
 
             // Run the main search thread with info enabled
             pos.iterative_search::<true>(&mut self.main_thread, tt);
+            self.global_stop.store(true, Ordering::SeqCst);
         });
 
         // Take the moves at highest depth, and from those the ones which occur the most
