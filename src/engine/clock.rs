@@ -75,7 +75,7 @@ impl FromStr for TimeControl {
 }
 
 const CHECK_FREQUENCY: u64 = 2048; // Nodes between checking time/atomic access
-const OVERHEAD: u64 = 5;
+const OVERHEAD: u64 = 50;
 
 /// Clocks handle time management during search.
 /// Contains async counters used to synchronize time management/node counting across threads.
