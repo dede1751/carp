@@ -146,13 +146,19 @@ impl Position {
         (eval * (700 + total_material / 32)) / 1024
     }
 
-    /// Check for repetitions in hash history.
-    /// We stop at the first occurrence of the position and consider that a draw.
+    /// Check for repetitions in hash history (twofold)
     fn is_repetition(&self, ply_from_null: usize) -> bool {
+        let rollback = 1 + ply_from_null.min(self.board.halfmoves);
+
+        // Rollback == 1 implies we only look at the opponent's position.
+        if rollback == 1 {
+            return false;
+        }
+
         self.history
             .iter()
             .rev() // step through history in reverse
-            .take(ply_from_null + 1) // only check elements until the previous null move
+            .take(rollback) // only check elements within rollback
             .skip(1) // first element is opponent, skip.
             .step_by(2) // don't check opponent moves
             .any(|b| b.hash == self.board.hash) // stop at first repetition
