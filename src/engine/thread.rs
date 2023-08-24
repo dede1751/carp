@@ -24,9 +24,9 @@ pub struct Thread {
 
     // Move ordering
     pub killer_moves: [[Move; 2]; MAX_DEPTH],
-    history: HistoryTable,
-    counter_moves: DoubleHistoryTable,
-    followup_moves: DoubleHistoryTable,
+    history: HistoryTable::<HIST_MAX>,
+    counter_moves: ContinuationHistoryTable::<CONT_HIST_MAX>,
+    followup_moves: ContinuationHistoryTable::<CONT_HIST_MAX>,
 
     // Search stats
     pub nodes: u64,
@@ -84,8 +84,8 @@ impl Thread {
 
             killer_moves: [[NULL_MOVE; 2]; MAX_DEPTH],
             history: HistoryTable::default(),
-            counter_moves: DoubleHistoryTable::default(),
-            followup_moves: DoubleHistoryTable::default(),
+            counter_moves: ContinuationHistoryTable::default(),
+            followup_moves: ContinuationHistoryTable::default(),
 
             nodes: 0,
             seldepth: 0,

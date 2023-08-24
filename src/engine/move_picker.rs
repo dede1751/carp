@@ -250,8 +250,6 @@ const LVA: [i32; PIECE_COUNT] = [5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0];
 const PROMO_SCORE: i32 = 70; // Queen promotions have best MVV-LVA value, but still less than good tacticals
 const EP_SCORE: i32 = 15; // EP equal to pxp
 
-pub const HISTORY_MAX: i32 = 49152; // Quiet moves have scores between +- 49152
-
 /// Score a single tactical move. These moves are either captures or queen promotions.
 fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
     // Underpromotions get the worst score

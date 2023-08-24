@@ -12,6 +12,10 @@ pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
 pub const MATE_IN_PLY: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
 
+pub const HIST_MAX: i32 = 8192;
+pub const CONT_HIST_MAX: i32 = 16384;
+pub const HISTORY_MAX: i32 = HIST_MAX + 2 * CONT_HIST_MAX;
+
 pub const TT_REPLACE_OFFSET: usize = 11;
 
 pub const ASPIRATION_LOWER_LIMIT: usize = 5;
