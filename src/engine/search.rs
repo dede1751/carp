@@ -118,7 +118,7 @@ impl Position {
         }
 
         // Check extension
-        if in_check {
+        if in_check && depth < MAX_DEPTH {
             depth += 1;
         }
 
