@@ -42,48 +42,48 @@ impl PVTable {
     }
 }
 
-pub type History = [[[i16; SQUARE_COUNT]; SQUARE_COUNT]; 2];
-pub type DoubleHistory = [[[[i16; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
+type History = [[[i16; SQUARE_COUNT]; SQUARE_COUNT]; 2];
+type ContinuationHistory = [[[[i16; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
     400.min(depth * depth) as i16
 }
 
-/// Taper history so that it's bounded to +-(2048 * 8)
+/// Taper history so that it's bounded to +-MAX
 /// This keeps us within i16 bounds.
 /// Discussed here:
 /// http://www.talkchess.com/forum3/viewtopic.php?f=7&t=76540
-const fn taper_bonus(bonus: i16, old: i16) -> i16 {
+const fn taper_bonus<const MAX: i32>(bonus: i16, old: i16) -> i16 {
     let o = old as i32;
     let b = bonus as i32;
 
     // Use i32's to avoid overflows
-    (o + 8 * b - (o * b.abs()) / 2048) as i16
+    (o + 8 * b - (o * b.abs()) / (MAX / 8)) as i16
 }
 
 /// Simple history tables are used for standard move histories.
 ///     Indexing: [side][src][tgt]
-pub struct HistoryTable {
+pub struct HistoryTable<const MAX: i32>{
     history: History,
 }
 
-impl Default for HistoryTable {
+impl<const MAX: i32> Default for HistoryTable::<MAX> {
     fn default() -> Self {
-        Self {
+        Self{
             history: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
         }
     }
 }
 
-impl HistoryTable {
+impl<const MAX: i32> HistoryTable::<MAX> {
     /// Add a history bonus value to the given move.
     fn add_bonus(&mut self, bonus: i16, m: Move, side: Color) {
         let src = m.get_src() as usize;
         let tgt = m.get_tgt() as usize;
         let old = &mut self.history[side as usize][src][tgt];
 
-        *old = taper_bonus(bonus, *old);
+        *old = taper_bonus::<MAX>(bonus, *old);
     }
 
     /// Update the history table after a beta cutoff.
@@ -104,14 +104,14 @@ impl HistoryTable {
     }
 }
 
-/// Double history tables are used for counter moves and followup moves.
+/// Continuation history tables are used for counter moves and followup moves.
 /// The first two indices are taken from the history move, the last two from the current move.
 ///    - Counter Move: the previous move by the opponent
 ///    - Followup Move: our previous move
 ///
 ///     Indexing: [old_piece][old_tgt][new_src][new_tgt]
-pub struct DoubleHistoryTable {
-    history: Box<DoubleHistory>,
+pub struct ContinuationHistoryTable<const MAX: i32> {
+    history: Box<ContinuationHistory>,
 }
 
 /// Used to box arrays without blowing the stack on debug builds.
@@ -128,7 +128,7 @@ fn box_array<T>() -> Box<T> {
     }
 }
 
-impl Default for DoubleHistoryTable {
+impl<const MAX: i32> Default for ContinuationHistoryTable::<MAX> {
     fn default() -> Self {
         Self {
             history: box_array(),
@@ -136,14 +136,14 @@ impl Default for DoubleHistoryTable {
     }
 }
 
-impl DoubleHistoryTable {
+impl<const MAX: i32> ContinuationHistoryTable::<MAX> {
     /// Add a history bonus value to the given move.
     fn add_bonus(&mut self, bonus: i16, m: Move, p: usize, t: usize) {
         let src = m.get_src() as usize;
         let tgt = m.get_tgt() as usize;
         let old = &mut self.history[p][t][src][tgt];
 
-        *old = taper_bonus(bonus, *old);
+        *old = taper_bonus::<MAX>(bonus, *old);
     }
 
     /// Update the history table after a beta cutoff.
