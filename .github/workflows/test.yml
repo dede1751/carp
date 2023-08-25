@@ -15,14 +15,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Install LLVM and Clang # Required for LLVM-Profdata used in PGO
+
+    - name: Cache LLVM and Clang
+      id: cache-llvm
+      uses: actions/cache@v3
+      with:
+        path: ./llvm
+        key: llvm-16.0
+
+    - name: Install LLVM and Clang
       uses: KyleMayes/install-llvm-action@v1
       with:
-        version: "10.0"
-    - uses: actions/checkout@v3
+        version: "16.0"
+        cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      
+    - name Check LLVM
+      run: |
+        llvm-config --version
+        llvm-profdata --help
+        
+    - name: Checkout code
+      uses: actions/checkout@v3
+
     - name: Build
       run: |
         make
         make native
+
     - name: Test
       run: cargo test --verbose --release
