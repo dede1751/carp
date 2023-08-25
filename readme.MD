@@ -97,6 +97,7 @@ None of these are necessary to run the engine, but they are vital for developmen
 * [Cutechess-Cli](https://github.com/cutechess/cutechess)
 * [MarlinFlow](https://github.com/dsekercioglu/marlinflow)
 * [OpenBench](https://github.com/AndyGrant/OpenBench)
+* [Stockfish's WDL model](https://github.com/official-stockfish/WDL_model)
 
 ## Credits
 * [CMK's chess engine in C series](https://www.youtube.com/watch?v=QUNP-UjujBM&list=PLmN0neTso3Jxh8ZIylk74JpwfiWNI76Cs)

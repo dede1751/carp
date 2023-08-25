@@ -33,6 +33,7 @@ pub struct Thread {
     pub seldepth: usize,
     pub ply: usize,
     pub ply_from_null: usize,
+    move_count: usize,
 
     // End of search
     pub pv: PVTable,
@@ -47,12 +48,15 @@ impl std::fmt::Display for Thread {
         let score = if self.eval.abs() >= MATE_IN_PLY {
             let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
             if self.eval > 0 {
-                format!("mate {}", moves_to_mate)
+                format!("mate {} wdl 1000 0 0", moves_to_mate)
             } else {
-                format!("mate -{}", moves_to_mate)
+                format!("mate -{} wdl 0 0 1000", moves_to_mate)
             }
         } else {
-            format!("cp {}", self.eval)
+            let norm_eval = self.normalize_cp_eval();
+            let (w, d, l) = self.wdl_model(norm_eval);
+
+            format!("cp {norm_eval} wdl {w} {d} {l}")
         };
 
         let time = self.clock.elapsed().as_millis().max(1);
@@ -69,6 +73,33 @@ impl std::fmt::Display for Thread {
             (nodes as u128 * 1000) / time,
             self.pv
         )
+    }
+}
+
+/// Implement WDL model for evaluation -- https://github.com/vondele/WLD_model
+/// Normalizes a +100 cp advantage to a 50% chance of winning.
+impl Thread {
+    /// Normalize an evaluation score to a centipawn score (since nnue values are usually inflated)
+    /// Not meant to be used on Game-Theoretic scores.
+    pub fn normalize_cp_eval(&self) -> Eval{
+        const NORMALIZE_PAWN_VALUE: Eval = 199;
+        (self.eval * 100) / NORMALIZE_PAWN_VALUE
+    }
+
+    /// Extract WDL scores from the (normalized) evaluation using a model fitted to self-play.
+    pub fn wdl_model(&self, norm_eval: Eval) -> (Eval, Eval, Eval) {
+        const AS: [f64; 4] = [ -0.77690016,   10.19729841,   14.69567024,  175.35727553 ];
+        const BS: [f64; 4] = [ -3.74786075,   28.20402419,  -53.21735403,   85.17319775 ];
+
+        let phase = (self.move_count as f64).min(240.0) / 64.0;
+        let a = (((AS[0] * phase + AS[1]) * phase + AS[2]) * phase) + AS[3];
+        let b = (((BS[0] * phase + BS[1]) * phase + BS[2]) * phase) + BS[3];
+        let score = (norm_eval as f64).clamp(-4000.0, 4000.0);
+
+        let win_rate = (1000.0 / (1.0 + f64::exp((a - score) / b))) as i32;
+        let loss_rate = (1000.0 / (1.0 + f64::exp((a + score) / b))) as i32;
+
+        (win_rate, 1000 - win_rate - loss_rate, loss_rate)
     }
 }
 
@@ -91,6 +122,7 @@ impl Thread {
             seldepth: 0,
             ply: 0,
             ply_from_null: 0,
+            move_count: 0, // Init to -1 because we always increment first.
 
             pv: PVTable::default(),
             eval: -INFINITY,
@@ -121,10 +153,10 @@ impl Thread {
     }
 
     /// Advance a thread by the given amount of ply, resetting previous results.
-    pub fn advance_ply(&mut self, ply: usize, halfmoves: usize) {
+    pub fn advance_ply(&mut self, advance: usize, ply: usize, halfmoves: usize) {
         // Killers are shifted back by the ply advance
-        self.killer_moves.copy_within(ply.., 0);
-        for k in &mut self.killer_moves[MAX_DEPTH - ply..] {
+        self.killer_moves.copy_within(advance.., 0);
+        for k in &mut self.killer_moves[MAX_DEPTH - advance..] {
             *k = [NULL_MOVE; 2];
         }
 
@@ -133,6 +165,7 @@ impl Thread {
         self.seldepth = 0;
         self.ply = 0;
         self.ply_from_null = halfmoves;
+        self.move_count = ply;
 
         self.pv = PVTable::default();
         self.eval = -INFINITY;
@@ -266,10 +299,10 @@ impl ThreadPool {
             time_control,
             pos.white_to_move(),
         );
-        self.main_thread.advance_ply(2, pos.board.halfmoves);
+        self.main_thread.advance_ply(2, pos.ply(), pos.board.halfmoves);
         self.workers
             .iter_mut()
-            .for_each(|t| t.advance_ply(2, pos.board.halfmoves));
+            .for_each(|t| t.advance_ply(2, pos.ply(), pos.board.halfmoves));
 
         self.global_stop.store(false, Ordering::SeqCst);
         self.global_nodes.store(0, Ordering::SeqCst);
