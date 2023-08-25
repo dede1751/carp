@@ -31,9 +31,10 @@ jobs:
       
     - name Check LLVM
       run: |
+        ls ./llvm
         llvm-config --version
         llvm-profdata --help
-        
+
     - name: Checkout code
       uses: actions/checkout@v3
 
