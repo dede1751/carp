@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  push:
+    branches: [ "main", "dev", "release_ci" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install LLVM and Clang # Required for LLVM-Profdata used in PGO
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "10.0"
+    - uses: actions/checkout@v3
+    - name: Build
+      run: |
+        make
+        make native
+    - name: Test
+      run: cargo test --verbose --release
