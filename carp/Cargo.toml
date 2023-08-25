@@ -1,0 +1,20 @@
+[package]
+name = "carp"
+version = "3.0.0"
+edition = "2021"
+authors = ["Andrea Sgobbi"]
+description = "A didactic chess engine written in Rust."
+license = "GPL-3.0"
+readme = "readme.md"
+keywords = ["chess"]
+categories = ["games"]
+repository = "https://github.com/dede1751/carp"
+
+[lib]
+doctest = false
+
+[dependencies]
+chess = { path = "../chess" }
+
+[features]
+datagen = []

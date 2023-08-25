@@ -1,6 +1,6 @@
 <div align="center">
 
-  ![logo](images/carp_logo.png)
+  ![logo](carp_logo.png)
 </div>
 
 # <div align="center"> Carp </div>
@@ -30,11 +30,16 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 | 1.2.0       | N/a            | N/a       | 2488      | 
 | 1.1.0       | N/a            | N/a       | 2164      | 
 
-## Building Carp
+## Project Structure & Building Carp
 
-For development, Carp should be built through Cargo with ```cargo run --release```. Additionally, the **Tools**
-module can be conditionally compiled with the flag ```--features tools```. All external dependencies are
-limited to this feature.
+The project is structured in 3 main Cargo Workspaces: **Chess** is the game backend used by the engine,
+**Carp** is the UCI engine and **Carp-Tools** is an executable with developer tools. All external
+dependencies are limited to this last crate, while the first two are completely standalone.
+
+Building Carp only requires [Cargo][cargo-link]. Carp is currently tested on *Rust Stable v1.70*, so that is
+the recommended version, although it could possibly work (without guarantees) on earlier releases.
+
+For development, Carp should be built through Cargo with ```cargo run --release --package carp```.
 
 To compile Carp for maximum performance, the use of [PGO][pgo-link] is highly recommended. Depending on the CPU,
 it has shown to be up to 60 elo over a standard Cargo build. To do this, either run ```make native``` to only
@@ -105,6 +110,7 @@ None of these are necessary to run the engine, but they are vital for developmen
 
 [ob-link]:https://chess.swehosting.se/
 [pgo-link]:https://en.wikipedia.org/wiki/Profile-guided_optimization
+[cargo-link]:https://www.rust-lang.org/tools/install
 [arch-link]:https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels
 [ccrl-blitz-link]:https://ccrl.chessdom.com/ccrl/404/cgi/engine_details.cgi?print=Details&each_game=1&eng=Carp%202.0.0%2064-bit#Carp_2_0_0_64-bit
 [ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?class=None&only_best_in_class=on&num_best_in_class=1&family=Carp&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no

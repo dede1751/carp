@@ -1,0 +1,14 @@
+[package]
+name = "chess"
+version = "1.0.0"
+edition = "2021"
+authors = ["Andrea Sgobbi"]
+description = "A standalone chess backend for the Carp engine."
+license = "GPL-3.0"
+readme = "readme.md"
+keywords = ["chess"]
+categories = ["games"]
+repository = "https://github.com/dede1751/carp"
+
+[lib]
+doctest = false

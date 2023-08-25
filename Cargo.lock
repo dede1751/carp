@@ -82,6 +82,14 @@ checksum = "3c6ed94e98ecff0c12dd1b04c15ec0d7d9458ca8fe806cea6f12954efe74c63b"
 name = "carp"
 version = "3.0.0"
 dependencies = [
+ "chess",
+]
+
+[[package]]
+name = "carp-tools"
+version = "1.0.0"
+dependencies = [
+ "carp",
  "chrono",
  "clap",
  "ctrlc",
@@ -100,6 +108,10 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "chess"
+version = "1.0.0"
 
 [[package]]
 name = "chrono"
