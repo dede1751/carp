@@ -1,0 +1,19 @@
+[package]
+name = "carp-tools"
+version = "1.0.0"
+edition = "2021"
+authors = ["Andrea Sgobbi"]
+description = "Tools for Carp development"
+license = "GPL-3.0"
+readme = "readme.md"
+keywords = ["chess"]
+categories = ["games"]
+repository = "https://github.com/dede1751/carp"
+
+[dependencies]
+carp = { path = "../carp", features = ["datagen"] }
+clap = { version = "4.2.1", features = ["derive"] }
+chrono = "0.4"
+fastrand = "1.9.0"
+ctrlc = "3.2.5"
+itertools = "0.10.5"

@@ -16,19 +16,19 @@ NAME := $(EXE)$(EXT)
 PGO  := $(EXE)-pgo$(EXT)
 
 rule:
-	cargo rustc --release -- -C target-cpu=native --emit link=$(NAME)
+	cargo rustc -r -p carp --bins -- -C target-cpu=native --emit link=$(NAME)
 
 x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native:
 	rm -rf $(TMPDIR)
 	RUSTFLAGS="$(RUSTFLAGS) -C profile-generate=$(TMPDIR)" \
-		cargo rustc --release -- -C target-cpu=$@ --emit link=$(PGO)
+		cargo rustc -r -p carp --bins -- -C target-cpu=$@ --emit link=$(PGO)
 	
 	./$(PGO) bench
 
 	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 
 	RUSTFLAGS="$(RUSTFLAGS) -C profile-use=$(TMPDIR)/merged.profdata" \
-		cargo rustc --release -- -C target-cpu=$@ --emit link=$(LXE)-$(VER)-$@$(EXT)
+		cargo rustc -r -p carp --bins -- -C target-cpu=$@ --emit link=$(LXE)-$(VER)-$@$(EXT)
 
 	rm -rf $(TMPDIR)
 	rm $(PGO)
@@ -36,7 +36,7 @@ x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native:
 datagen:
 	rm -rf $(TMPDIR)
 	RUSTFLAGS="-C profile-generate=$(TMPDIR)" \
-		cargo rustc --features tools,datagen --release -- -C target-cpu=native --emit link=$(PGO)
+		cargo rustc -r -p carp-tools -- -C target-cpu=native --emit link=$(PGO)
 	
 	./$(PGO) datagen -g 256 -t 32 -n 5000
 	./$(PGO) datagen -g 256 -t 32 -d 8
@@ -44,10 +44,10 @@ datagen:
 	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 
 	RUSTFLAGS="-C profile-use=$(TMPDIR)/merged.profdata" \
-		cargo rustc --features tools,datagen --release -- -C target-cpu=native --emit link=datagen$(EXT)
+		cargo rustc -r -p carp-tools -- -C target-cpu=native --emit link=datagen$(EXT)
 
 	rm -rf $(TMPDIR)
 	rm $(PGO)
 	rm -rf $(_THIS)/data
 
-release: x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native
+release: x86-64 x86-64-v2 x86-64-v3 x86-64-v4
