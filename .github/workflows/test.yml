@@ -16,6 +16,9 @@ jobs:
 
     steps:
 
+    - name: Checkout code
+      uses: actions/checkout@v3
+
     - name: Cache LLVM and Clang
       id: cache-llvm
       uses: actions/cache@v3
@@ -29,14 +32,8 @@ jobs:
         version: "16.0"
         cached: ${{ steps.cache-llvm.outputs.cache-hit }}
       
-    - name: Check LLVM
-      run: |
-        ls ./llvm
-        llvm-config --version
-        llvm-profdata --help
-
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Check LLVM-Profdata
+      run: llvm-profdata --help
 
     - name: Build
       run: |
