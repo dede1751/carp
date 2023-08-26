@@ -22,8 +22,10 @@ PGO  := $(EXE)-pgo$(EXT)
 rule:
 	cargo rustc -r -p carp --bins -- -C target-cpu=native --emit link=$(NAME)
 
-x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native:
+tmp-dir:
 	mkdir $(TMPDIR)
+
+x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
 	RUSTFLAGS="$(RUSTFLAGS) -C profile-generate=$(TMPDIR)" \
 		cargo rustc -r -p carp --bins -- -C target-cpu=$@ --emit link=$(PGO)
 	

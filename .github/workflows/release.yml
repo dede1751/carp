@@ -39,7 +39,7 @@ jobs:
           path: |
             C:/Program Files/LLVM
             ./llvm
-          key: llvm-15.0-${{ matrix.os_name }}
+          key: llvm-15.0-${{ matrix.os }}
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
