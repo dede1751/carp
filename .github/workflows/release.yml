@@ -25,7 +25,7 @@ jobs:
           - os: macos-latest
             os_name: MacOS Darwin
             bin_initials: carp-darwin
-            llvm: 16.0
+            llvm: 15.0
     
     runs-on: ${{ matrix.os }}
     steps:
