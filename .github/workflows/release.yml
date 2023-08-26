@@ -17,12 +17,15 @@ jobs:
           - os: windows-latest
             os_name: Windows
             bin_initials: carp-win
+            llvm: 16.0
           - os: ubuntu-latest
             os_name: Linux
             bin_initials: carp-linux
+            llvm: 16.0
           - os: macos-12
             os_name: MacOS Darwin
             bin_initials: carp-darwin
+            llvm: 15.0
     
     runs-on: ${{ matrix.os }}
     steps:
@@ -39,12 +42,12 @@ jobs:
           path: |
             C:/Program Files/LLVM
             ./llvm
-          key: llvm-15.0-${{ matrix.os }}
+          key: llvm-${{ matrix.llvm }}-${{ matrix.os }}
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
         with:
-          version: "15.0"
+          version: "${{ matrix.llvm }}"
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
       
       - name: Build
