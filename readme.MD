@@ -118,13 +118,13 @@ None of these are necessary to run the engine, but they are vital for developmen
 [mcerl-link]:https://www.chessengeria.com/mcerl
 [movegen-link]:https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator
 
-[build-badge]:https://img.shields.io/github/actions/workflow/status/dede1751/carp/rust.yml?branch=master&logo=github&style=for-the-badge
+[build-badge]:https://img.shields.io/github/actions/workflow/status/dede1751/carp/build.yml?branch=main&logo=github&style=for-the-badge
 [build-link]:https://github.com/dede1751/carp/actions/workflows/build.yml
 [commits-badge]:https://img.shields.io/github/commits-since/dede1751/carp/latest?style=for-the-badge
 [commits-link]:https://github.com/dede1751/carp/commits/main
 [release-badge]:https://img.shields.io/github/v/release/dede1751/carp?style=for-the-badge&label=official%20release
 [release-link]:https://github.com/dede1751/carp/releases/latest
 [license-badge]:https://img.shields.io/github/license/dede1751/carp?style=for-the-badge&label=license&color=success
-[license-link]:https://github.com/dede1751/carp/blob/master/LICENSE
+[license-link]:https://github.com/dede1751/carp/blob/main/LICENSE
 [lichess-badge]:https://img.shields.io/badge/Play%20Carp%20-v2.0-yellow?logo=lichess&style=for-the-badge
 [lichess-link]:https://lichess.org/@/Carp_Bot
