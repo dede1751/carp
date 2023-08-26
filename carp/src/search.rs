@@ -489,6 +489,11 @@ impl Position {
             return self.evaluate();
         }
 
+        // Stop searching if the position is a rule-based draw
+        if self.is_draw(t.ply_from_null) {
+            return 0;
+        }
+
         let in_check = self.king_in_check();
 
         // Probe the TT and if possible get a tt move
