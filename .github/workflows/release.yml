@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags: "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  build-release:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            os_name: Windows
+            bin_initials: carp-win
+            llvm: 16.0
+            targets: x86-64 x86-64-v2 x86-64-v3 x86-64-v4
+          - os: ubuntu-latest
+            os_name: Linux
+            bin_initials: carp-linux
+            llvm: 16.0
+            targets: x86-64 x86-64-v2 x86-64-v3 x86-64-v4
+          # Sadly, MacOS presents build problems I cannot personally solve for V3:
+          # [x86-64-v3] Illegal instruction: 4
+          - os: macos-latest
+            os_name: MacOS Darwin
+            bin_initials: carp-darwin
+            llvm: 15.0
+            targets: x86-64 x86-64-v2 #x86-64-v3
+    
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup ${{ matrix.os_name }} toolchain
+        run: rustup override set 1.72.0
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Cache LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:/Program Files/LLVM
+            ./llvm
+          key: llvm-${{ matrix.llvm }}-${{ matrix.os }}
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "${{ matrix.llvm }}"
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      
+      - name: Build
+        run: make ${{ matrix.targets }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.bin_initials }}
+          path: ${{ matrix.bin_initials }}*
+
+  # This job is largely taken from Velvet: https://github.com/mhonert/velvet-chess
+  release:
+    if: github.repository == 'dede1751/carp'
+    needs: [build-release]
+
+    name: Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: carp-win
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: carp-linux
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: carp-darwin
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag_name=v2.1
+          ls -l
+
+          chmod +x carp-linux-x86-64
+          chmod +x carp-linux-x86-64-v2
+          chmod +x carp-linux-x86-64-v3
+          chmod +x carp-linux-x86-64-v4
+
+          mkdir bins
+          mv carp-win-x86-64.exe bins/carp-${tag_name}-win-x86_64-V1.exe
+          mv carp-win-x86-64-v2.exe bins/carp-${tag_name}-win-x86_64-V2.exe
+          mv carp-win-x86-64-v3.exe bins/carp-${tag_name}-win-x86_64-V3.exe
+          mv carp-win-x86-64-v4.exe bins/carp-${tag_name}-win-x86_64-V4.exe
+
+          mv carp-linux-x86-64 bins/carp-${tag_name}-linux-x86_64-V1
+          mv carp-linux-x86-64-v2 bins/carp-${tag_name}-linux-x86_64-V2
+          mv carp-linux-x86-64-v3 bins/carp-${tag_name}-linux-x86_64-V3
+          mv carp-linux-x86-64-v4 bins/carp-${tag_name}-linux-x86_64-V4
+
+          mv carp-darwin-x86-64 bins/carp-${tag_name}-darwin-x86_64-V1
+          mv carp-darwin-x86-64-v2 bins/carp-${tag_name}-darwin-x86_64-V2
+
+          sha256sum bins/* > checksums.txt
+          echo "$tag_name" > release_description.txt
+          cat artifacts/release_notes.md >> release_description.txt
+
+          hub release create --draft \
+            -a "checksums.txt#Checksums" \
+            -a "bins/carp-${tag_name}-darwin-x86_64-V1#Carp - MacOS Darwin (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-darwin-x86_64-V2#Carp - MacOS Darwin (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V1.exe#Carp - Windows (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V2.exe#Carp - Windows (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V3.exe#Carp - Windows (x86_64 - V3)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V4.exe#Carp - Windows (x86_64 - V4)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V1#Carp - Linux (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V2#Carp - Linux (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V3#Carp - Linux (x86_64 - V3)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V4#Carp - Linux (x86_64 - V4)" \
+            -F release_description.txt \
+            "$tag_name"
