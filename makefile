@@ -7,6 +7,10 @@ TMPDIR := $(_THIS)/tmp
 ifeq ($(OS),Windows_NT)
 	EXT := .exe
 	VER := win
+	# Different native flag for macOS
+else ifeq ($(shell uname -s), Darwin)
+	EXT :=
+	VER := darwin
 else
 	EXT :=
 	VER := linux
