@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - uses: actions/download-artifact@v3
         with:
@@ -91,7 +91,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag_name="${GITHUB_REF##*/}"
+          tag_name=v2.1
           ls -l
 
           chmod +x carp-linux-x86-64
@@ -119,14 +119,15 @@ jobs:
 
           hub release create --draft \
             -a "checksums.txt#Checksums" \
-            -a "bins/carp-${tag_name}-win-x86_64-V4.exe#Carp - Windows (x86_64 - V4)" \
-            -a "bins/carp-${tag_name}-win-x86_64-V3.exe#Carp - Windows (x86_64 - V3)" \
-            -a "bins/carp-${tag_name}-win-x86_64-V2.exe#Carp - Windows (x86_64 - V2)" \
-            -a "bins/carp-${tag_name}-win-x86_64-V1.exe#Carp - Windows (x86_64 - V1)" \
-            -a "bins/carp-${tag_name}-linux-x86_64-V4#Carp - Linux (x86_64 - V4)" \
-            -a "bins/carp-${tag_name}-linux-x86_64-V3#Carp - Linux (x86_64 - V3)" \
-            -a "bins/carp-${tag_name}-linux-x86_64-V2#Carp - Linux (x86_64 - V2)" \
-            -a "bins/carp-${tag_name}-linux-x86_64-V1#Carp - Linux (x86_64 - V1)" \
-            -a "bins/carp-${tag_name}-darwin-x86_64-V2#Carp - MacOS Darwin (x86_64 - V2)" \
             -a "bins/carp-${tag_name}-darwin-x86_64-V1#Carp - MacOS Darwin (x86_64 - V1)" \
-            -F release_description.txt "$tag_name"
+            -a "bins/carp-${tag_name}-darwin-x86_64-V2#Carp - MacOS Darwin (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V1.exe#Carp - Windows (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V2.exe#Carp - Windows (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V3.exe#Carp - Windows (x86_64 - V3)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V4.exe#Carp - Windows (x86_64 - V4)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V1#Carp - Linux (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V2#Carp - Linux (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V3#Carp - Linux (x86_64 - V3)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V4#Carp - Linux (x86_64 - V4)" \
+            -F release_description.txt \
+            "$tag_name"
