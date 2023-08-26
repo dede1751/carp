@@ -100,17 +100,17 @@ jobs:
           chmod +x carp-linux-x86-64-v4
 
           mv carp-win-x86-64.exe carp-${tag_name}-win-x86_64-V1.exe
-          mv carp-win-x86-64-V2.exe carp-${tag_name}-win-x86_64-V2.exe
-          mv carp-win-x86-64-V3.exe carp-${tag_name}-win-x86_64-V3.exe
-          mv carp-win-x86-64-V4 carp-${tag_name}-win-x86_64-V4.exe
+          mv carp-win-x86-64-v2.exe carp-${tag_name}-win-x86_64-V2.exe
+          mv carp-win-x86-64-v3.exe carp-${tag_name}-win-x86_64-V3.exe
+          mv carp-win-x86-64-v4.exe carp-${tag_name}-win-x86_64-V4.exe
 
           mv carp-linux-x86-64 carp-${tag_name}-linux-x86_64-V1
-          mv carp-linux-x86-64-V2 carp-${tag_name}-linux-x86_64-V2
-          mv carp-linux-x86-64-V3 carp-${tag_name}-linux-x86_64-V3
-          mv carp-linux-x86-64-V4 carp-${tag_name}-linux-x86_64-V4
+          mv carp-linux-x86-64-v2 carp-${tag_name}-linux-x86_64-V2
+          mv carp-linux-x86-64-v3 carp-${tag_name}-linux-x86_64-V3
+          mv carp-linux-x86-64-v4 carp-${tag_name}-linux-x86_64-V4
 
           mv carp-darwin-x86-64 carp-${tag_name}-darwin-x86_64-V1
-          mv carp-darwin-x86-64-V2 carp-${tag_name}-darwin-x86_64-V2
+          mv carp-darwin-x86-64-v2 carp-${tag_name}-darwin-x86_64-V2
 
           sha256sum carp-* > checksums.txt
           echo "$tag_name" > release_description.txt

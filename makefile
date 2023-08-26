@@ -38,6 +38,7 @@ x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
 
 	rm -rf $(TMPDIR)/*
 	rm $(PGO)
+	rm -f *.pdb
 
 datagen:
 	rm -rf $(TMPDIR)
