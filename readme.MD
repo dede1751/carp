@@ -119,7 +119,7 @@ None of these are necessary to run the engine, but they are vital for developmen
 [movegen-link]:https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator
 
 [build-badge]:https://img.shields.io/github/actions/workflow/status/dede1751/carp/rust.yml?branch=master&logo=github&style=for-the-badge
-[build-link]:https://github.com/dede1751/carp/actions/workflows/rust.yml
+[build-link]:https://github.com/dede1751/carp/actions/workflows/build.yml
 [commits-badge]:https://img.shields.io/github/commits-since/dede1751/carp/latest?style=for-the-badge
 [commits-link]:https://github.com/dede1751/carp/commits/main
 [release-badge]:https://img.shields.io/github/v/release/dede1751/carp?style=for-the-badge&label=official%20release
