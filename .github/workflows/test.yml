@@ -31,10 +31,7 @@ jobs:
       with:
         version: "16.0"
         cached: ${{ steps.cache-llvm.outputs.cache-hit }}
-      
-    - name: Check LLVM-Profdata
-      run: llvm-profdata --help
-
+  
     - name: Build
       run: |
         make

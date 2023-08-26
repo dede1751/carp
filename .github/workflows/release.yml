@@ -10,61 +10,61 @@ env:
 
 jobs:
 
-  build-windows:
-    runs-on: windows-latest
+  build-release:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            os_name: Windows
+            bin_initials: carp-win
+            target: x86_64-unknown-windows-gnu
+          - os: ubuntu-latest
+            os_name: Linux
+            bin_initials: carp-linux
+            target: x86_64-unknown-linux-gnu
+          - os: macos-12
+            os_name: MacOS Darwin
+            bin_initials: carp-darwin
+            target: x86_64-apple-darwin
+    
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Setup Windows toolchain
+      - name: Setup ${{ matrix.os_name }} toolchain
         run: |
           rustup override set 1.72.0
-          rustup target add x86_64-unknown-windows-gnu
+          rustup target add ${{ matrix.target }}
 
-      - name: Build Windows binaries
-        uses: actions/build_release@v1
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Cache LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:/Program Files/LLVM
+            ./llvm
+          key: llvm-16.0
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "16.0"
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      
+      - name: Build
+        run: make release
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: carp-win
-          path: carp-win*
-
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup Linux toolchain
-        run: |
-          rustup override set 1.72.0
-          rustup target add x86_64-unknown-linux-gnu
-        
-      - name: Build Linux binaries
-        uses: actions/build_release@v1
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: carp-linux
-          path: carp-linux*
-
-  build-macos:
-    runs-on: macos-12
-    steps:
-      - name: Setup MacOS toolchain
-        run: |
-          rustup override set 1.72.0
-          rustup target add x86_64-apple-darwin
-
-      - name: Build MacOS Darwin binaries
-        uses: actions/build_release@v1
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: carp-darwin
-          path: carp-darwin*
+          name: ${{ matrix.bin_initials }}
+          path: ${{ matrix.bin_initials }}*
 
   # This job is largely taken from Velvet: https://github.com/mhonert/velvet-chess
   release:
     if: github.repository == 'dede1751/carp'
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-release]
 
     name: Publish Release
     runs-on: ubuntu-latest
