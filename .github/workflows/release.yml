@@ -18,14 +18,19 @@ jobs:
             os_name: Windows
             bin_initials: carp-win
             llvm: 16.0
+            targets: x86-64 x86-64-v2 x86-64-v3 x86-64-v4
           - os: ubuntu-latest
             os_name: Linux
             bin_initials: carp-linux
             llvm: 16.0
+            targets: x86-64 x86-64-v2 x86-64-v3 x86-64-v4
+          # Sadly, MacOS presents build problems I cannot personally solve for V3:
+          #   [x86-64-v3] Illegal instruction: 4
           - os: macos-latest
             os_name: MacOS Darwin
             bin_initials: carp-darwin
             llvm: 15.0
+            targets: x86-64 x86-64-v2 #x86-64-v3
     
     runs-on: ${{ matrix.os }}
     steps:
@@ -51,7 +56,7 @@ jobs:
           cached: ${{ steps.cache-llvm.outputs.cache-hit }}
       
       - name: Build
-        run: make release
+        run: make ${{ matrix.targets }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
@@ -105,9 +110,8 @@ jobs:
           mv carp-linux-x86-64-V4 carp-${tag_name}-linux-x86_64-V4
 
           mv carp-darwin-x86-64 carp-${tag_name}-darwin-x86_64-V1
-          mv carp-darwin-x86-64-V2 carp-${tag_name}-darwin-x86_64-V2
+#          mv carp-darwin-x86-64-V2 carp-${tag_name}-darwin-x86_64-V2
           mv carp-darwin-x86-64-V3 carp-${tag_name}-darwin-x86_64-V3
-          mv carp-darwin-x86-64-V4 carp-${tag_name}-darwin-x86_64-V4
 
           sha256sum carp-* > checksums.txt
           echo "$tag_name" > release_description.txt
@@ -123,8 +127,7 @@ jobs:
             -a "carp-${tag_name}-linux-x86_64-V3#Carp - Linux (x86_64 - V3)" \
             -a "carp-${tag_name}-linux-x86_64-V2#Carp - Linux (x86_64 - V2)" \
             -a "carp-${tag_name}-linux-x86_64-V1#Carp - Linux (x86_64 - V1)" \
-            -a "carp-${tag_name}-darwin-x86_64-V4#Carp - MacOS Darwin (x86_64 - V4)" \
-            -a "carp-${tag_name}-darwin-x86_64-V3#Carp - MacOS Darwin (x86_64 - V3)" \
+#            -a "carp-${tag_name}-darwin-x86_64-V3#Carp - MacOS Darwin (x86_64 - V3)" \
             -a "carp-${tag_name}-darwin-x86_64-V2#Carp - MacOS Darwin (x86_64 - V2)" \
             -a "carp-${tag_name}-darwin-x86_64-V1#Carp - MacOS Darwin (x86_64 - V1)" \
             -F release_description.txt "$tag_name"
