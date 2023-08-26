@@ -110,8 +110,8 @@ jobs:
           mv carp-linux-x86-64-V4 carp-${tag_name}-linux-x86_64-V4
 
           mv carp-darwin-x86-64 carp-${tag_name}-darwin-x86_64-V1
-#          mv carp-darwin-x86-64-V2 carp-${tag_name}-darwin-x86_64-V2
-          mv carp-darwin-x86-64-V3 carp-${tag_name}-darwin-x86_64-V3
+          mv carp-darwin-x86-64-V2 carp-${tag_name}-darwin-x86_64-V2
+#          mv carp-darwin-x86-64-V3 carp-${tag_name}-darwin-x86_64-V3
 
           sha256sum carp-* > checksums.txt
           echo "$tag_name" > release_description.txt
