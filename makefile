@@ -2,7 +2,7 @@
 EXE   := Carp
 LXE   := carp
 _THIS := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-TMPDIR := $(_THIS)/tmp
+TMPDIR := $(_THIS)/carp-tmp
 
 ifeq ($(OS),Windows_NT)
 	EXT := .exe
