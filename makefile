@@ -2,7 +2,7 @@
 EXE   := Carp
 LXE   := carp
 _THIS := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-TMPDIR := $(_THIS)/carp-tmp
+TMPDIR := $(_THIS)/tmp
 
 ifeq ($(OS),Windows_NT)
 	EXT := .exe
@@ -26,35 +26,27 @@ tmp-dir:
 	mkdir $(TMPDIR)
 
 x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
-	RUSTFLAGS="$(RUSTFLAGS) -C profile-generate=$(TMPDIR)" \
-		cargo rustc -r -p carp --bins -- -C target-cpu=$@ --emit link=$(PGO)
-	
+	cargo rustc -r -p carp --bins -- -C target-cpu=$@ -C profile-generate=$(TMPDIR) --emit link=$(PGO)
 	./$(PGO) bench
-
 	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
-
-	RUSTFLAGS="$(RUSTFLAGS) -C profile-use=$(TMPDIR)/merged.profdata" \
-		cargo rustc -r -p carp --bins -- -C target-cpu=$@ --emit link=$(LXE)-$(VER)-$@$(EXT)
+	
+	cargo rustc -r -p carp --bins -- -C target-feature=+crt-static -C target-cpu=$@ -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)-$@$(EXT)
 
 	rm -rf $(TMPDIR)/*
 	rm $(PGO)
 	rm -f *.pdb
 
-datagen:
-	rm -rf $(TMPDIR)
-	RUSTFLAGS="-C profile-generate=$(TMPDIR)" \
-		cargo rustc -r -p carp-tools -- -C target-cpu=native --emit link=$(PGO)
-	
+datagen: tmp-dir
+	cargo rustc -r -p carp-tools -- -C target-cpu=native -C profile-generate=$(TMPDIR) --emit link=$(PGO)
 	./$(PGO) datagen -g 256 -t 32 -n 5000
 	./$(PGO) datagen -g 256 -t 32 -d 8
-
 	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 
-	RUSTFLAGS="-C profile-use=$(TMPDIR)/merged.profdata" \
-		cargo rustc -r -p carp-tools -- -C target-cpu=native --emit link=datagen$(EXT)
+	cargo rustc -r -p carp-tools -- -C target-cpu=native -C profile-use=$(TMPDIR)/merged.profdata --emit link=datagen$(EXT)
 
 	rm -rf $(TMPDIR)
 	rm $(PGO)
 	rm -rf $(_THIS)/data
 
 release: x86-64 x86-64-v2 x86-64-v3 x86-64-v4
+	rm -rf $(TMPDIR)

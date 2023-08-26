@@ -1,5 +1,2 @@
-/target
-/marlinflow
-/scripts/*.pgn
-/scripts/*.txt
-scripts/engines/*
+target
+tmp
