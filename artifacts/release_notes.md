@@ -1,3 +1,4 @@
+
 Carp 2.0 introduces NNUE, likely pushing past 3000 CCRL ELO. I'm finally confident enough to start submitting Carp to engine tournaments.
 Starting from 2.0 I will also start focusing more on adding tooling/functionality around the engine, transitioning to a private OpenBench instance for testing.
 
