@@ -121,7 +121,7 @@ jobs:
             -a "checksums.txt#Checksums" \
             -a "bins/carp-${tag_name}-win-x86_64-V4.exe#Carp - Windows (x86_64 - V4)" \
             -a "bins/carp-${tag_name}-win-x86_64-V3.exe#Carp - Windows (x86_64 - V3)" \
-            -a "bins/carp-${tag_name}-win-x86_64-v2.exe#Carp - Windows (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V2.exe#Carp - Windows (x86_64 - V2)" \
             -a "bins/carp-${tag_name}-win-x86_64-V1.exe#Carp - Windows (x86_64 - V1)" \
             -a "bins/carp-${tag_name}-linux-x86_64-V4#Carp - Linux (x86_64 - V4)" \
             -a "bins/carp-${tag_name}-linux-x86_64-V3#Carp - Linux (x86_64 - V3)" \
