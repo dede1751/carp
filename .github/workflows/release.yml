@@ -59,7 +59,7 @@ jobs:
         run: make ${{ matrix.targets }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.bin_initials }}
           path: ${{ matrix.bin_initials }}*
