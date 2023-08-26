@@ -112,7 +112,7 @@ jobs:
           mv carp-darwin-x86-64 carp-${tag_name}-darwin-x86_64-V1
           mv carp-darwin-x86-64-v2 carp-${tag_name}-darwin-x86_64-V2
 
-          sha256sum carp-* > checksums.txt
+          sha256sum carp-*-V* > checksums.txt
           echo "$tag_name" > release_description.txt
           cat artifacts/release_notes.md >> release_description.txt
 
