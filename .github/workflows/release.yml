@@ -75,15 +75,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: carp-win
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: carp-linux
 
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: carp-darwin
 
@@ -99,33 +99,34 @@ jobs:
           chmod +x carp-linux-x86-64-v3
           chmod +x carp-linux-x86-64-v4
 
-          mv carp-win-x86-64.exe carp-${tag_name}-win-x86_64-V1.exe
-          mv carp-win-x86-64-v2.exe carp-${tag_name}-win-x86_64-V2.exe
-          mv carp-win-x86-64-v3.exe carp-${tag_name}-win-x86_64-V3.exe
-          mv carp-win-x86-64-v4.exe carp-${tag_name}-win-x86_64-V4.exe
+          mkdir bins
+          mv carp-win-x86-64.exe bins/carp-${tag_name}-win-x86_64-V1.exe
+          mv carp-win-x86-64-v2.exe bins/carp-${tag_name}-win-x86_64-V2.exe
+          mv carp-win-x86-64-v3.exe bins/carp-${tag_name}-win-x86_64-V3.exe
+          mv carp-win-x86-64-v4.exe bins/carp-${tag_name}-win-x86_64-V4.exe
 
-          mv carp-linux-x86-64 carp-${tag_name}-linux-x86_64-V1
-          mv carp-linux-x86-64-v2 carp-${tag_name}-linux-x86_64-V2
-          mv carp-linux-x86-64-v3 carp-${tag_name}-linux-x86_64-V3
-          mv carp-linux-x86-64-v4 carp-${tag_name}-linux-x86_64-V4
+          mv carp-linux-x86-64 bins/carp-${tag_name}-linux-x86_64-V1
+          mv carp-linux-x86-64-v2 bins/carp-${tag_name}-linux-x86_64-V2
+          mv carp-linux-x86-64-v3 bins/carp-${tag_name}-linux-x86_64-V3
+          mv carp-linux-x86-64-v4 bins/carp-${tag_name}-linux-x86_64-V4
 
-          mv carp-darwin-x86-64 carp-${tag_name}-darwin-x86_64-V1
-          mv carp-darwin-x86-64-v2 carp-${tag_name}-darwin-x86_64-V2
+          mv carp-darwin-x86-64 bins/carp-${tag_name}-darwin-x86_64-V1
+          mv carp-darwin-x86-64-v2 bins/carp-${tag_name}-darwin-x86_64-V2
 
-          sha256sum carp-*-V* > checksums.txt
+          sha256sum bins/* > checksums.txt
           echo "$tag_name" > release_description.txt
           cat artifacts/release_notes.md >> release_description.txt
 
           hub release create --draft \
             -a "checksums.txt#Checksums" \
-            -a "carp-${tag_name}-win-x86_64-V4.exe#Carp - Windows (x86_64 - V4)" \
-            -a "carp-${tag_name}-win-x86_64-V3.exe#Carp - Windows (x86_64 - V3)" \
-            -a "carp-${tag_name}-win-x86_64-v2.exe#Carp - Windows (x86_64 - V2)" \
-            -a "carp-${tag_name}-win-x86_64-V1.exe#Carp - Windows (x86_64 - V1)" \
-            -a "carp-${tag_name}-linux-x86_64-V4#Carp - Linux (x86_64 - V4)" \
-            -a "carp-${tag_name}-linux-x86_64-V3#Carp - Linux (x86_64 - V3)" \
-            -a "carp-${tag_name}-linux-x86_64-V2#Carp - Linux (x86_64 - V2)" \
-            -a "carp-${tag_name}-linux-x86_64-V1#Carp - Linux (x86_64 - V1)" \
-            -a "carp-${tag_name}-darwin-x86_64-V2#Carp - MacOS Darwin (x86_64 - V2)" \
-            -a "carp-${tag_name}-darwin-x86_64-V1#Carp - MacOS Darwin (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V4.exe#Carp - Windows (x86_64 - V4)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V3.exe#Carp - Windows (x86_64 - V3)" \
+            -a "bins/carp-${tag_name}-win-x86_64-v2.exe#Carp - Windows (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-win-x86_64-V1.exe#Carp - Windows (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V4#Carp - Linux (x86_64 - V4)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V3#Carp - Linux (x86_64 - V3)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V2#Carp - Linux (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-linux-x86_64-V1#Carp - Linux (x86_64 - V1)" \
+            -a "bins/carp-${tag_name}-darwin-x86_64-V2#Carp - MacOS Darwin (x86_64 - V2)" \
+            -a "bins/carp-${tag_name}-darwin-x86_64-V1#Carp - MacOS Darwin (x86_64 - V1)" \
             -F release_description.txt "$tag_name"
