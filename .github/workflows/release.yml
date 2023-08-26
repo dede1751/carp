@@ -17,22 +17,17 @@ jobs:
           - os: windows-latest
             os_name: Windows
             bin_initials: carp-win
-            target: x86_64-unknown-windows-gnu
           - os: ubuntu-latest
             os_name: Linux
             bin_initials: carp-linux
-            target: x86_64-unknown-linux-gnu
           - os: macos-12
             os_name: MacOS Darwin
             bin_initials: carp-darwin
-            target: x86_64-apple-darwin
     
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup ${{ matrix.os_name }} toolchain
-        run: |
-          rustup override set 1.72.0
-          rustup target add ${{ matrix.target }}
+        run: rustup override set 1.72.0
 
       - name: Checkout Code
         uses: actions/checkout@v3
