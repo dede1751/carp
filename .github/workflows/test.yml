@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [ "main", "dev", "release_ci" ]
+    branches: [ "main", "dev" ]
   pull_request:
     branches: [ "main", "dev" ]
 
@@ -18,24 +18,9 @@ jobs:
 
     - name: Checkout Code
       uses: actions/checkout@v3
-
-    - name: Cache LLVM and Clang
-      id: cache-llvm
-      uses: actions/cache@v3
-      with:
-        path: ./llvm
-        key: llvm-16.0-ubuntu-latest
-
-    - name: Install LLVM and Clang
-      uses: KyleMayes/install-llvm-action@v1
-      with:
-        version: "16.0"
-        cached: ${{ steps.cache-llvm.outputs.cache-hit }}
   
-    - name: Build
-      run: |
-        make
-        make native
+    - name: Build for OpenBench
+      run: make
 
     - name: Test
       run: cargo test --verbose --release
