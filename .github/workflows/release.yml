@@ -114,7 +114,7 @@ jobs:
 
           sha256sum bins/* > checksums.txt
           echo "$tag_name" > release_description.txt
-          cat artifacts/release_notes.md >> release_description.txt
+          cat release_notes.MD >> release_description.txt
 
           hub release create --draft \
             -a "checksums.txt#Checksums" \
