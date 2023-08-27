@@ -119,11 +119,9 @@ impl Move {
 mod tests {
     use super::*;
     use crate::board::Board;
-    use crate::tables::init_all_tables;
 
     #[test]
     fn test_move_constructor() {
-        init_all_tables();
         let b: Board = "R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1"
             .parse()
             .unwrap();

@@ -1070,7 +1070,6 @@ mod tests {
 
     #[test]
     fn test_pin_mask() {
-        init_all_tables();
         let board: Board = "R2bk3/5p2/4r1B1/1Q6/8/4Q3/4R3/2K5 b - - 0 1"
             .parse()
             .unwrap();
@@ -1090,7 +1089,6 @@ mod tests {
 
     #[test]
     fn test_legal_pawn() {
-        init_all_tables();
         let b1: Board = "8/8/8/1k6/3Pp3/8/8/4KQ2 b - d3 0 1".parse().unwrap();
         println!("{b1}");
         let m1 = b1.gen_moves::<QUIETS>(); // enpassant blocks check
@@ -1109,7 +1107,6 @@ mod tests {
 
     #[test]
     fn test_see_helpers() {
-        init_all_tables();
         let b1: Board = "1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1"
             .parse()
             .unwrap();
@@ -1148,7 +1145,6 @@ mod tests {
             ("5rk1/1pp2q1p/p1pb4/8/3P1NP1/2P5/1P1BQ1P1/5RK1 b - - 0 1", "d6f4", -108, true),
         ];
 
-        init_all_tables();
         for (b, m, t, r) in SEE_SUITE {
             let board: Board = b.parse().unwrap();
             let m = board.find_move(m).unwrap();
@@ -1180,7 +1176,6 @@ mod tests {
             ("8/8/2k5/5q2/5n2/8/5K2/8 b - - 0 1", "Stalemate & checkmate #2", 23527, 4),
         ];
 
-        init_all_tables();
         for (fen, description, correct_count, depth) in PERFT_SUITE {
             let board: Board = fen.parse().unwrap();
             println!("{fen}\n{description}\n{board}");

@@ -251,11 +251,9 @@ impl Position {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess::init_all_tables;
 
     #[test]
     fn test_draw() {
-        init_all_tables();
         let kbvkn_mate: Position = "fen 5b1K/5k1N/8/8/8/8/8/8 b - - 1 1".parse().unwrap();
         let kbvkn_draw: Position = "fen 8/8/3k4/4n3/8/2KB4/8/8 w - - 0 1".parse().unwrap();
         let krvkn: Position = "fen 8/8/4k3/4n3/8/2KR4/8/8 w - - 0 1".parse().unwrap();

@@ -81,15 +81,15 @@ impl std::fmt::Display for Thread {
 impl Thread {
     /// Normalize an evaluation score to a centipawn score (since nnue values are usually inflated)
     /// Not meant to be used on Game-Theoretic scores.
-    pub fn normalize_cp_eval(&self) -> Eval{
+    pub fn normalize_cp_eval(&self) -> Eval {
         const NORMALIZE_PAWN_VALUE: Eval = 199;
         (self.eval * 100) / NORMALIZE_PAWN_VALUE
     }
 
     /// Extract WDL scores from the (normalized) evaluation using a model fitted to self-play.
     pub fn wdl_model(&self, norm_eval: Eval) -> (Eval, Eval, Eval) {
-        const AS: [f64; 4] = [ -0.77690016,   10.19729841,   14.69567024,  175.35727553 ];
-        const BS: [f64; 4] = [ -3.74786075,   28.20402419,  -53.21735403,   85.17319775 ];
+        const AS: [f64; 4] = [-0.77690016, 10.19729841, 14.69567024, 175.35727553];
+        const BS: [f64; 4] = [-3.74786075, 28.20402419, -53.21735403, 85.17319775];
 
         let phase = (self.move_count as f64).min(240.0) / 64.0;
         let a = (((AS[0] * phase + AS[1]) * phase + AS[2]) * phase) + AS[3];
@@ -299,7 +299,8 @@ impl ThreadPool {
             time_control,
             pos.white_to_move(),
         );
-        self.main_thread.advance_ply(2, pos.ply(), pos.board.halfmoves);
+        self.main_thread
+            .advance_ply(2, pos.ply(), pos.board.halfmoves);
         self.workers
             .iter_mut()
             .for_each(|t| t.advance_ply(2, pos.ply(), pos.board.halfmoves));

@@ -10,8 +10,8 @@ use std::{
     time::Instant,
 };
 
-use clap::Args;
 use carp::{clock::*, position::*, search_params::*, thread::*, tt::*};
+use clap::Args;
 
 /// Generate training data through self-play, defaulting to depth 8 searches.
 #[derive(Args)]

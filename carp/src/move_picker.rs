@@ -314,12 +314,10 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess::{square::*, *};
+    use chess::square::*;
 
     #[test]
     fn test_quiet_picker() {
-        init_all_tables();
-
         let b: Board = "2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1".parse().unwrap();
         let move_list = b.gen_moves::<QUIETS>();
         let move_count = move_list.len();
@@ -359,8 +357,6 @@ mod tests {
 
     #[test]
     fn test_capture_picker() {
-        init_all_tables();
-
         let b: Board = "2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1".parse().unwrap();
         let move_list = b.gen_moves::<CAPTURES>();
         let move_count = move_list.len();

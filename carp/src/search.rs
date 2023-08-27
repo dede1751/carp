@@ -1,6 +1,6 @@
 /// The Search module implements Carp's Alpha-Beta algorithm for single-threaded tree search.
 use crate::{move_picker::*, position::*, search_params::*, search_tables::*, thread::*, tt::*};
-use chess::{board::*, moves::*, tables::*};
+use chess::{board::*, moves::*};
 
 impl Position {
     /// Iteratively searches the position at increasing depth
@@ -625,8 +625,6 @@ mod tests {
             ("8/8/8/2K5/5Q2/8/4k3/8 w - - 0 1", "Mate in 4", 20),
             ("1b2k3/3rP3/2B1K3/8/5P2/8/1p6/8 b - - 4 57", "All moves lead to mate", 5),
         ];
-
-        init_all_tables();
 
         for (fen, name, depth) in SEARCH_SUITE {
             println!("Searching: {}", name);

@@ -4,8 +4,6 @@
 /// in Rust.
 
 fn main() {
-    chess::init_all_tables();
-
     if std::env::args().nth(1).as_deref() == Some("bench") {
         carp::bench::run_benchmark();
         return;
