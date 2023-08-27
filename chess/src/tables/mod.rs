@@ -13,18 +13,21 @@ use magics::Magics;
 use crate::{bitboard::*, piece::*, square::*};
 
 /// Gets pawn attacks from tables
+/// SAFETY: Square and Color only allow valid indices
 pub fn pawn_attacks(square: Square, side: Color) -> BitBoard {
-    PAWN_ATTACKS[side as usize][square as usize]
+    unsafe { *PAWN_ATTACKS.get_unchecked(side as usize).get_unchecked(square as usize) }
 }
 
 /// Gets knight attacks from tables
+/// SAFETY: Square only allows valid indices
 pub fn knight_attacks(square: Square) -> BitBoard {
-    KNIGHT_ATTACKS[square as usize]
+    unsafe { *KNIGHT_ATTACKS.get_unchecked(square as usize) }
 }
 
 /// Gets king attacks from tables
+/// SAFETY: Square only allows valid indices
 pub fn king_attacks(square: Square) -> BitBoard {
-    KING_ATTACKS[square as usize]
+    unsafe { *KING_ATTACKS.get_unchecked(square as usize) }
 }
 
 /// Gets bishop attacks based on the blocker bitboard

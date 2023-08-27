@@ -46,7 +46,9 @@ impl Magics {
     }
 
     /// Get slider attack from square with given blockers
-    pub const fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        ATTACKS[self.magic_map(square, blockers)]
+    /// SAFETY: Magic_map is guaranteed to fall within ATTACKS bounds because of the way
+    ///         magics are initialized.
+    pub fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
+        unsafe { *ATTACKS.get_unchecked(self.magic_map(square, blockers)) }
     }
 }
