@@ -11,8 +11,10 @@ QB = 64
 QAB = QA * QB
 PARAM_SIZE = 2 # param size in bytes
 
+NET_FILE = "../../../bins/net.bin"
+
 def write_bytes(array):
-    with open('net.bin', 'ab') as file:
+    with open(NET_FILE, 'ab') as file:
         for num in array:
             file.write(struct.pack('<h', num))
         
@@ -61,7 +63,7 @@ output_weights = convert_weight(data["out.weight"], HIDDEN * 2, HIDDEN * 2, QB, 
 output_biases = convert_bias(data["out.bias"], QAB)  
 
 # Clear the old net and write the new data (ordering is important!)
-open('net.bin', 'w').close()
+open(NET_FILE, 'w').close()
 write_bytes(feature_weights)
 write_bytes(feature_biases)
 write_bytes(output_weights)
