@@ -11,10 +11,21 @@ use std::sync::{
 };
 use std::thread;
 
-use crate::{clock::*, position::*, search_params::*, search_tables::*, tt::*};
-use chess::{board::*, moves::*, piece::*};
+use crate::{
+    clock::{Clock, TimeControl},
+    position::Position,
+    search_params::*,
+    search_tables::{history_bonus, ContinuationHistoryTable, HistoryTable, PVTable},
+    tt::TT,
+};
+use chess::{
+    board::QUIETS,
+    moves::Move,
+    piece::{Color, Piece},
+};
 
 /// Information only relevant within the search tree (thread local)
+#[derive(Clone, Debug)]
 pub struct Thread {
     // Structures used by the search
     pub clock: Clock,
@@ -109,11 +120,11 @@ impl Thread {
     pub fn new(clock: Clock) -> Self {
         Self {
             clock,
-            search_stack: [(Piece::WP, NULL_MOVE, 0); MAX_DEPTH],
+            search_stack: [(Piece::WP, Move::NULL, 0); MAX_DEPTH],
             eval_stack: [0; MAX_DEPTH],
             excluded: [None; MAX_DEPTH],
 
-            killer_moves: [[NULL_MOVE; 2]; MAX_DEPTH],
+            killer_moves: [[Move::NULL; 2]; MAX_DEPTH],
             history: HistoryTable::default(),
             counter_moves: ContinuationHistoryTable::default(),
             followup_moves: ContinuationHistoryTable::default(),
@@ -157,7 +168,7 @@ impl Thread {
         // Killers are shifted back by the ply advance
         self.killer_moves.copy_within(advance.., 0);
         for k in &mut self.killer_moves[MAX_DEPTH - advance..] {
-            *k = [NULL_MOVE; 2];
+            *k = [Move::NULL; 2];
         }
 
         self.nodes = 0;
@@ -183,7 +194,7 @@ impl Thread {
 
     /// Push a null move to the search stack
     pub fn push_null(&mut self) {
-        self.search_stack[self.ply] = (Piece::WP, NULL_MOVE, self.ply_from_null);
+        self.search_stack[self.ply] = (Piece::WP, Move::NULL, self.ply_from_null);
         self.ply += 1;
         self.ply_from_null = 0;
         self.nodes += 1;
@@ -243,7 +254,7 @@ impl Thread {
 
     /// Get the stack entry from 'rollback' ply ago
     fn get_previous_entry(&self, rollback: usize) -> Option<(Piece, Move, usize)> {
-        if self.ply >= rollback && self.search_stack[self.ply - rollback].1 != NULL_MOVE {
+        if self.ply >= rollback && self.search_stack[self.ply - rollback].1 != Move::NULL {
             Some(self.search_stack[self.ply - rollback])
         } else {
             None
@@ -252,6 +263,7 @@ impl Thread {
 }
 
 /// ThreadPool specific for handling LazySMP
+#[derive(Clone, Debug)]
 pub struct ThreadPool {
     main_thread: Thread,
     workers: Vec<Thread>,
@@ -313,7 +325,7 @@ impl ThreadPool {
         let move_count = move_list.len();
 
         if move_count == 0 {
-            return NULL_MOVE;
+            return Move::NULL;
         } else if move_count == 1 || self.main_thread.clock.no_search_time() {
             return move_list.moves[0];
         };

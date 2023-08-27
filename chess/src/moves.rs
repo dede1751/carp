@@ -1,6 +1,10 @@
 use std::fmt;
 
-use crate::{piece::*, square::*, transmute_enum};
+use crate::{
+    piece::{Color, Piece},
+    square::Square,
+    transmute_enum,
+};
 
 /// Moves, encoded in 16b (encoding scheme is from Midnight by Archi)
 ///
@@ -9,8 +13,6 @@ use crate::{piece::*, square::*, transmute_enum};
 ///     1111 0000 0000 0000    move type    0x7000    12
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Default, Hash)]
 pub struct Move(pub u16);
-
-pub const NULL_MOVE: Move = Move(0);
 
 /// Flag for the type of move, fits in 4b
 #[repr(u8)]
@@ -94,9 +96,11 @@ impl fmt::Display for Move {
 }
 
 impl Move {
+    pub const NULL: Self = Self(0);
+
     /// Init move through bitwise or of the various values shifted to correct place
-    pub const fn new(src: Square, tgt: Square, move_type: MoveType) -> Move {
-        Move((src as u16) | (tgt as u16) << 6 | (move_type as u16) << 12)
+    pub const fn new(src: Square, tgt: Square, move_type: MoveType) -> Self {
+        Self((src as u16) | (tgt as u16) << 6 | (move_type as u16) << 12)
     }
 
     /// Returns the move source square

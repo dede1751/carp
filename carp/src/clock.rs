@@ -6,10 +6,10 @@ use std::{
     sync::Arc,
 };
 
-use chess::{moves::*, square::*};
+use chess::{moves::Move, square::Square};
 
 /// Time Controls supported by the UCI protocol.
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
 pub enum TimeControl {
     Infinite,
     FixedDepth(usize),
@@ -88,7 +88,7 @@ pub struct Clock {
     opt_time: Duration,
     max_time: Duration,
     pub last_nodes: u64,
-    node_count: [[u64; SQUARE_COUNT]; SQUARE_COUNT],
+    node_count: [[u64; Square::COUNT]; Square::COUNT],
 }
 
 impl Clock {
@@ -157,7 +157,7 @@ impl Clock {
             opt_time,
             max_time,
             last_nodes: 0,
-            node_count: [[0; SQUARE_COUNT]; SQUARE_COUNT],
+            node_count: [[0; Square::COUNT]; Square::COUNT],
         }
     }
 
@@ -211,7 +211,7 @@ impl Clock {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 // At the start, we scale the opt time based on how many nodes were dedicated
                 // to searching the best move (on this thread)
-                let opt_scale = if best_move != NULL_MOVE && nodes != 0 {
+                let opt_scale = if best_move != Move::NULL && nodes != 0 {
                     let bm_nodes =
                         self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
                     let bm_fraction = bm_nodes as f64 / nodes as f64;

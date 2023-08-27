@@ -6,6 +6,7 @@ use std::{
     error::Error,
     ffi::OsStr,
     fs::{self, File},
+    hash::{Hash, Hasher},
     io::{BufWriter, Read, Write},
     ops::Range,
     path::{Path, PathBuf},
@@ -39,10 +40,10 @@ struct QuicklySortableString<'a> {
 impl<'a> QuicklySortableString<'a> {
     /// Create a new QuicklySortableString from a string slice and an "interesting" range
     pub fn new(string: &'a str, view: Range<usize>) -> Self {
-        use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
         let interesting_range = &string[view.clone()];
         interesting_range.hash(&mut hasher);
+
         Self {
             string,
             view,
@@ -85,7 +86,7 @@ impl<'a> PartialOrd for QuicklySortableString<'a> {
 
 /// Merge all datagen files in the given directory.
 /// This will read all the data into memory, so be careful with dataset size.
-pub fn merge<P1: AsRef<Path>>(input_dir: &P1) -> Result<(), Box<dyn Error>> {
+pub fn merge<P: AsRef<Path>>(input_dir: &P) -> Result<(), Box<dyn Error>> {
     let out = input_dir.as_ref().join(format!(
         "merged_{}.txt",
         chrono::Local::now().format("%d-%m-%Y_%H-%M-%S")

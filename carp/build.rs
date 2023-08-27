@@ -1,3 +1,4 @@
+/// Setup LMR tables which need float math.
 use std::{error::Error, fs::File, io::Write, path::PathBuf};
 
 fn main() -> Result<(), Box<dyn Error>> {

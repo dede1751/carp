@@ -1,7 +1,6 @@
 use std::fmt;
 
-use crate::square::*;
-use crate::transmute_enum;
+use crate::{square::Square, transmute_enum};
 
 /// Bitboard implemented as a simple tuple struct.
 /// Contents are public for convenience (direct initialization in various arrays/tests) but it
@@ -9,11 +8,7 @@ use crate::transmute_enum;
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct BitBoard(pub u64);
 
-pub type BB64 = [BitBoard; SQUARE_COUNT];
-
-pub const EMPTY_BB: BitBoard = BitBoard(0);
-pub const FULL_BB: BitBoard = BitBoard(0xFFFFFFFFFFFFFFFF);
-pub const EMPTY_BB64: BB64 = [EMPTY_BB; SQUARE_COUNT];
+pub type BB64 = [BitBoard; Square::COUNT];
 
 /// Idea for ops implementation is from https://github.com/analog-hors/tantabus
 /// Implement math standard operations
@@ -54,10 +49,10 @@ impl_math_assign_ops! {
 }
 
 impl std::ops::Not for BitBoard {
-    type Output = BitBoard;
+    type Output = Self;
 
-    fn not(self) -> BitBoard {
-        BitBoard(!self.0)
+    fn not(self) -> Self::Output {
+        Self(!self.0)
     }
 }
 
@@ -85,8 +80,8 @@ impl fmt::Display for BitBoard {
 impl Iterator for BitBoard {
     type Item = Square;
 
-    fn next(&mut self) -> Option<Square> {
-        if *self == EMPTY_BB {
+    fn next(&mut self) -> Option<Self::Item> {
+        if *self == Self::EMPTY {
             None
         } else {
             let sq = self.lsb();
@@ -98,19 +93,23 @@ impl Iterator for BitBoard {
 }
 
 impl BitBoard {
+    pub const EMPTY: Self = Self(0);
+    pub const FULL: Self = Self(0xFFFFFFFFFFFFFFFF);
+    pub const EMPTY_BB64: BB64 = [Self::EMPTY; Square::COUNT];
+
     /// Check whether given square is set on the board
     pub const fn get_bit(self, square: Square) -> bool {
         self.0 & (1u64 << square as usize) != 0
     }
 
     /// Sets given square on the board
-    pub const fn set_bit(self, square: Square) -> BitBoard {
-        BitBoard(self.0 | 1u64 << square as usize)
+    pub const fn set_bit(self, square: Square) -> Self {
+        Self(self.0 | 1u64 << square as usize)
     }
 
     /// Pops given square off the board
-    pub const fn pop_bit(self, square: Square) -> BitBoard {
-        BitBoard(self.0 & !(1u64 << square as usize))
+    pub const fn pop_bit(self, square: Square) -> Self {
+        Self(self.0 & !(1u64 << square as usize))
     }
 
     /// Returns popcnt

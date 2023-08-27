@@ -11,9 +11,6 @@ use crate::{piece::*, square::*};
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct CastlingRights(u8);
 
-pub const CASTLE_COUNT: usize = 16;
-pub const NO_RIGHTS: CastlingRights = CastlingRights(0);
-
 // bit masks for each right
 const WK: u8 = 0x08;
 const WQ: u8 = 0x04;
@@ -71,10 +68,10 @@ impl FromStr for CastlingRights {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut rights = NO_RIGHTS;
+        let mut rights = Self::NONE;
 
         if s == "-" {
-            return Ok(NO_RIGHTS);
+            return Ok(Self::NONE);
         }
 
         for token in s.chars() {
@@ -102,6 +99,9 @@ impl FromStr for CastlingRights {
 }
 
 impl CastlingRights {
+    pub const COUNT: usize = 16;
+    pub const NONE: CastlingRights = CastlingRights(0);
+
     /// Get index of rights as usize
     pub const fn index(self) -> usize {
         self.0 as usize
@@ -123,7 +123,7 @@ impl CastlingRights {
     /// starts (or ends but it's impossible) on the king start square
     pub const fn update(self, src: Square, tgt: Square) -> CastlingRights {
         #[rustfmt::skip]
-        const CASTLE_MASKS: [u8; SQUARE_COUNT] = [
+        const CASTLE_MASKS: [u8; Square::COUNT] = [
             NO_BQ, ALL, ALL, ALL, NO_B, ALL, ALL, NO_BK,
             ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,
             ALL, ALL, ALL, ALL, ALL, ALL, ALL, ALL,

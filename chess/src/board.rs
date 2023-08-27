@@ -2,8 +2,16 @@ use std::time::Instant;
 use std::{fmt, str::FromStr};
 
 use crate::{
-    bitboard::*, castle::*, move_list::*, moves::*, nnue::*, params::*, piece::*, square::*,
-    tables::*, zobrist::*,
+    bitboard::BitBoard,
+    castle::{rook_castling_move, CastlingRights},
+    move_list::MoveList,
+    moves::{Move, MoveType},
+    nnue::{NNUEState, OFF, ON},
+    params::*,
+    piece::{Color, Piece},
+    square::{File, Rank, Square},
+    tables::*,
+    zobrist::ZHash,
 };
 
 /// Piece-centric board representation
@@ -11,12 +19,12 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Board {
     // Main bitboards
-    pub piece_bb: [BitBoard; PIECE_COUNT],
+    pub piece_bb: [BitBoard; Piece::COUNT],
     pub side_occupancy: [BitBoard; 2],
     pub occupancy: BitBoard,
 
     // Piece map for piece_at lookup
-    piece: [Option<Piece>; SQUARE_COUNT],
+    piece: [Option<Piece>; Square::COUNT],
 
     // Other positional information
     pub side: Color,
@@ -37,10 +45,10 @@ impl fmt::Display for Board {
             self.to_fen()
         );
 
-        for rank in ALL_RANKS {
+        for rank in Rank::ALL {
             board_str.push_str(format!("\n      {} ┃ ", 8 - rank as usize).as_str());
 
-            for file in ALL_FILES {
+            for file in File::ALL {
                 let square = Square::from_coords(file, rank);
                 let piece_str =
                     self.piece[square as usize].map_or(String::from(" "), |p| p.to_string());
@@ -83,7 +91,7 @@ impl FromStr for Board {
             return Err("Invalid fen!");
         }
 
-        let mut board = Board::new();
+        let mut board = Self::new();
         let board_str = fen[0];
         let mut token_count = 0; // used for checking that number of tokens is correct
 
@@ -155,10 +163,10 @@ impl Board {
     pub fn to_fen(&self) -> String {
         let mut fen = String::new();
 
-        for rank in ALL_RANKS {
+        for rank in Rank::ALL {
             let mut empty = 0;
 
-            for file in ALL_FILES {
+            for file in File::ALL {
                 let square = Square::from_coords(file, rank);
 
                 if let Some(p) = self.piece[square as usize] {
@@ -257,18 +265,18 @@ impl Board {
 /// Implement board modification
 impl Board {
     /// Initialize an empty board
-    pub const fn new() -> Board {
-        Board {
-            piece_bb: [EMPTY_BB; PIECE_COUNT],
-            side_occupancy: [EMPTY_BB; 2],
-            occupancy: EMPTY_BB,
-            piece: [None; SQUARE_COUNT],
+    pub const fn new() -> Self {
+        Self {
+            piece_bb: [BitBoard::EMPTY; Piece::COUNT],
+            side_occupancy: [BitBoard::EMPTY; 2],
+            occupancy: BitBoard::EMPTY,
+            piece: [None; Square::COUNT],
             side: Color::White,
-            castling_rights: NO_RIGHTS,
+            castling_rights: CastlingRights::NONE,
             en_passant: None,
             halfmoves: 0,
-            hash: NULL_HASH,
-            checkers: EMPTY_BB,
+            hash: ZHash::NULL,
+            checkers: BitBoard::EMPTY,
         }
     }
 
@@ -485,7 +493,7 @@ impl Board {
         let king_square = self.own_king().lsb();
         let ksq = king_square as usize;
         let occupancies = self.occupancy.pop_bit(king_square);
-        let mut threats = EMPTY_BB;
+        let mut threats = BitBoard::EMPTY;
 
         for sq in self.opp_pawns() & PAWN_THREATS[self.side as usize][ksq] {
             threats |= pawn_attacks(sq, !self.side);
@@ -532,12 +540,12 @@ impl Board {
         let diag_pins = diag_attackers
             .into_iter()
             .map(|sq| BETWEEN[sq as usize][king_square as usize].set_bit(sq))
-            .fold(EMPTY_BB, |acc, x| acc | x);
+            .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         let hv_pins = hv_attackers
             .into_iter()
             .map(|sq| BETWEEN[sq as usize][king_square as usize].set_bit(sq))
-            .fold(EMPTY_BB, |acc, x| acc | x);
+            .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         (diag_pins, hv_pins)
     }
@@ -659,8 +667,8 @@ impl Board {
                     let ep_rank = EP_RANKS[self.side as usize];
 
                     // En Passant discovered check!
-                    if ep_rank & self.own_king() != EMPTY_BB
-                        && ep_rank & self.opp_queen_rook() != EMPTY_BB
+                    if ep_rank & self.own_king() != BitBoard::EMPTY
+                        && ep_rank & self.opp_queen_rook() != BitBoard::EMPTY
                     {
                         // remove the two pawns
                         let occupancy = self.occupancy & !source.to_board() & !ep_target.to_board();
@@ -669,7 +677,7 @@ impl Board {
                         let king_ray = rook_attacks(king_square, occupancy) & ep_rank;
 
                         // king sees enemy queen or rook directly
-                        if king_ray & self.opp_queen_rook() != EMPTY_BB {
+                        if king_ray & self.opp_queen_rook() != BitBoard::EMPTY {
                             continue;
                         }
                     }
@@ -697,11 +705,11 @@ impl Board {
         let side = self.side as usize;
 
         if self.castling_rights.has_kingside(self.side)
-            && (threats | self.occupancy) & OCCS[side] == EMPTY_BB
+            && (threats | self.occupancy) & OCCS[side] == BitBoard::EMPTY
             && !((self.opp_king() | self.opp_pawns()).get_bit(KP[side]))
-            && self.opp_knights() & N[side] == EMPTY_BB
+            && self.opp_knights() & N[side] == BitBoard::EMPTY
         {
-            let mut sliders = EMPTY_BB;
+            let mut sliders = BitBoard::EMPTY;
             for sq in self.opp_queen_rook() & QR[side] {
                 sliders |= rook_attacks(sq, self.occupancy);
             }
@@ -734,12 +742,12 @@ impl Board {
         let side = self.side as usize;
 
         if self.castling_rights.has_queenside(self.side)
-            && self.occupancy & OCCS[side] == EMPTY_BB
+            && self.occupancy & OCCS[side] == BitBoard::EMPTY
             && !threats.get_bit(THREATS[side])
             && !(self.opp_king() | self.opp_pawns()).get_bit(KP[side])
-            && self.opp_knights() & N[side] == EMPTY_BB
+            && self.opp_knights() & N[side] == BitBoard::EMPTY
         {
-            let mut sliders = EMPTY_BB;
+            let mut sliders = BitBoard::EMPTY;
             for sq in self.opp_queen_rook() & QR[side] {
                 sliders |= rook_attacks(sq, self.occupancy);
             }
@@ -775,7 +783,7 @@ impl Board {
         }
 
         for source in piece_bb {
-            let mut targets = EMPTY_BB;
+            let mut targets = BitBoard::EMPTY;
 
             if PIECE == N {
                 targets = knight_attacks(source);
@@ -827,7 +835,7 @@ impl Board {
                 self.checkers,
             )
         } else {
-            (FULL_BB, FULL_BB)
+            (BitBoard::FULL, BitBoard::FULL)
         };
         let check_mask = capture_check | block_check;
         let (diag_pins, hv_pins) = self.map_pins();
@@ -879,10 +887,10 @@ impl Board {
 
     /// Returns the least valuable of the attackers within the attacker map
     fn get_lva(&self, attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
-        for piece in PIECES[side as usize] {
+        for piece in Piece::SPLIT_COLOR[side as usize] {
             let squares = attackers & self.piece_bb[piece as usize];
 
-            if squares != EMPTY_BB {
+            if squares != BitBoard::EMPTY {
                 return Some((squares.lsb(), piece));
             }
         }
@@ -954,7 +962,7 @@ impl Board {
         loop {
             // SEE terminates when no recapture is possible.
             let own_attackers = attackers & self.side_occupancy[side_to_move as usize];
-            if own_attackers == EMPTY_BB {
+            if own_attackers == BitBoard::EMPTY {
                 break;
             }
 
@@ -980,7 +988,7 @@ impl Board {
                 // If the recapturing piece is a king, and the opponent has another attacker,
                 // a positive balance should not translate to an exchange win.
                 if attacker.is_king()
-                    && attackers & self.side_occupancy[side_to_move as usize] != EMPTY_BB
+                    && attackers & self.side_occupancy[side_to_move as usize] != BitBoard::EMPTY
                 {
                     return self.side == side_to_move;
                 }

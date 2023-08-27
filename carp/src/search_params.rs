@@ -1,4 +1,3 @@
-pub use chess::params::*;
 /// Search parameters are kept in this module.
 /// Terminology:
 ///     THRESHOLD: anything takes effect AFTER this amount or BELOW this depth (always <=)
@@ -6,6 +5,7 @@ pub use chess::params::*;
 ///     BASE: flat bonus in a formula
 ///     MARGIN: multiplicative (usually depth) coefficient in a formula
 ///     FACTOR: dividing coefficient in a formula
+pub use chess::params::*;
 use std::mem::transmute;
 
 pub const INFINITY: Eval = 32001; // score upper bound

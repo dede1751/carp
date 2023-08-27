@@ -2,7 +2,11 @@
 ///    - History Tables: used for ordering quiet moves
 ///    - PV Table: holds the principal variation, which is the main line the engine predicts
 use crate::search_params::*;
-use chess::{moves::*, piece::*, square::*};
+use chess::{
+    moves::Move,
+    piece::{Color, Piece},
+    square::Square,
+};
 
 /// PV Tables store the principal variation.
 /// Whenever a move scores within the window, it is added to the PV table of its child subtree.
@@ -16,7 +20,7 @@ impl Default for PVTable {
     fn default() -> Self {
         Self {
             length: 0,
-            moves: [NULL_MOVE; MAX_DEPTH],
+            moves: [Move::NULL; MAX_DEPTH],
         }
     }
 }
@@ -42,8 +46,8 @@ impl PVTable {
     }
 }
 
-type History = [[[i16; SQUARE_COUNT]; SQUARE_COUNT]; 2];
-type ContinuationHistory = [[[[i16; SQUARE_COUNT]; SQUARE_COUNT]; SQUARE_COUNT]; PIECE_COUNT];
+type History = [[[i16; Square::COUNT]; Square::COUNT]; 2];
+type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::COUNT];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
@@ -64,6 +68,7 @@ const fn taper_bonus<const MAX: i32>(bonus: i16, old: i16) -> i16 {
 
 /// Simple history tables are used for standard move histories.
 ///     Indexing: [side][src][tgt]
+#[derive(Clone, Debug)]
 pub struct HistoryTable<const MAX: i32> {
     history: History,
 }
@@ -71,7 +76,7 @@ pub struct HistoryTable<const MAX: i32> {
 impl<const MAX: i32> Default for HistoryTable<MAX> {
     fn default() -> Self {
         Self {
-            history: [[[0; SQUARE_COUNT]; SQUARE_COUNT]; 2],
+            history: [[[0; Square::COUNT]; Square::COUNT]; 2],
         }
     }
 }
@@ -110,6 +115,7 @@ impl<const MAX: i32> HistoryTable<MAX> {
 ///    - Followup Move: our previous move
 ///
 ///     Indexing: [old_piece][old_tgt][new_src][new_tgt]
+#[derive(Clone, Debug)]
 pub struct ContinuationHistoryTable<const MAX: i32> {
     history: Box<ContinuationHistory>,
 }

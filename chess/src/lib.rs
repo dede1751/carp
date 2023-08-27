@@ -1,4 +1,5 @@
 /// Chess crate contains all structures to fully represent the game of chess
+/// This is not meant to be a generalized library, but rather a backend specifically for Carp.
 pub mod bitboard;
 pub mod board;
 pub mod castle;

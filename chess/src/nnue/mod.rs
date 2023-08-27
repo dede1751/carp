@@ -9,7 +9,12 @@ use std::alloc;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
-use crate::{board::*, params::*, piece::*, square::*};
+use crate::{
+    board::Board,
+    params::*,
+    piece::{Color, Piece},
+    square::Square,
+};
 
 // Network Arch
 const FEATURES: usize = 768;
@@ -155,7 +160,7 @@ impl NNUEState {
         self.accumulator_stack[self.current_acc] = Accumulator::default();
 
         // update the first accumulator
-        for piece in ALL_PIECES {
+        for piece in Piece::ALL {
             for sq in board.piece_bb[piece as usize] {
                 self.manual_update::<ON>(piece, sq);
             }

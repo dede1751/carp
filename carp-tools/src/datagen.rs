@@ -10,7 +10,13 @@ use std::{
     time::Instant,
 };
 
-use carp::{clock::*, position::*, search_params::*, thread::*, tt::*};
+use carp::{
+    clock::{Clock, TimeControl},
+    position::{GameResult, Position, ADJ},
+    search_params::*,
+    thread::Thread,
+    tt::TT,
+};
 use clap::Args;
 
 /// Generate training data through self-play, defaulting to depth 8 searches.
@@ -169,7 +175,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
             thread.clock = Clock::new(
                 Arc::new(AtomicBool::new(false)),
                 Arc::new(AtomicU64::new(0)),
-                tc.clone(),
+                tc,
                 position.white_to_move(),
             );
 

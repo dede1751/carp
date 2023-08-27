@@ -1,11 +1,10 @@
-/// Implement a Transposition Table, used to store already searched positions for future use.
 use std::{
     mem::{size_of, transmute},
     sync::atomic::{AtomicU64, Ordering},
 };
 
 use crate::search_params::*;
-use chess::{moves::*, zobrist::*};
+use chess::{moves::Move, zobrist::ZHash};
 
 /// TTFlag: determines the type of eval stored in the field
 #[repr(u8)]
@@ -93,7 +92,7 @@ impl TTEntry {
 
     /// Returns best move
     pub fn get_move(self) -> Option<Move> {
-        if self.best_move != NULL_MOVE {
+        if self.best_move != Move::NULL {
             Some(self.best_move)
         } else {
             None
@@ -187,22 +186,23 @@ pub struct TT {
     table: Vec<AtomicField>,
     age: u8,
 }
-pub const DEFAULT_SIZE: usize = 16;
 
 // Default to 16 MiB size
 impl Default for TT {
     fn default() -> Self {
-        let mut tt = TT {
+        let mut tt = Self {
             table: Vec::new(),
             age: 0,
         };
-        tt.resize(DEFAULT_SIZE);
+        tt.resize(Self::DEFAULT_SIZE);
 
         tt
     }
 }
 
 impl TT {
+    pub const DEFAULT_SIZE: usize = 16;
+
     /// Get a key that wraps around the table size, avoiding using Modulo.
     /// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
     fn get_key(&self, hash: ZHash) -> usize {
@@ -255,16 +255,9 @@ impl TT {
     }
 
     /// Insert entry in appropriate tt field.
-    ///
-    /// Uses highest depth + aging for replacement, but takes special care of different flag types
-    /// to maintain the pv within the transposition table:
-    ///     - highest priority is given to entry age
-    ///     - second highest is given to Exact entries: they only get replaced by better exact ones
-    ///     - inexact entries get overwritten by exact entries or entries at the same depth. this
-    ///       is because in the search_root function we may replace the same entry many times.
-    ///
-    /// Conditions are explained here:
-    /// https://stackoverflow.com/questions/37782131/chess-extracting-the-principal-variation-from-the-transposition-table
+    /// The replacement policy is similar to Stockfish's, mostly favoring Exact entries or entries
+    /// from different positions, and otherwise discriminating based on depth.
+    /// We also use entry aging on top of that.
     #[rustfmt::skip]
     #[allow(clippy::too_many_arguments)]
     pub fn insert(
@@ -288,7 +281,7 @@ impl TT {
             || depth + TT_REPLACE_OFFSET + 2 * usize::from(pv) > old.depth as usize
         {
             // Don't overwrite best moves with null moves
-            if best_move == NULL_MOVE && same_position {
+            if best_move == Move::NULL && same_position {
                 best_move = old.best_move;
             }
 
@@ -339,8 +332,8 @@ mod tests {
         let mut tt = TT::default();
         tt.resize(1);
 
-        tt.insert(ZHash(0), TTFlag::Exact, NULL_MOVE, 100, 100, 1, 0, false); // insert field 1
-        tt.insert(ZHash(1), TTFlag::Exact, NULL_MOVE, 100, 100, 2, 0, false); // insert field 2 in same slot as field 1, replacing it
+        tt.insert(ZHash(0), TTFlag::Exact, Move::NULL, 100, 100, 1, 0, false); // insert field 1
+        tt.insert(ZHash(1), TTFlag::Exact, Move::NULL, 100, 100, 2, 0, false); // insert field 2 in same slot as field 1, replacing it
 
         let new = tt.probe(ZHash(0)); // check no match on first hash
         assert!(new.is_none());
