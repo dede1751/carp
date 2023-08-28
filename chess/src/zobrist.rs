@@ -6,18 +6,24 @@
 /// ZH(C(A)) == ZH(C(B))   <=>     ZH(B) is obtained from ZH(A) through some sequence of moves.
 ///
 /// Building ZH(A) and ZH(B) independently by summing material score WILL NOT produce the same hash
-use crate::{board::*, castle::*, piece::*, square::*, tables::*};
+use crate::{
+    board::*,
+    castle::CastlingRights,
+    piece::{Color, Piece},
+    square::Square,
+    tables::*,
+};
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
 pub struct ZHash(pub u64);
 
-pub const NULL_HASH: ZHash = ZHash(0);
-
 impl ZHash {
-    pub fn new(board: &Board) -> ZHash {
-        let mut hash: ZHash = ZHash(0);
+    pub const NULL: Self = Self(0);
 
-        for piece in ALL_PIECES {
+    pub fn new(board: &Board) -> Self {
+        let mut hash: Self = Self::NULL;
+
+        for piece in Piece::ALL {
             for square in board.piece_bb[piece as usize] {
                 hash.toggle_piece(piece, square);
             }
@@ -71,7 +77,7 @@ impl ZHash {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::moves::*;
+    use crate::moves::{Move, MoveType};
 
     #[test]
     pub fn test_hash_init() {

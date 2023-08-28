@@ -15,7 +15,7 @@ impl Not for Color {
     type Output = Color;
 
     // get opposite color
-    fn not(self) -> Color {
+    fn not(self) -> Self {
         transmute_enum!(self as u8 ^ 1, 1)
     }
 }
@@ -44,39 +44,16 @@ pub enum Piece {
 }
 use Piece::*;
 
-pub const PIECE_COUNT: usize = 12;
-
-/// All pieces indexed by binary representation
-#[rustfmt::skip]
-pub const ALL_PIECES: [Piece; PIECE_COUNT] = [
-    WP, BP, WN, BN, WB, BB,
-    WR, BR, WQ, BQ, WK, BK,
-];
-
-/// All pieces indexed by color
-#[rustfmt::skip]
-pub const PIECES: [[Piece; 6]; 2] = [
-    [ WP, WN, WB, WR, WQ, WK ],
-    [ BP, BN, BB, BR, BQ, BK ]
-];
-
-// used for printing/reading pieces
-#[rustfmt::skip]
-const PIECE_CHAR: [char; PIECE_COUNT] = [
-    'P', 'p', 'N', 'n', 'B', 'b',
-    'R', 'r', 'Q', 'q', 'K', 'k',
-];
-
-#[rustfmt::skip]
-const PIECE_UNICODE: [char; PIECE_COUNT] = [
-    '♟', '♙', '♞', '♘', '♝', '♗',
-    '♜', '♖', '♛', '♕', '♚', '♔',
-];
-
 /// Prints piece as unicode character
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", PIECE_UNICODE[*self as usize])
+        #[rustfmt::skip]
+        const UNICODE: [char; Piece::COUNT] = [
+            '♟', '♙', '♞', '♘', '♝', '♗',
+            '♜', '♖', '♛', '♕', '♚', '♔',
+        ];
+
+        write!(f, "{}", UNICODE[*self as usize])
     }
 }
 
@@ -86,7 +63,7 @@ impl TryFrom<char> for Piece {
 
     fn try_from(value: char) -> Result<Self, Self::Error> {
         Ok(Self::from(
-            PIECE_CHAR
+            Self::CHAR
                 .iter()
                 .position(|&x| x == value)
                 .ok_or("Invalid piece!")?,
@@ -134,9 +111,32 @@ impl From<usize> for Piece {
 }
 
 impl Piece {
+    pub const COUNT: usize = 12;
+
+    /// All pieces indexed by binary representation
+    #[rustfmt::skip]
+    pub const ALL: [Self; Self::COUNT] = [
+        WP, BP, WN, BN, WB, BB,
+        WR, BR, WQ, BQ, WK, BK,
+    ];
+
+    /// Used for printing/reading pieces
+    #[rustfmt::skip]
+    const CHAR: [char; Self::COUNT] = [
+        'P', 'p', 'N', 'n', 'B', 'b',
+        'R', 'r', 'Q', 'q', 'K', 'k',
+    ];
+
+    /// All pieces indexed by color
+    #[rustfmt::skip]
+    pub const SPLIT_COLOR: [[Self; 6]; 2] = [
+        [ WP, WN, WB, WR, WQ, WK ],
+        [ BP, BN, BB, BR, BQ, BK ]
+    ];
+
     /// Returns fen formatted piece
     pub const fn to_char(self) -> char {
-        PIECE_CHAR[self as usize]
+        Self::CHAR[self as usize]
     }
 
     /// Get piece color
@@ -145,7 +145,7 @@ impl Piece {
     }
 
     /// Switch piece color
-    pub const fn opposite_color(self) -> Piece {
+    pub const fn opposite_color(self) -> Self {
         transmute_enum!(self as u8 ^ 1, 15) // ^1 flips color bit
     }
 }

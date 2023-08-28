@@ -6,6 +6,7 @@
 ///     MARGIN: multiplicative (usually depth) coefficient in a formula
 ///     FACTOR: dividing coefficient in a formula
 pub use chess::params::*;
+use std::mem::transmute;
 
 pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
@@ -23,8 +24,11 @@ pub const BIG_DELTA: Eval = 1100;
 
 pub const LMR_THRESHOLD: usize = 2;
 pub const LMR_LOWER_LIMIT: usize = 2;
-pub const LMR_BASE: f32 = 0.75;
-pub const LMR_FACTOR: f32 = 2.0;
+const LMR_TABLE: [[usize; 64]; 64] = unsafe { transmute(*include_bytes!("../../bins/lmr.bin")) };
+
+pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
+    LMR_TABLE[depth.min(63)][move_count.min(63)]
+}
 
 pub const SE_LOWER_LIMIT: usize = 8;
 

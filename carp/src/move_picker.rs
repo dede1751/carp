@@ -1,6 +1,6 @@
 /// The Move Picker is responsible for choosing which move to search next at a node.
 use crate::{search_params::*, thread::*};
-use chess::{board::*, move_list::*, moves::*, piece::*};
+use chess::{board::Board, move_list::MoveList, moves::{Move, MoveType}, piece::Piece};
 
 /// Stages of the move picker.
 /// Tacticals include both captures and promotions.
@@ -27,10 +27,10 @@ pub enum Stage {
 /// | TT MOVE | GOOD TACTICALS |  KILLER 1 | KILLER 2 | QUIETS | BAD TACTICALS |
 /// +--------------------------------------------------------------------------+
 ///                            ^ good_tactical_index           ^ bad_tactical_index
-///
+#[derive(Clone, Debug)]
 pub struct MovePicker<const QUIETS: bool> {
     move_list: MoveList,
-    scores: [i32; MAX_MOVES],
+    scores: [i32; MoveList::SIZE],
     index: usize,               // Index used for movelist traversal
     good_tactical_index: usize, // Index of the first non-tactical move
     bad_tactical_index: usize,  // Index of the first bad tactical move
@@ -61,7 +61,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 
         MovePicker {
             move_list,
-            scores: [0; MAX_MOVES],
+            scores: [0; MoveList::SIZE],
             index: 0,
             good_tactical_index: 0,
             bad_tactical_index,
@@ -118,7 +118,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             self.stage = Stage::Killer2;
 
             let k1 = t.killer_moves[t.ply][0];
-            if !self.skip_quiets && k1 != NULL_MOVE && self.tt_move != Some(k1) {
+            if !self.skip_quiets && k1 != Move::NULL && self.tt_move != Some(k1) {
                 let killer = self.find_pred(self.quiet_index, self.bad_tactical_index, |m| m == k1);
 
                 if let Some(m) = killer {
@@ -139,7 +139,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             }
 
             let k2 = t.killer_moves[t.ply][1];
-            if !self.skip_quiets && k2 != NULL_MOVE && self.tt_move != Some(k2) {
+            if !self.skip_quiets && k2 != Move::NULL && self.tt_move != Some(k2) {
                 let killer = self.find_pred(self.quiet_index, self.bad_tactical_index, |m| m == k2);
 
                 if let Some(m) = killer {
@@ -244,8 +244,8 @@ pub const KILLER2: i32 = GOOD_TACTICAL + 1;
 pub const GOOD_TACTICAL: i32 = 2_000_000;
 pub const BAD_TACTICAL: i32 = 1_000_000;
 
-const MVV: [i32; PIECE_COUNT] = [10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60];
-const LVA: [i32; PIECE_COUNT] = [5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0];
+const MVV: [i32; Piece::COUNT] = [10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60];
+const LVA: [i32; Piece::COUNT] = [5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0];
 
 const PROMO_SCORE: i32 = 70; // Queen promotions have best MVV-LVA value, but still less than good tacticals
 const EP_SCORE: i32 = 15; // EP equal to pxp
@@ -314,12 +314,10 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess::{square::*, *};
+    use chess::{board::{CAPTURES, QUIETS}, square::Square, piece::Color};
 
     #[test]
     fn test_quiet_picker() {
-        init_all_tables();
-
         let b: Board = "2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1".parse().unwrap();
         let move_list = b.gen_moves::<QUIETS>();
         let move_count = move_list.len();
@@ -359,8 +357,6 @@ mod tests {
 
     #[test]
     fn test_capture_picker() {
-        init_all_tables();
-
         let b: Board = "2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1".parse().unwrap();
         let move_list = b.gen_moves::<CAPTURES>();
         let move_count = move_list.len();

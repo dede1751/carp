@@ -9,7 +9,7 @@ use std::{
     thread,
 };
 
-use crate::{clock::*, position::*, thread::*, tt::*};
+use crate::{clock::TimeControl, position::Position, thread::ThreadPool, tt::TT};
 
 const NAME: &str = "Carp";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -94,7 +94,7 @@ impl Default for UCIReader {
         let thread_stop = stop.clone();
         thread::spawn(move || UCIController::run(rx, thread_stop));
 
-        UCIReader {
+        Self {
             stop,
             controller_tx: tx,
         }

@@ -1,6 +1,6 @@
 /// NNUE Implementation
 /// Carp uses a (768->768)x2->1 perspective net architecture, fully trained on self play data.
-/// Network is initialized at compile time from the 'net.bin' file in this directory.
+/// Network is initialized at compile time from the 'net.bin' file in thie bins directory.
 /// A new net can be loaded by running the convert_json.py script in the scripts folder.
 ///
 /// Huge thanks to Cosmo, author of Viridithas, for the help. The code here is heavily inspired by
@@ -9,7 +9,12 @@ use std::alloc;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
-use crate::{board::*, params::*, piece::*, square::*};
+use crate::{
+    board::Board,
+    params::*,
+    piece::{Color, Piece},
+    square::Square,
+};
 
 // Network Arch
 const FEATURES: usize = 768;
@@ -36,7 +41,7 @@ struct NNUEParams {
 }
 
 /// NNUE model is initialized from binary values (Viridithas format)
-const MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("net.bin")) };
+const MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("../../../bins/net.bin")) };
 
 /// Generic wrapper for types aligned to 64B for AVX512 (also a Viridithas trick)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -155,7 +160,7 @@ impl NNUEState {
         self.accumulator_stack[self.current_acc] = Accumulator::default();
 
         // update the first accumulator
-        for piece in ALL_PIECES {
+        for piece in Piece::ALL {
             for sq in board.piece_bb[piece as usize] {
                 self.manual_update::<ON>(piece, sq);
             }

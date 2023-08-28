@@ -1,6 +1,16 @@
 /// The Search module implements Carp's Alpha-Beta algorithm for single-threaded tree search.
-use crate::{move_picker::*, position::*, search_params::*, search_tables::*, thread::*, tt::*};
-use chess::{board::*, moves::*, tables::*};
+use crate::{
+    move_picker::{Stage, TT_SCORE},
+    position::Position,
+    search_params::*,
+    search_tables::PVTable,
+    thread::Thread,
+    tt::{TTFlag, TT},
+};
+use chess::{
+    board::{CAPTURES, QUIETS},
+    moves::Move,
+};
 
 impl Position {
     /// Iteratively searches the position at increasing depth
@@ -212,7 +222,7 @@ impl Position {
                 tt.insert(
                     self.board.hash,
                     TTFlag::None,
-                    NULL_MOVE,
+                    Move::NULL,
                     -INFINITY,
                     stand_pat,
                     0,
@@ -285,7 +295,7 @@ impl Position {
         };
 
         let old_alpha = alpha;
-        let mut best_move = NULL_MOVE;
+        let mut best_move = Move::NULL;
         let mut best_eval = -INFINITY;
         let mut searched_quiets = Vec::with_capacity(20);
         let mut move_count = 0;
@@ -548,7 +558,7 @@ impl Position {
             return stand_pat;
         }
 
-        let mut best_move = NULL_MOVE;
+        let mut best_move = Move::NULL;
         let mut best_eval = stand_pat;
         let mut picker = self.gen_moves::<CAPTURES>(tt_move, 0);
 
@@ -609,8 +619,6 @@ impl Position {
     }
 }
 
-/// Test nodes searched
-/// Run with: cargo test --release search -- --show-output
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -625,8 +633,6 @@ mod tests {
             ("8/8/8/2K5/5Q2/8/4k3/8 w - - 0 1", "Mate in 4", 20),
             ("1b2k3/3rP3/2B1K3/8/5P2/8/1p6/8 b - - 4 57", "All moves lead to mate", 5),
         ];
-
-        init_all_tables();
 
         for (fen, name, depth) in SEARCH_SUITE {
             println!("Searching: {}", name);

@@ -1,6 +1,11 @@
-/// Position wraps the entire game state.
-use crate::{move_picker::*, search_params::*, thread::*};
-use chess::{bitboard::*, board::*, moves::*, nnue::*, piece::*};
+use crate::{move_picker::MovePicker, search_params::*, thread::Thread};
+use chess::{
+    bitboard::BitBoard,
+    board::Board,
+    moves::Move,
+    nnue::NNUEState,
+    piece::{Color, Piece},
+};
 
 /// Position, represents a Board's evolution along the game tree.
 /// Also incorporates move ordering and various game rules (50mr, draw detection etc)
@@ -116,12 +121,13 @@ impl Position {
 
     /// Checks whether the current side's king is in check
     pub fn king_in_check(&self) -> bool {
-        self.board.checkers != EMPTY_BB
+        self.board.checkers != BitBoard::EMPTY
     }
 
     /// Only king and pawns are on the board for the side to move. Possible Zugzwang.
     pub fn only_king_pawns_left(&self) -> bool {
-        (self.board.own_occupancy() ^ self.board.own_king() ^ self.board.own_pawns()) == EMPTY_BB
+        (self.board.own_occupancy() ^ self.board.own_king() ^ self.board.own_pawns())
+            == BitBoard::EMPTY
     }
 
     /// Checks if position is a rule-based draw
@@ -177,13 +183,13 @@ impl Position {
 
         match self.board.occupancy.count_bits() {
             2 => true,
-            3 => knights | bishops != EMPTY_BB, // 1 knight or 1 bishop
+            3 => knights | bishops != BitBoard::EMPTY, // 1 knight or 1 bishop
             4 => {
                 let one_each = self.board.side_occupancy[0].count_bits() == 2;
                 let knight_count = knights.count_bits();
                 let bishop_count = bishops.count_bits();
-                let king_in_corner = kings & CORNERS != EMPTY_BB;
-                let king_on_edge = kings & EDGES != EMPTY_BB;
+                let king_in_corner = kings & CORNERS != BitBoard::EMPTY;
+                let king_on_edge = kings & EDGES != BitBoard::EMPTY;
 
                 (knight_count == 2 && !king_on_edge) || // knvkn, king not on edge
                 (bishop_count == 2 && (
@@ -251,11 +257,9 @@ impl Position {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess::init_all_tables;
 
     #[test]
     fn test_draw() {
-        init_all_tables();
         let kbvkn_mate: Position = "fen 5b1K/5k1N/8/8/8/8/8/8 b - - 1 1".parse().unwrap();
         let kbvkn_draw: Position = "fen 8/8/3k4/4n3/8/2KB4/8/8 w - - 0 1".parse().unwrap();
         let krvkn: Position = "fen 8/8/4k3/4n3/8/2KR4/8/8 w - - 0 1".parse().unwrap();
