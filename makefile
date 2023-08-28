@@ -23,11 +23,11 @@ rule:
 	cargo rustc -r -p carp --bins -- -C target-cpu=native --emit link=$(NAME)
 
 tmp-dir:
-	mkdir $(TMPDIR)
+	mkdir -p $(TMPDIR)
 
 x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
 	cargo rustc -r -p carp --bins -- -C target-cpu=$@ -C profile-generate=$(TMPDIR) --emit link=$(PGO)
-	./$(PGO) bench
+	./$(PGO) bench 16
 	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 	
 	cargo rustc -r -p carp --bins -- -C target-feature=+crt-static -C target-cpu=$@ -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)-$@$(EXT)

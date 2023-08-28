@@ -48,7 +48,7 @@ use Piece::*;
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[rustfmt::skip]
-        const UNICODE: [char; Piece::COUNT] = [
+        const UNICODE: [char; Piece::TOTAL] = [
             '♟', '♙', '♞', '♘', '♝', '♗',
             '♜', '♖', '♛', '♕', '♚', '♔',
         ];
@@ -111,28 +111,35 @@ impl From<usize> for Piece {
 }
 
 impl Piece {
-    pub const COUNT: usize = 12;
+    pub const COUNT: usize = 6;
+
+    pub const TOTAL: usize = 12;
 
     /// All pieces indexed by binary representation
     #[rustfmt::skip]
-    pub const ALL: [Self; Self::COUNT] = [
+    pub const ALL: [Self; Self::TOTAL] = [
         WP, BP, WN, BN, WB, BB,
         WR, BR, WQ, BQ, WK, BK,
     ];
 
     /// Used for printing/reading pieces
     #[rustfmt::skip]
-    const CHAR: [char; Self::COUNT] = [
+    const CHAR: [char; Self::TOTAL] = [
         'P', 'p', 'N', 'n', 'B', 'b',
         'R', 'r', 'Q', 'q', 'K', 'k',
     ];
 
     /// All pieces indexed by color
     #[rustfmt::skip]
-    pub const SPLIT_COLOR: [[Self; 6]; 2] = [
+    pub const SPLIT_COLOR: [[Self; Self::COUNT]; 2] = [
         [ WP, WN, WB, WR, WQ, WK ],
         [ BP, BN, BB, BR, BQ, BK ]
     ];
+
+    /// Returns a usize index between 0 and 5 (indexes the piece type)
+    pub const fn index(self) -> usize {
+        self as usize / 2
+    }
 
     /// Returns fen formatted piece
     pub const fn to_char(self) -> char {

@@ -181,11 +181,11 @@ impl Position {
         let knights = self.board.knights();
         let bishops = self.board.bishops();
 
-        match self.board.occupancy.count_bits() {
+        match self.board.occupancy().count_bits() {
             2 => true,
             3 => knights | bishops != BitBoard::EMPTY, // 1 knight or 1 bishop
             4 => {
-                let one_each = self.board.side_occupancy[0].count_bits() == 2;
+                let one_each = self.board.own_occupancy().count_bits() == 2;
                 let knight_count = knights.count_bits();
                 let bishop_count = bishops.count_bits();
                 let king_in_corner = kings & CORNERS != BitBoard::EMPTY;

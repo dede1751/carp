@@ -244,8 +244,8 @@ pub const KILLER2: i32 = GOOD_TACTICAL + 1;
 pub const GOOD_TACTICAL: i32 = 2_000_000;
 pub const BAD_TACTICAL: i32 = 1_000_000;
 
-const MVV: [i32; Piece::COUNT] = [10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60];
-const LVA: [i32; Piece::COUNT] = [5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0];
+const MVV: [i32; Piece::COUNT] = [10, 20, 30, 40, 50, 60];
+const LVA: [i32; Piece::COUNT] = [5, 4, 3, 2, 1, 0];
 
 const PROMO_SCORE: i32 = 70; // Queen promotions have best MVV-LVA value, but still less than good tacticals
 const EP_SCORE: i32 = 15; // EP equal to pxp
@@ -263,8 +263,8 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
         _ => {
-            let attacker = board.piece_at(m.get_src()) as usize;
-            let victim = board.piece_at(m.get_tgt()) as usize;
+            let attacker = board.piece_at(m.get_src()).index();
+            let victim = board.piece_at(m.get_tgt()).index();
 
             MVV[victim] + LVA[attacker]
         }

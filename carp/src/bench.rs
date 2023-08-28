@@ -57,14 +57,14 @@ const TEST_POSITIONS: [&str; 50] = [
     "fen 2r2b2/5p2/5k2/p1r1pP2/P2pB3/1P3P2/K1P3R1/7R w - - 23 93",
 ];
 
-/// Runs benchmark positions to depth 16
-pub fn run_benchmark() {
+/// Runs benchmark positions to the given depth
+pub fn run_benchmark(depth: usize) {
     let mut nodes = 0;
     let mut time = 0;
 
     for fen in TEST_POSITIONS {
         let mut position: Position = fen.parse().unwrap();
-        let mut t = Thread::fixed_depth(13);
+        let mut t = Thread::fixed_depth(depth);
 
         let start = Instant::now();
         position.iterative_search::<false>(&mut t, &TT::default());
