@@ -238,6 +238,7 @@ impl Clock {
                         self.stability = (self.stability + stab_inc).min(10)
                     } else {
                         self.stability = 0;
+                        self.prev_best = best_move;
                     }
 
                     let stability_factor = if prev_stability == 10 && self.stability == 0 {
