@@ -5,7 +5,11 @@
 
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("bench") {
-        carp::bench::run_benchmark();
+        match std::env::args().nth(2).as_deref() {
+            Some(arg) => carp::bench::run_benchmark(arg.parse().unwrap()),
+            None => carp::bench::run_benchmark(13),
+        }
+        
         return;
     }
 

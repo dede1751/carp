@@ -24,7 +24,7 @@ impl ZHash {
         let mut hash: Self = Self::NULL;
 
         for piece in Piece::ALL {
-            for square in board.piece_bb[piece as usize] {
+            for square in board.piece_occupancy(piece) {
                 hash.toggle_piece(piece, square);
             }
         }

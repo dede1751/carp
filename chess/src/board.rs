@@ -19,17 +19,16 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Board {
     // Main bitboards
-    pub piece_bb: [BitBoard; Piece::COUNT],
-    pub side_occupancy: [BitBoard; 2],
-    pub occupancy: BitBoard,
+    piece_bb: [BitBoard; Piece::COUNT],
+    side_bb: [BitBoard; 2],
 
     // Piece map for piece_at lookup
     piece: [Option<Piece>; Square::COUNT],
 
     // Other positional information
     pub side: Color,
-    pub castling_rights: CastlingRights,
-    pub en_passant: Option<Square>,
+    pub(crate) castling_rights: CastlingRights,
+    pub(crate) en_passant: Option<Square>,
     pub halfmoves: usize,
     pub hash: ZHash,
 
@@ -218,41 +217,44 @@ impl Default for Board {
 
 /// Implement all piece bitboard lookups (ugly because concatenating idents seems impossible)
 macro_rules! impl_piece_lookups {
-    ($($piece:ident, $own:ident, $opp:ident, $tot:ident),*) => {
+    ($($piece:expr, $own:ident, $opp:ident, $tot:ident),*) => {
         $(impl Board {
             pub const fn $own(&self) -> BitBoard {
-                self.piece_bb[self.side.$piece() as usize]
+                BitBoard(self.piece_bb[$piece].0 & self.side_bb[self.side as usize].0)
             }
 
             pub const fn $opp(&self) -> BitBoard {
-                self.piece_bb[self.side.$piece().opposite_color() as usize]
+                BitBoard(self.piece_bb[$piece].0 & self.side_bb[self.side as usize ^ 1].0)
             }
 
             pub const fn $tot(&self) -> BitBoard {
-                BitBoard(
-                    self.piece_bb[Color::White.$piece() as usize].0 |
-                    self.piece_bb[Color::Black.$piece() as usize].0
-                )
+                self.piece_bb[$piece]
             }
         })*
     };
 }
 impl_piece_lookups! {
-    pawn, own_pawns, opp_pawns, pawns,
-    knight, own_knights, opp_knights, knights,
-    bishop, own_bishops, opp_bishops, bishops,
-    rook, own_rooks, opp_rooks, rooks,
-    queen, own_queens, opp_queens, queens,
-    king, own_king, opp_king, kings
+    0, own_pawns, opp_pawns, pawns,
+    1, own_knights, opp_knights, knights,
+    2, own_bishops, opp_bishops, bishops,
+    3, own_rooks, opp_rooks, rooks,
+    4, own_queens, opp_queens, queens,
+    5, own_king, opp_king, kings
 }
 
 /// Implement side occupancy and diagonal/hv slider lookups
 impl Board {
+    pub const fn occupancy(&self) -> BitBoard {
+        BitBoard(self.side_bb[0].0 | self.side_bb[1].0)
+    }
+    pub const fn piece_occupancy(&self, piece: Piece) -> BitBoard {
+        BitBoard(self.piece_bb[piece.index()].0 & self.side_bb[piece.color() as usize].0)
+    }
     pub const fn own_occupancy(&self) -> BitBoard {
-        self.side_occupancy[self.side as usize]
+        self.side_bb[self.side as usize]
     }
     pub const fn opp_occupancy(&self) -> BitBoard {
-        self.side_occupancy[self.side as usize ^ 1]
+        self.side_bb[self.side as usize ^ 1]
     }
     pub const fn opp_queen_bishop(&self) -> BitBoard {
         BitBoard(self.opp_queens().0 | self.opp_bishops().0)
@@ -268,14 +270,16 @@ impl Board {
     pub const fn new() -> Self {
         Self {
             piece_bb: [BitBoard::EMPTY; Piece::COUNT],
-            side_occupancy: [BitBoard::EMPTY; 2],
-            occupancy: BitBoard::EMPTY,
+            side_bb: [BitBoard::EMPTY; 2],
+
             piece: [None; Square::COUNT],
+
             side: Color::White,
             castling_rights: CastlingRights::NONE,
             en_passant: None,
             halfmoves: 0,
             hash: ZHash::NULL,
+
             checkers: BitBoard::EMPTY,
         }
     }
@@ -298,12 +302,11 @@ impl Board {
 
     /// Set the piece on the board at the given square (remove first, set later)
     fn set_piece(&mut self, piece: Piece, square: Square) {
-        let p = piece as usize;
+        let p = piece.index();
         let c = piece.color() as usize;
 
         self.piece_bb[p] = self.piece_bb[p].set_bit(square);
-        self.occupancy = self.occupancy.set_bit(square);
-        self.side_occupancy[c] = self.side_occupancy[c].set_bit(square);
+        self.side_bb[c] = self.side_bb[c].set_bit(square);
         self.piece[square as usize] = Some(piece);
         self.hash.toggle_piece(piece, square);
     }
@@ -312,12 +315,11 @@ impl Board {
     /// The piece must exist at the given square
     fn remove_piece(&mut self, square: Square) {
         let piece = self.piece_at(square);
-        let p = piece as usize;
+        let p = piece.index();
         let c = piece.color() as usize;
 
-        self.piece_bb[p] = self.piece_bb[piece as usize].pop_bit(square);
-        self.occupancy = self.occupancy.pop_bit(square);
-        self.side_occupancy[c] = self.side_occupancy[c].pop_bit(square);
+        self.piece_bb[p] = self.piece_bb[p].pop_bit(square);
+        self.side_bb[c] = self.side_bb[c].pop_bit(square);
         self.piece[square as usize] = None;
         self.hash.toggle_piece(piece, square);
     }
@@ -476,8 +478,8 @@ impl Board {
 
         self.checkers = self.opp_pawns() & pawn_attacks(square, self.side)   | // pawns
             self.opp_knights() & knight_attacks(square)                      | // knights
-            self.opp_queen_bishop() & bishop_attacks(square, self.occupancy) | // bishops + queens
-            self.opp_queen_rook()   & rook_attacks(square, self.occupancy)   | // rooks + queens
+            self.opp_queen_bishop() & bishop_attacks(square, self.occupancy()) | // bishops + queens
+            self.opp_queen_rook()   & rook_attacks(square, self.occupancy())   | // rooks + queens
             self.opp_king() & king_attacks(square); // kings
     }
 
@@ -492,7 +494,7 @@ impl Board {
     fn map_king_threats(&self) -> BitBoard {
         let king_square = self.own_king().lsb();
         let ksq = king_square as usize;
-        let occupancies = self.occupancy.pop_bit(king_square);
+        let occupancies = self.occupancy().pop_bit(king_square);
         let mut threats = BitBoard::EMPTY;
 
         for sq in self.opp_pawns() & PAWN_THREATS[self.side as usize][ksq] {
@@ -522,14 +524,15 @@ impl Board {
     /// effect on the pin use, as no piece can be sitting on the check mask anyways)
     fn map_pins(&self) -> (BitBoard, BitBoard) {
         let king_square = self.own_king().lsb();
+        let occs = self.occupancy();
 
         // get all own pieces on diagonal/orthogonal rays from the king
-        let possible_diag_pins = bishop_attacks(king_square, self.occupancy) & self.own_occupancy();
-        let possible_hv_pins = rook_attacks(king_square, self.occupancy) & self.own_occupancy();
+        let possible_diag_pins = bishop_attacks(king_square, occs) & self.own_occupancy();
+        let possible_hv_pins = rook_attacks(king_square, occs) & self.own_occupancy();
 
         // remove the possible pinned pieces
-        let remove_diag_blockers = self.occupancy & !possible_diag_pins;
-        let remove_hv_blockers = self.occupancy & !possible_hv_pins;
+        let remove_diag_blockers = occs & !possible_diag_pins;
+        let remove_hv_blockers = occs & !possible_hv_pins;
 
         // get all pinning pieces (pieces that see the king with pinned pieces removed)
         let diag_attackers =
@@ -551,10 +554,10 @@ impl Board {
     }
 }
 
-const N: usize = 2;
-const B: usize = 4;
-const R: usize = 6;
-const Q: usize = 8;
+const N: usize = 1;
+const B: usize = 2;
+const R: usize = 3;
+const Q: usize = 4;
 pub const QUIETS: bool = true;
 pub const CAPTURES: bool = false;
 
@@ -574,7 +577,7 @@ impl Board {
         }
 
         if QUIET {
-            let quiets = targets & !self.occupancy;
+            let quiets = targets & !self.occupancy();
             for target in quiets {
                 move_list.push(Move::new(source, target, MoveType::Quiet));
             }
@@ -601,6 +604,7 @@ impl Board {
 
         let side = self.side as usize;
         let pawn_bb = self.own_pawns() & !diag_pins; // diag pinned pawns cannot move
+        let occs = self.occupancy();
 
         for src in pawn_bb {
             let target: Square = src.forward(self.side);
@@ -610,7 +614,7 @@ impl Board {
                 continue;
             }
 
-            if !(self.occupancy.get_bit(target)) {
+            if !(occs.get_bit(target)) {
                 // normal pawn push
                 if block_check.get_bit(target) {
                     move_list.push_pawn_quiet(src, target, self.side);
@@ -620,7 +624,7 @@ impl Board {
                 if src.rank() == START_RANKS[side] {
                     let target = src.forward(self.side).forward(self.side);
 
-                    if !(self.occupancy.get_bit(target)) && block_check.get_bit(target) {
+                    if !(occs.get_bit(target)) && block_check.get_bit(target) {
                         move_list.push(Move::new(src, target, MoveType::DoublePush));
                     }
                 }
@@ -671,7 +675,7 @@ impl Board {
                         && ep_rank & self.opp_queen_rook() != BitBoard::EMPTY
                     {
                         // remove the two pawns
-                        let occupancy = self.occupancy & !source.to_board() & !ep_target.to_board();
+                        let occupancy = self.occupancy() & !source.to_board() & !ep_target.to_board();
 
                         let king_square = self.own_king().lsb();
                         let king_ray = rook_attacks(king_square, occupancy) & ep_rank;
@@ -705,16 +709,16 @@ impl Board {
         let side = self.side as usize;
 
         if self.castling_rights.has_kingside(self.side)
-            && (threats | self.occupancy) & OCCS[side] == BitBoard::EMPTY
+            && (threats | self.occupancy()) & OCCS[side] == BitBoard::EMPTY
             && !((self.opp_king() | self.opp_pawns()).get_bit(KP[side]))
             && self.opp_knights() & N[side] == BitBoard::EMPTY
         {
             let mut sliders = BitBoard::EMPTY;
             for sq in self.opp_queen_rook() & QR[side] {
-                sliders |= rook_attacks(sq, self.occupancy);
+                sliders |= rook_attacks(sq, self.occupancy());
             }
             for sq in self.opp_queen_bishop() & QB[side] {
-                sliders |= bishop_attacks(sq, self.occupancy);
+                sliders |= bishop_attacks(sq, self.occupancy());
             }
 
             if !sliders.get_bit(TGT[side]) {
@@ -742,17 +746,17 @@ impl Board {
         let side = self.side as usize;
 
         if self.castling_rights.has_queenside(self.side)
-            && self.occupancy & OCCS[side] == BitBoard::EMPTY
+            && self.occupancy() & OCCS[side] == BitBoard::EMPTY
             && !threats.get_bit(THREATS[side])
             && !(self.opp_king() | self.opp_pawns()).get_bit(KP[side])
             && self.opp_knights() & N[side] == BitBoard::EMPTY
         {
             let mut sliders = BitBoard::EMPTY;
             for sq in self.opp_queen_rook() & QR[side] {
-                sliders |= rook_attacks(sq, self.occupancy);
+                sliders |= rook_attacks(sq, self.occupancy());
             }
             for sq in self.opp_queen_bishop() & QB[side] {
-                sliders |= bishop_attacks(sq, self.occupancy);
+                sliders |= bishop_attacks(sq, self.occupancy());
             }
 
             if !sliders.get_bit(TGT[side]) {
@@ -771,8 +775,8 @@ impl Board {
         hv_pins: BitBoard,
         move_list: &mut MoveList,
     ) {
-        let side = self.side as usize;
-        let mut piece_bb = self.piece_bb[PIECE + side];
+        let mut piece_bb = self.piece_bb[PIECE] & self.own_occupancy();
+        let occs = self.occupancy();
 
         if PIECE == N {
             piece_bb &= !(diag_pins | hv_pins); // pinned knights cannot move
@@ -788,13 +792,13 @@ impl Board {
             if PIECE == N {
                 targets = knight_attacks(source);
             } else if PIECE == B {
-                targets = bishop_attacks(source, self.occupancy);
+                targets = bishop_attacks(source, occs);
 
                 if diag_pins.get_bit(source) {
                     targets &= diag_pins // move along diagonal pin ray
                 }
             } else if PIECE == R {
-                targets = rook_attacks(source, self.occupancy);
+                targets = rook_attacks(source, occs);
 
                 if hv_pins.get_bit(source) {
                     targets &= hv_pins // move along orthogonal pin ray
@@ -802,11 +806,11 @@ impl Board {
             } else if PIECE == Q {
                 // queen, when pinned, behaves like a rook or a bishop
                 if diag_pins.get_bit(source) {
-                    targets = bishop_attacks(source, self.occupancy) & diag_pins;
+                    targets = bishop_attacks(source, occs) & diag_pins;
                 } else if hv_pins.get_bit(source) {
-                    targets = rook_attacks(source, self.occupancy) & hv_pins;
+                    targets = rook_attacks(source, occs) & hv_pins;
                 } else {
-                    targets = queen_attacks(source, self.occupancy);
+                    targets = queen_attacks(source, occs);
                 }
             }
             targets &= check_mask;
@@ -877,8 +881,8 @@ impl Board {
 impl Board {
     /// Returns bitboard with all pieces attacking a square
     fn map_all_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        self.piece_bb[0] & pawn_attacks(square, Color::Black)
-            | self.piece_bb[1] & pawn_attacks(square, Color::White)
+        self.pawns() & self.side_bb[0] & pawn_attacks(square, Color::Black)
+            | self.pawns() & self.side_bb[1] & pawn_attacks(square, Color::White)
             | self.knights() & knight_attacks(square)
             | (self.bishops() | self.queens()) & bishop_attacks(square, blockers)
             | (self.rooks() | self.queens()) & rook_attacks(square, blockers)
@@ -887,8 +891,10 @@ impl Board {
 
     /// Returns the least valuable of the attackers within the attacker map
     fn get_lva(&self, attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
+        let side_bb = self.side_bb[side as usize];
+
         for piece in Piece::SPLIT_COLOR[side as usize] {
-            let squares = attackers & self.piece_bb[piece as usize];
+            let squares = attackers & self.piece_bb[piece.index()] & side_bb;
 
             if squares != BitBoard::EMPTY {
                 return Some((squares.lsb(), piece));
@@ -949,7 +955,7 @@ impl Board {
         let orthogonal_sliders = self.rooks() | self.queens();
 
         // Updated occupancy map after capture
-        let mut occs = self.occupancy.pop_bit(src).set_bit(tgt);
+        let mut occs = self.occupancy().pop_bit(src).set_bit(tgt);
         if mt == MoveType::EnPassant {
             let ep_tgt = self.en_passant.unwrap().forward(!self.side); // guaranteed to be Some
             occs = occs.pop_bit(ep_tgt);
@@ -961,7 +967,7 @@ impl Board {
 
         loop {
             // SEE terminates when no recapture is possible.
-            let own_attackers = attackers & self.side_occupancy[side_to_move as usize];
+            let own_attackers = attackers & self.side_bb[side_to_move as usize];
             if own_attackers == BitBoard::EMPTY {
                 break;
             }
@@ -988,7 +994,7 @@ impl Board {
                 // If the recapturing piece is a king, and the opponent has another attacker,
                 // a positive balance should not translate to an exchange win.
                 if attacker.is_king()
-                    && attackers & self.side_occupancy[side_to_move as usize] != BitBoard::EMPTY
+                    && attackers & self.side_bb[side_to_move as usize] != BitBoard::EMPTY
                 {
                     return self.side == side_to_move;
                 }
@@ -1122,8 +1128,8 @@ mod tests {
             .parse()
             .unwrap();
 
-        let att1 = b1.map_all_attackers(Square::E5, b1.occupancy);
-        let att2 = b2.map_all_attackers(Square::E5, b2.occupancy);
+        let att1 = b1.map_all_attackers(Square::E5, b1.occupancy());
+        let att2 = b2.map_all_attackers(Square::E5, b2.occupancy());
 
         println!("{b1}\n{att1}\n{b2}\n{att2}");
 

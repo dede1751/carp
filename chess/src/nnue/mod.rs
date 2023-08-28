@@ -146,7 +146,7 @@ impl NNUEState {
 
         // init with feature biases and add in all features of the board
         boxed.accumulator_stack[0] = Accumulator::default();
-        for sq in board.occupancy {
+        for sq in board.occupancy() {
             boxed.manual_update::<ON>(board.piece_at(sq), sq);
         }
 
@@ -161,7 +161,7 @@ impl NNUEState {
 
         // update the first accumulator
         for piece in Piece::ALL {
-            for sq in board.piece_bb[piece as usize] {
+            for sq in board.piece_occupancy(piece) {
                 self.manual_update::<ON>(piece, sq);
             }
         }

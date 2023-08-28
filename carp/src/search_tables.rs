@@ -47,7 +47,7 @@ impl PVTable {
 }
 
 type History = [[[i16; Square::COUNT]; Square::COUNT]; 2];
-type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::COUNT];
+type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::TOTAL];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
