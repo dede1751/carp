@@ -81,13 +81,21 @@ const OVERHEAD: u64 = 50;
 /// Contains async counters used to synchronize time management/node counting across threads.
 #[derive(Clone, Debug)]
 pub struct Clock {
-    global_stop: Arc<AtomicBool>,
-    global_nodes: Arc<AtomicU64>,
     time_control: TimeControl,
+
+    // Global flags for SMP
+    global_stop: Arc<AtomicBool>,
+    pub last_nodes: u64,
+    global_nodes: Arc<AtomicU64>,
+
+    // Base timers
     start_time: Instant,
     opt_time: Duration,
     max_time: Duration,
-    pub last_nodes: u64,
+
+    // Time scaling factors
+    prev_best: Move,
+    stability: u32,
     node_count: [[u64; Square::COUNT]; Square::COUNT],
 }
 
@@ -150,13 +158,15 @@ impl Clock {
         };
 
         Self {
-            global_stop,
-            global_nodes,
             time_control,
+            global_stop,
+            last_nodes: 0,
+            global_nodes,
             start_time: Instant::now(),
             opt_time,
             max_time,
-            last_nodes: 0,
+            prev_best: Move::NULL,
+            stability: 0,
             node_count: [[0; Square::COUNT]; Square::COUNT],
         }
     }
@@ -209,15 +219,29 @@ impl Clock {
             TimeControl::FixedDepth(d) => depth <= d,
             TimeControl::FixedNodes(n) => self.global_nodes() <= n,
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
-                // At the start, we scale the opt time based on how many nodes were dedicated
-                // to searching the best move (on this thread)
-                let opt_scale = if best_move != Move::NULL && nodes != 0 {
+                let opt_scale = if nodes != 0 {
+                    // Node Count scaling: the more nodes dedicated to the best move, the less time
+                    // we allocate to continue searching.
+                    // Scale factor from Ethereal, scale between 50% and 240%
                     let bm_nodes =
                         self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
                     let bm_fraction = bm_nodes as f64 / nodes as f64;
+                    let bm_factor = (0.4 + (1.0 - bm_fraction) * 2.0).max(0.5);
 
-                    // Scale factor from Ethereal, scale between 50% and 240%
-                    (0.4 + (1.0 - bm_fraction) * 2.0).max(0.5)
+                    // Stability scaling: the more stable the best move is, the less time we allocate.
+                    // Scale factor from Berserk.
+                    let prev_stability = self.stability;
+                    if self.prev_best == best_move {
+                        self.stability = (self.stability + 1).min(10)
+                    };
+
+                    let stability_factor = if prev_stability == 10 && self.stability == 0 {
+                        1.5
+                    } else {
+                        1.25 - (self.stability as f64 * 0.05)
+                    };
+
+                    bm_factor * stability_factor
                 } else {
                     1.0
                 };
