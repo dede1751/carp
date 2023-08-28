@@ -221,18 +221,21 @@ impl Clock {
             TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
                 let opt_scale = if nodes != 0 {
                     // Node Count scaling: the more nodes dedicated to the best move, the less time
-                    // we allocate to continue searching.
+                    // we allocate.
                     // Scale factor from Ethereal, scale between 50% and 240%
                     let bm_nodes =
                         self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
                     let bm_fraction = bm_nodes as f64 / nodes as f64;
                     let bm_factor = (0.4 + (1.0 - bm_fraction) * 2.0).max(0.5);
 
-                    // Stability scaling: the more stable the best move is, the less time we allocate.
+                    // Best MoveStability scaling: the more stable the best move is, the less time
+                    // we allocate. Tactical moves become "stable" faster because they are more
+                    // likely to be forced.
                     // Scale factor from Berserk.
                     let prev_stability = self.stability;
                     if self.prev_best == best_move {
-                        self.stability = (self.stability + 1).min(10)
+                        let stab_inc = 1 + u32::from(!best_move.get_type().is_quiet());
+                        self.stability = (self.stability + stab_inc).min(10)
                     };
 
                     let stability_factor = if prev_stability == 10 && self.stability == 0 {
