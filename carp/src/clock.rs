@@ -236,7 +236,9 @@ impl Clock {
                     if self.prev_best == best_move {
                         let stab_inc = 1 + u32::from(!best_move.get_type().is_quiet());
                         self.stability = (self.stability + stab_inc).min(10)
-                    };
+                    } else {
+                        self.stability = 0;
+                    }
 
                     let stability_factor = if prev_stability == 10 && self.stability == 0 {
                         1.5
