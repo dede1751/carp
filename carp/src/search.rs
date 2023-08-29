@@ -168,14 +168,14 @@ impl Position {
             if !in_singular_search {
                 let tt_depth = entry.get_depth();
                 let tt_flag = entry.get_flag();
-                let tt_eval = entry.get_eval(t.ply);
+                let tt_value = entry.get_value(t.ply);
 
                 // TT Cutoffs
                 if tt_depth >= depth && !pv_node {
                     match tt_flag {
-                        TTFlag::Exact => return tt_eval,
-                        TTFlag::Lower if tt_eval >= beta => return beta,
-                        TTFlag::Upper if tt_eval <= alpha => return alpha,
+                        TTFlag::Exact => return tt_value,
+                        TTFlag::Lower if tt_value >= beta => return beta,
+                        TTFlag::Upper if tt_value <= alpha => return alpha,
                         _ => (),
                     }
                 }
@@ -183,7 +183,7 @@ impl Position {
                 tt_move = entry.get_move();
                 possible_singularity = !ROOT
                     && depth >= SE_LOWER_LIMIT
-                    && tt_eval.abs() < MATE_IN_PLY
+                    && tt_value.abs() < MATE_IN_PLY
                     && (tt_flag == TTFlag::Lower || tt_flag == TTFlag::Exact)
                     && tt_depth >= depth - 3;
             }
@@ -198,37 +198,24 @@ impl Position {
         } else if !in_check {
             // If we have a tt entry, use the static eval from there
             if let Some(entry) = tt_entry {
-                let tt_flag = entry.get_flag();
-                let tt_eval = entry.get_eval(t.ply);
-                let tt_static_eval = entry.get_static_eval();
+                let tt_value = entry.get_value(t.ply);
+                let tt_eval = entry.get_eval();
 
-                if tt_static_eval == -INFINITY {
+                if tt_eval == -INFINITY {
                     stand_pat = self.evaluate();
                 } else {
-                    stand_pat = tt_static_eval;
+                    stand_pat = tt_eval;
                 }
 
-                // If the tt eval is a tigher bound than the static eval, use it as stand pat
-                if (tt_flag == TTFlag::Lower && tt_eval > tt_static_eval)
-                    || (tt_flag == TTFlag::Upper && tt_eval <= tt_static_eval)
-                {
-                    stand_pat = tt_eval;
+                // If the tt eval is a tighter bound than the static eval, use it as stand pat
+                match entry.get_flag() {
+                    TTFlag::Lower if tt_value > stand_pat => stand_pat = tt_value,
+                    TTFlag::Upper if tt_value < stand_pat => stand_pat = tt_value,
+                    _ => (),
                 }
             } else {
                 // Without a tt entry (and not in check), we have to compute the static eval
                 stand_pat = self.evaluate();
-
-                // Chuck the static eval into the tt. This won't overwrite any relevant entry
-                tt.insert(
-                    self.board.hash,
-                    TTFlag::None,
-                    Move::NULL,
-                    -INFINITY,
-                    stand_pat,
-                    0,
-                    t.ply,
-                    false,
-                );
             }
         };
 
@@ -275,11 +262,7 @@ impl Position {
         // Internal Iterative Reduction
         // Without a TT hit, it's better to do a reduced search to then setup the TT entry for the next
         // IID iteration.
-        if !ROOT
-            && depth >= IIR_LOWER_LIMIT
-            && !in_singular_search
-            && (tt_entry.is_none() || tt_entry.is_some_and(|e| e.get_flag() == TTFlag::None))
-        {
+        if !ROOT && depth >= IIR_LOWER_LIMIT && !in_singular_search && tt_entry.is_none() {
             depth -= 1;
         }
 
@@ -359,7 +342,7 @@ impl Position {
             // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
             if possible_singularity && s == TT_SCORE {
-                let tt_eval = tt_entry.unwrap().get_eval(t.ply); // Can't panic
+                let tt_eval = tt_entry.unwrap().get_value(t.ply); // Can't panic
                 let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
 
@@ -474,8 +457,8 @@ impl Position {
                 self.board.hash,
                 tt_flag,
                 best_move,
-                alpha,
                 stand_pat,
+                alpha,
                 depth,
                 t.ply,
                 pv_node,
@@ -511,13 +494,12 @@ impl Position {
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
-            let tt_eval = entry.get_eval(t.ply);
+            let tt_value = entry.get_value(t.ply);
 
-            // TT Cutoffs
             match entry.get_flag() {
-                TTFlag::Exact => return tt_eval,
-                TTFlag::Lower if tt_eval >= beta => return beta,
-                TTFlag::Upper if tt_eval <= alpha => return alpha,
+                TTFlag::Exact => return tt_value,
+                TTFlag::Lower if tt_value >= beta => return beta,
+                TTFlag::Upper if tt_value <= alpha => return alpha,
                 _ => (),
             }
 
@@ -529,21 +511,19 @@ impl Position {
 
         if !in_check {
             if let Some(entry) = tt_entry {
-                let tt_flag = entry.get_flag();
-                let tt_eval = entry.get_eval(t.ply);
-                let tt_static_eval = entry.get_static_eval();
+                let tt_value = entry.get_value(t.ply);
+                let tt_eval = entry.get_eval();
 
-                if tt_static_eval == -INFINITY {
+                if tt_eval == -INFINITY {
                     stand_pat = self.evaluate();
                 } else {
-                    stand_pat = tt_static_eval;
+                    stand_pat = tt_eval;
                 }
 
-                // If the tt eval is a tigher bound than the static eval, use it as stand pat
-                if (tt_flag == TTFlag::Lower && tt_eval > tt_static_eval)
-                    || (tt_flag == TTFlag::Upper && tt_eval <= tt_static_eval)
-                {
-                    stand_pat = tt_eval;
+                match entry.get_flag() {
+                    TTFlag::Lower if tt_value > stand_pat => stand_pat = tt_value,
+                    TTFlag::Upper if tt_value < stand_pat => stand_pat = tt_value,
+                    _ => (),
                 }
             } else {
                 stand_pat = self.evaluate();
@@ -607,8 +587,8 @@ impl Position {
                 self.board.hash,
                 tt_flag,
                 best_move,
-                alpha,
                 stand_pat,
+                alpha,
                 0,
                 t.ply,
                 false,
