@@ -15,7 +15,11 @@ use crate::{bitboard::*, piece::*, square::*};
 /// Gets pawn attacks from tables
 /// SAFETY: Square and Color only allow valid indices
 pub fn pawn_attacks(square: Square, side: Color) -> BitBoard {
-    unsafe { *PAWN_ATTACKS.get_unchecked(side as usize).get_unchecked(square as usize) }
+    unsafe {
+        *PAWN_ATTACKS
+            .get_unchecked(side as usize)
+            .get_unchecked(square as usize)
+    }
 }
 
 /// Gets knight attacks from tables

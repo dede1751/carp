@@ -1,6 +1,11 @@
 /// The Move Picker is responsible for choosing which move to search next at a node.
 use crate::{search_params::*, thread::*};
-use chess::{board::Board, move_list::MoveList, moves::{Move, MoveType}, piece::Piece};
+use chess::{
+    board::Board,
+    move_list::MoveList,
+    moves::{Move, MoveType},
+    piece::Piece,
+};
 
 /// Stages of the move picker.
 /// Tacticals include both captures and promotions.
@@ -314,7 +319,11 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess::{board::{CAPTURES, QUIETS}, square::Square, piece::Color};
+    use chess::{
+        board::{CAPTURES, QUIETS},
+        piece::Color,
+        square::Square,
+    };
 
     #[test]
     fn test_quiet_picker() {

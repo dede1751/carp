@@ -27,8 +27,8 @@ pub struct Board {
 
     // Other positional information
     pub side: Color,
-    pub(crate) castling_rights: CastlingRights,
-    pub(crate) en_passant: Option<Square>,
+    pub castling_rights: CastlingRights,
+    pub en_passant: Option<Square>,
     pub halfmoves: usize,
     pub hash: ZHash,
 
@@ -244,8 +244,14 @@ impl_piece_lookups! {
 
 /// Implement side occupancy and diagonal/hv slider lookups
 impl Board {
+    pub const fn white(&self) -> BitBoard {
+        self.side_bb[Color::White as usize]
+    }
+    pub const fn black(&self) -> BitBoard {
+        self.side_bb[Color::Black as usize]
+    }
     pub const fn occupancy(&self) -> BitBoard {
-        BitBoard(self.side_bb[0].0 | self.side_bb[1].0)
+        BitBoard(self.white().0 | self.black().0)
     }
     pub const fn piece_occupancy(&self, piece: Piece) -> BitBoard {
         BitBoard(self.piece_bb[piece.index()].0 & self.side_bb[piece.color() as usize].0)
@@ -675,7 +681,8 @@ impl Board {
                         && ep_rank & self.opp_queen_rook() != BitBoard::EMPTY
                     {
                         // remove the two pawns
-                        let occupancy = self.occupancy() & !source.to_board() & !ep_target.to_board();
+                        let occupancy =
+                            self.occupancy() & !source.to_board() & !ep_target.to_board();
 
                         let king_square = self.own_king().lsb();
                         let king_ray = rook_attacks(king_square, occupancy) & ep_rank;
@@ -881,8 +888,8 @@ impl Board {
 impl Board {
     /// Returns bitboard with all pieces attacking a square
     fn map_all_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        self.pawns() & self.side_bb[0] & pawn_attacks(square, Color::Black)
-            | self.pawns() & self.side_bb[1] & pawn_attacks(square, Color::White)
+        self.pawns() & self.white() & pawn_attacks(square, Color::Black)
+            | self.pawns() & self.black() & pawn_attacks(square, Color::White)
             | self.knights() & knight_attacks(square)
             | (self.bishops() | self.queens()) & bishop_attacks(square, blockers)
             | (self.rooks() | self.queens()) & rook_attacks(square, blockers)

@@ -14,6 +14,7 @@ use carp::{
     clock::{Clock, TimeControl},
     position::{GameResult, Position, ADJ},
     search_params::*,
+    syzygy::probe::TB,
     thread::Thread,
     tt::TT,
 };
@@ -155,7 +156,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
         // Avoid positions that are too unbalanced
         tt.clear();
         let mut thread = Thread::fixed_depth(10);
-        position.iterative_search::<false>(&mut thread, &tt);
+        position.iterative_search::<false>(&mut thread, &tt, TB::default());
         if thread.eval.abs() >= 1000 {
             continue 'main;
         }
@@ -179,7 +180,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
                 position.white_to_move(),
             );
 
-            position.iterative_search::<false>(&mut thread, &tt);
+            position.iterative_search::<false>(&mut thread, &tt, TB::default());
 
             // filter noisy positions
             if !position.king_in_check()
