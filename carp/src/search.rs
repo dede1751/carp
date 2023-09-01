@@ -202,7 +202,6 @@ impl Position {
                 TB_HITS.fetch_add(1, Ordering::Relaxed);
 
                 let tb_value = wdl.to_eval(t.ply);
-
                 let tb_flag = match wdl {
                     WDL::Win => TTFlag::Lower,
                     WDL::Loss => TTFlag::Upper,

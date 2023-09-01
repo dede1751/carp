@@ -81,8 +81,10 @@ impl TBProbe {
         };
         let dtz = (result & TB_RESULT_DTZ_MASK) >> TB_RESULT_DTZ_SHIFT;
 
-        let from = Square::from(((result & TB_RESULT_FROM_MASK) >> TB_RESULT_FROM_SHIFT) as usize);
-        let to = Square::from(((result & TB_RESULT_TO_MASK) >> TB_RESULT_TO_SHIFT) as usize);
+        let from =
+            Square::from(((result & TB_RESULT_FROM_MASK) >> TB_RESULT_FROM_SHIFT) as usize).flipv();
+        let to =
+            Square::from(((result & TB_RESULT_TO_MASK) >> TB_RESULT_TO_SHIFT) as usize).flipv();
         let mut move_str = from.to_string() + to.to_string().as_str();
 
         let promotion = (result & TB_RESULT_PROMOTES_MASK) >> TB_RESULT_PROMOTES_SHIFT;
@@ -160,14 +162,14 @@ impl TB {
 
         unsafe {
             let wdl = tb_probe_wdl(
-                board.white().0,
-                board.black().0,
-                board.kings().0,
-                board.queens().0,
-                board.rooks().0,
-                board.bishops().0,
-                board.knights().0,
-                board.pawns().0,
+                board.white().flipv().0,
+                board.black().flipv().0,
+                board.kings().flipv().0,
+                board.queens().flipv().0,
+                board.rooks().flipv().0,
+                board.bishops().flipv().0,
+                board.knights().flipv().0,
+                board.pawns().flipv().0,
                 0,
                 0,
                 ep_sq,
@@ -193,14 +195,14 @@ impl TB {
 
         unsafe {
             let result = tb_probe_root(
-                board.white().0,
-                board.black().0,
-                board.kings().0,
-                board.queens().0,
-                board.rooks().0,
-                board.bishops().0,
-                board.knights().0,
-                board.pawns().0,
+                board.white().flipv().0,
+                board.black().flipv().0,
+                board.kings().flipv().0,
+                board.queens().flipv().0,
+                board.rooks().flipv().0,
+                board.bishops().flipv().0,
+                board.knights().flipv().0,
+                board.pawns().flipv().0,
                 board.halfmoves as u32,
                 0,
                 ep_sq,
@@ -236,13 +238,41 @@ impl TB {
 mod tests {
     use super::*;
     use crate::{position::Position, thread::Thread, tt::TT};
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    };
+
+    static LOADED_TB: Mutex<bool> = Mutex::new(false);
+
+    impl TB {
+        /// Multiple testing threads cannot initialize the TBs or they can cause UB.
+        fn activate_once() -> TB {
+            const SYZYGY_PATH: &str = "/home/dede/Documents/Syzygy";
+            const SYZYGY_MEN: u8 = 5;
+
+            let mut loaded = LOADED_TB.lock().unwrap();
+            if !*loaded {
+                unsafe {
+                    let syzygy_path = CString::new(SYZYGY_PATH).unwrap();
+                    assert!(
+                        tb_init(syzygy_path.as_ptr()),
+                        "Cannot initialize TBs at: {SYZYGY_PATH}"
+                    );
+                }
+                *loaded = true;
+            }
+
+            Self {
+                active: true,
+                n_men: SYZYGY_MEN,
+            }
+        }
+    }
 
     #[test]
     fn test_tb_probe() {
-        let path = "/home/dede/Documents/Syzygy";
-        let mut tb = TB::default();
-        tb.activate(path, TB::MAX_MEN);
-
+        let tb = TB::activate_once();
         let board: Board = "8/3kr3/8/8/8/8/2K5/2Q5 w - - 0 1".parse().unwrap();
         println!("{board}");
 
@@ -257,10 +287,7 @@ mod tests {
 
     #[test]
     fn test_tb_halfmove_handling() {
-        let path = "/home/dede/Documents/Syzygy";
-        let mut tb = TB::default();
-        tb.activate(path, TB::MAX_MEN);
-
+        let tb = TB::activate_once();
         let mut board: Board = "8/3kr3/8/8/8/8/2K5/2Q5 w - - 0 1".parse().unwrap();
         board.halfmoves = 70;
         println!("{board}");
@@ -276,12 +303,9 @@ mod tests {
 
     #[test]
     fn test_tb_search() {
-        let path = "/home/dede/Documents/Syzygy";
-        let mut tb = TB::default();
-        tb.activate(path, TB::MAX_MEN);
-
+        let tb = TB::activate_once();
         let mut position: Position = "fen 8/P5k1/8/5p2/8/8/2pK4/8 b - - 0 43".parse().unwrap();
-        let mut t = Thread::fixed_depth(5);
+        let mut t = Thread::fixed_depth(20);
 
         position.iterative_search::<true>(&mut t, &TT::default(), tb);
     }
