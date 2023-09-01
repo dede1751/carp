@@ -235,9 +235,10 @@ impl TB {
 #[cfg(feature = "syzygy")]
 mod tests {
     use super::*;
+    use crate::{position::Position, thread::Thread, tt::TT};
 
     #[test]
-    fn can_probe() {
+    fn test_tb_probe() {
         let path = "/home/dede/Documents/Syzygy";
         let mut tb = TB::default();
         tb.activate(path, TB::MAX_MEN);
@@ -255,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn halfmove_handling() {
+    fn test_tb_halfmove_handling() {
         let path = "/home/dede/Documents/Syzygy";
         let mut tb = TB::default();
         tb.activate(path, TB::MAX_MEN);
@@ -271,5 +272,17 @@ mod tests {
         } else {
             panic!("Probe failed")
         }
+    }
+
+    #[test]
+    fn test_tb_search() {
+        let path = "/home/dede/Documents/Syzygy";
+        let mut tb = TB::default();
+        tb.activate(path, TB::MAX_MEN);
+
+        let mut position: Position = "fen 8/P5k1/8/5p2/8/8/2pK4/8 b - - 0 43".parse().unwrap();
+        let mut t = Thread::fixed_depth(5);
+
+        position.iterative_search::<true>(&mut t, &TT::default(), tb);
     }
 }
