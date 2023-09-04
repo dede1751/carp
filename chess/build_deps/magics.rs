@@ -169,7 +169,7 @@ impl<P: Sliding + MagicMap> Magics<P> {
                 size_of::<[BitBoard; Square::COUNT]>(),
             )?;
             write_to_file_bin(&mut file, &[self.shift], size_of::<usize>())?;
-    
+
             Ok(())
         }
     }

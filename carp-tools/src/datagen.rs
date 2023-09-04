@@ -192,11 +192,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, tb: TB, path: &Path)
 
             // Always report scores from white's perspective
             position.iterative_search::<false>(&mut thread, &tt, tb);
-            let eval = if wtm {
-                thread.eval
-            } else {
-                -thread.eval
-            };
+            let eval = if wtm { thread.eval } else { -thread.eval };
 
             // filter noisy positions
             if !position.king_in_check()
@@ -209,7 +205,8 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, tb: TB, path: &Path)
 
             // Increment adjudication counters
             let abs_eval = eval.abs();
-            if abs_eval >= 2000 { // breaks if eval jumps from +2000 to -2000
+            if abs_eval >= 2000 {
+                // breaks if eval jumps from +2000 to -2000
                 win_adj_counter += 1;
                 draw_adj_counter = 0;
             } else if abs_eval <= 5 {

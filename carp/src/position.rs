@@ -1,4 +1,9 @@
-use crate::{move_picker::MovePicker, search_params::*, syzygy::probe::{TB, WDL}, thread::Thread};
+use crate::{
+    move_picker::MovePicker,
+    search_params::*,
+    syzygy::probe::{TB, WDL},
+    thread::Thread,
+};
 use chess::{
     bitboard::BitBoard,
     board::Board,
@@ -245,7 +250,7 @@ impl Position {
                 GameResult::WhiteWin(ADJ)
             } else {
                 GameResult::BlackWin(ADJ)
-            }
+            };
         }
 
         let move_list = self.board.gen_moves::<true>();

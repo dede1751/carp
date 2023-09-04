@@ -57,13 +57,8 @@ pub struct Thread {
 /// Display UCI info
 impl std::fmt::Display for Thread {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let abs_eval = self.eval.abs();
-        let score = if abs_eval >= LONGEST_TB_MATE {
-            let moves_to_mate = if abs_eval > TB_MATE {
-                (MATE - abs_eval + 1) / 2
-            } else {
-                1000 + (TB_MATE - abs_eval + 1) / 2 // TB results add 1000 to avoid confusion
-            };
+        let score = if self.eval.abs() >= LONGEST_MATE {
+            let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
 
             if self.eval > 0 {
                 format!("mate {} wdl 1000 0 0", moves_to_mate)
@@ -99,10 +94,14 @@ impl std::fmt::Display for Thread {
 /// Normalizes a +100 cp advantage to a 50% chance of winning.
 impl Thread {
     /// Normalize an evaluation score to a centipawn score (since nnue values are usually inflated)
-    /// Not meant to be used on Game-Theoretic scores.
     pub fn normalize_cp_eval(&self) -> Eval {
         const NORMALIZE_PAWN_VALUE: Eval = 199;
-        (self.eval * 100) / NORMALIZE_PAWN_VALUE
+
+        if self.eval.abs() >= LONGEST_TB_MATE {
+            self.eval
+        } else {
+            (self.eval * 100) / NORMALIZE_PAWN_VALUE
+        }
     }
 
     /// Extract WDL scores from the (normalized) evaluation using a model fitted to self-play.

@@ -78,7 +78,6 @@ impl TBProbe {
             TB_LOSS => WDL::Loss,
             _ => WDL::Draw,
         };
-        let dtz = (result & TB_RESULT_DTZ_MASK) >> TB_RESULT_DTZ_SHIFT;
 
         let from =
             Square::from(((result & TB_RESULT_FROM_MASK) >> TB_RESULT_FROM_SHIFT) as usize).flipv();
@@ -95,10 +94,9 @@ impl TBProbe {
             _ => {}
         };
 
-        board.find_move(move_str.as_str()).map(|mv| Self {
-            wdl,
-            best_move: mv,
-        })
+        board
+            .find_move(move_str.as_str())
+            .map(|mv| Self { wdl, best_move: mv })
     }
 }
 

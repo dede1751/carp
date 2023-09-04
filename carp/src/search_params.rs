@@ -11,7 +11,7 @@ use std::mem::transmute;
 pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
 pub const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
-pub const TB_MATE: Eval = 31000; // tb win in 0 moves
+pub const TB_MATE: Eval = 30000; // tb win in 0 moves
 pub const LONGEST_TB_MATE: Eval = TB_MATE - MAX_DEPTH as Eval; // tb win in x moves
 
 pub const HIST_MAX: i32 = 8192;
