@@ -16,6 +16,7 @@ use crate::{
     position::Position,
     search_params::*,
     search_tables::{history_bonus, ContinuationHistoryTable, HistoryTable, PVTable},
+    syzygy::probe::{TB, TB_HITS},
     tt::TT,
 };
 use chess::{
@@ -56,8 +57,9 @@ pub struct Thread {
 /// Display UCI info
 impl std::fmt::Display for Thread {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let score = if self.eval.abs() >= MATE_IN_PLY {
+        let score = if self.eval.abs() >= LONGEST_MATE {
             let moves_to_mate = (MATE - self.eval.abs() + 1) / 2;
+
             if self.eval > 0 {
                 format!("mate {} wdl 1000 0 0", moves_to_mate)
             } else {
@@ -75,13 +77,14 @@ impl std::fmt::Display for Thread {
 
         write!(
             f,
-            "info time {} score {} depth {} seldepth {} nodes {} nps {} {}",
+            "info time {} score {} depth {} seldepth {} nodes {} nps {} tbhits {} {}",
             time,
             score,
             self.depth,
             self.seldepth,
             nodes,
             (nodes as u128 * 1000) / time,
+            TB_HITS.load(Ordering::SeqCst),
             self.pv
         )
     }
@@ -91,10 +94,14 @@ impl std::fmt::Display for Thread {
 /// Normalizes a +100 cp advantage to a 50% chance of winning.
 impl Thread {
     /// Normalize an evaluation score to a centipawn score (since nnue values are usually inflated)
-    /// Not meant to be used on Game-Theoretic scores.
     pub fn normalize_cp_eval(&self) -> Eval {
         const NORMALIZE_PAWN_VALUE: Eval = 199;
-        (self.eval * 100) / NORMALIZE_PAWN_VALUE
+
+        if self.eval.abs() >= LONGEST_TB_MATE {
+            self.eval
+        } else {
+            (self.eval * 100) / NORMALIZE_PAWN_VALUE
+        }
     }
 
     /// Extract WDL scores from the (normalized) evaluation using a model fitted to self-play.
@@ -302,6 +309,7 @@ impl ThreadPool {
         &mut self,
         pos: &mut Position,
         tt: &TT,
+        tb: TB,
         time_control: TimeControl,
     ) -> Move {
         // Setup all threads to start the search.
@@ -320,6 +328,22 @@ impl ThreadPool {
         self.global_stop.store(false, Ordering::SeqCst);
         self.global_nodes.store(0, Ordering::SeqCst);
 
+        // If we're in a TB position and get a result, return early.
+        if let Some(result) = tb.probe_root(&pos.board) {
+            self.main_thread.pv = PVTable::default();
+            self.main_thread
+                .pv
+                .update_pv_line(result.best_move, &PVTable::default());
+            self.main_thread.eval = result.wdl.to_eval(0);
+
+            TB_HITS.store(1, Ordering::SeqCst);
+            println!("{}", self.main_thread);
+
+            return result.best_move;
+        } else {
+            TB_HITS.store(0, Ordering::SeqCst);
+        }
+
         // Return immediately in forced situations.
         let move_list = pos.board.gen_moves::<QUIETS>();
         let move_count = move_list.len();
@@ -337,12 +361,12 @@ impl ThreadPool {
             for t in self.workers.iter_mut() {
                 let mut worker_pos = pos.clone();
                 worker_handles
-                    .push(scope.spawn(move || worker_pos.iterative_search::<false>(t, tt)));
+                    .push(scope.spawn(move || worker_pos.iterative_search::<false>(t, tt, tb)));
             }
 
             // Run the main search thread with info enabled
             // Explicitly stop all other workers in case we exceded the depth limit.
-            pos.iterative_search::<true>(&mut self.main_thread, tt);
+            pos.iterative_search::<true>(&mut self.main_thread, tt, tb);
             self.global_stop.store(true, Ordering::SeqCst);
         });
 

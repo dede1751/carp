@@ -41,7 +41,7 @@ struct NNUEParams {
 }
 
 /// NNUE model is initialized from binary values (Viridithas format)
-const MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("../../../bins/net.bin")) };
+static MODEL: NNUEParams = unsafe { mem::transmute(*include_bytes!("../../../bins/net.bin")) };
 
 /// Generic wrapper for types aligned to 64B for AVX512 (also a Viridithas trick)
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

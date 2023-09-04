@@ -9,7 +9,7 @@ fn main() {
             Some(arg) => carp::bench::run_benchmark(arg.parse().unwrap()),
             None => carp::bench::run_benchmark(13),
         }
-        
+
         return;
     }
 

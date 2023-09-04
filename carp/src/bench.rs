@@ -2,7 +2,7 @@
 /// Test positions from Ethereal
 use std::time::Instant;
 
-use crate::{position::Position, thread::Thread, tt::TT};
+use crate::{position::Position, syzygy::probe::TB, thread::Thread, tt::TT};
 
 const TEST_POSITIONS: [&str; 50] = [
     "fen r3k2r/2pb1ppp/2pp1q2/p7/1nP1B3/1P2P3/P2N1PPP/R2QK2R w KQkq a6 0 14",
@@ -67,7 +67,7 @@ pub fn run_benchmark(depth: usize) {
         let mut t = Thread::fixed_depth(depth);
 
         let start = Instant::now();
-        position.iterative_search::<false>(&mut t, &TT::default());
+        position.iterative_search::<false>(&mut t, &TT::default(), TB::default());
 
         nodes += t.nodes;
         time += start.elapsed().as_micros() as u64;

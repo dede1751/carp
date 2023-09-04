@@ -9,7 +9,7 @@ use std::{error::Error, fs::File, io::Write};
 ///     Essentially, the data slice must not be mutated throughout lifetime 'a, its contents must be
 ///     properly aligned and valid for the type T, and the size parameter should be consistent with
 ///     the slice.
-pub fn write_to_file_bin<'a, T>(
+pub unsafe fn write_to_file_bin<'a, T>(
     file: &'a mut File,
     data: &[T],
     size: usize,

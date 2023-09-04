@@ -30,13 +30,13 @@ pub enum TTFlag {
 /// 11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000 -- SEARCH VALUE
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash, Default)]
 pub struct TTEntry {
-    key: u64,         // 64b
-    age: u8,          //  7b
-    depth: u8,        //  7b
-    flag: TTFlag,     //  2b
-    best_move: Move,  // 16b
-    eval: i16,        // 16b
-    value: i16,       // 16b
+    key: u64,        // 64b
+    age: u8,         //  7b
+    depth: u8,       //  7b
+    flag: TTFlag,    //  2b
+    best_move: Move, // 16b
+    eval: i16,       // 16b
+    value: i16,      // 16b
 }
 
 // Offsets for the data fields
@@ -55,9 +55,9 @@ const EVAL_MASK: u64 = 0xFFFF00000000;
 
 /// Convert from external root-distance to internal node-distance
 fn to_tt(value: Eval, ply: usize) -> i16 {
-    if value >= MATE_IN_PLY {
+    if value >= LONGEST_TB_MATE {
         (value + ply as Eval) as i16
-    } else if value <= -MATE_IN_PLY {
+    } else if value <= -LONGEST_TB_MATE {
         (value - ply as Eval) as i16
     } else {
         value as i16
@@ -68,9 +68,9 @@ fn to_tt(value: Eval, ply: usize) -> i16 {
 fn to_search(value: Eval, ply: usize) -> Eval {
     let ply = ply as Eval;
 
-    if value >= MATE_IN_PLY {
+    if value >= LONGEST_TB_MATE {
         value - ply
-    } else if value <= -MATE_IN_PLY {
+    } else if value <= -LONGEST_TB_MATE {
         value + ply
     } else {
         value
