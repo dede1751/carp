@@ -1,4 +1,4 @@
-use crate::{move_picker::MovePicker, search_params::*, thread::Thread};
+use crate::{move_picker::MovePicker, search_params::*, syzygy::probe::{TB, WDL}, thread::Thread};
 use chess::{
     bitboard::BitBoard,
     board::Board,
@@ -212,6 +212,7 @@ pub enum GameResult {
     BlackWin(bool),
     Draw(bool),
 }
+
 pub const ADJ: bool = true;
 pub const NO_ADJ: bool = false;
 
@@ -232,8 +233,21 @@ impl Position {
         self.history.push(old);
     }
 
-    /// Checks if the game is over and returns the result
-    pub fn check_result(&self) -> GameResult {
+    /// Checks if the game is over and returns the result.
+    /// If available, adjudicates using the TBs.
+    pub fn check_result(&self, tb: TB) -> GameResult {
+        if let Some(result) = tb.probe_root(&self.board) {
+            let wtm = self.white_to_move();
+
+            return if result.wdl == WDL::Draw {
+                GameResult::Draw(ADJ)
+            } else if (result.wdl == WDL::Win && wtm) || (result.wdl == WDL::Loss && !wtm) {
+                GameResult::WhiteWin(ADJ)
+            } else {
+                GameResult::BlackWin(ADJ)
+            }
+        }
+
         let move_list = self.board.gen_moves::<true>();
 
         if move_list.is_empty() {

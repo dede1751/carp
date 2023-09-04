@@ -38,6 +38,10 @@ pub struct DatagenOptions {
     /// Limit searches to 'x' plies.
     #[arg(long, short = 'd')]
     depth: Option<usize>,
+
+    /// Path to Syzygy Tablebases, used for search and adjudication.
+    #[arg(long, short = 's')]
+    syzygy: Option<String>,
 }
 
 static STOP_FLAG: AtomicBool = AtomicBool::new(false);
@@ -50,7 +54,7 @@ static DRAWS: AtomicU64 = AtomicU64::new(0);
 static DRAW_ADJ: AtomicU64 = AtomicU64::new(0);
 
 /// Dispatch the datagen threads
-pub fn run_datagen(options: &DatagenOptions) {
+pub fn run_datagen(options: DatagenOptions) {
     ctrlc::set_handler(move || {
         STOP_FLAG.store(true, Ordering::SeqCst);
         println!("Stopping generation...");
@@ -67,6 +71,11 @@ pub fn run_datagen(options: &DatagenOptions) {
         println!("{ORANGE}WARNING: {DEFAULT}The number of games is not divisible by the number of threads!");
     }
 
+    let mut tb = TB::default();
+    if let Some(path) = options.syzygy {
+        tb.activate(&path, TB::MAX_MEN);
+    }
+
     let games_per_thread = (options.games / options.threads).max(1);
     std::thread::scope(|s| {
         for id in 0..options.threads {
@@ -80,7 +89,7 @@ pub fn run_datagen(options: &DatagenOptions) {
             }
 
             s.spawn(move || {
-                datagen_thread(id, games_per_thread, tc, path);
+                datagen_thread(id, games_per_thread, tc, tb, path);
             });
         }
     });
@@ -90,7 +99,7 @@ pub fn run_datagen(options: &DatagenOptions) {
 /// Each thread will play the given number of games at the given time control, and save the results
 /// to a file named after its id.
 /// Each game starts with 12 random moves.
-fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
+fn datagen_thread(id: usize, games: usize, tc: TimeControl, tb: TB, path: &Path) {
     let rng = fastrand::Rng::new();
 
     let mut position;
@@ -156,7 +165,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
         // Avoid positions that are too unbalanced
         tt.clear();
         let mut thread = Thread::fixed_depth(10);
-        position.iterative_search::<false>(&mut thread, &tt, TB::default());
+        position.iterative_search::<false>(&mut thread, &tt, tb);
         if thread.eval.abs() >= 1000 {
             continue 'main;
         }
@@ -166,7 +175,8 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
         let mut draw_adj_counter = 0;
 
         let game_result = loop {
-            let result = position.check_result();
+            let result = position.check_result(tb);
+            let wtm = position.white_to_move();
             if result != GameResult::Ongoing {
                 break result;
             }
@@ -177,10 +187,16 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
                 Arc::new(AtomicBool::new(false)),
                 Arc::new(AtomicU64::new(0)),
                 tc,
-                position.white_to_move(),
+                wtm,
             );
 
-            position.iterative_search::<false>(&mut thread, &tt, TB::default());
+            // Always report scores from white's perspective
+            position.iterative_search::<false>(&mut thread, &tt, tb);
+            let eval = if wtm {
+                thread.eval
+            } else {
+                -thread.eval
+            };
 
             // filter noisy positions
             if !position.king_in_check()
@@ -188,19 +204,12 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
                 && thread.best_move().get_type().is_quiet()
                 && position.ply() > 16
             {
-                // Always report scores from white's perspective
-                let eval = if position.white_to_move() {
-                    thread.eval
-                } else {
-                    -thread.eval
-                };
-
                 game_buffer.push((eval, position.board.to_fen()));
             }
 
             // Increment adjudication counters
-            let abs_eval = thread.eval.abs();
-            if abs_eval >= 2000 {
+            let abs_eval = eval.abs();
+            if abs_eval >= 2000 { // breaks if eval jumps from +2000 to -2000
                 win_adj_counter += 1;
                 draw_adj_counter = 0;
             } else if abs_eval <= 5 {
@@ -213,7 +222,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
 
             // Win adjudication after 4 moves at +-2000 centipawns
             if win_adj_counter >= 4 {
-                let result = if position.white_to_move() {
+                let result = if eval > 0 {
                     GameResult::WhiteWin(ADJ)
                 } else {
                     GameResult::BlackWin(ADJ)

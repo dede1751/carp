@@ -1,12 +1,16 @@
 /// The Search module implements Carp's Alpha-Beta algorithm for single-threaded tree search.
+#[cfg(not(feature = "datagen"))]
 use std::sync::atomic::Ordering;
+
+#[cfg(not(feature = "datagen"))]
+use crate::syzygy::probe::TB_HITS;
 
 use crate::{
     move_picker::{Stage, TT_SCORE},
     position::Position,
     search_params::*,
     search_tables::PVTable,
-    syzygy::probe::{TB, TB_HITS, WDL},
+    syzygy::probe::{TB, WDL},
     thread::Thread,
     tt::{TTFlag, TT},
 };
@@ -199,6 +203,7 @@ impl Position {
         let mut syzygy_max = INFINITY;
         if !ROOT && !in_singular_search {
             if let Some(wdl) = tb.probe_wdl(&self.board) {
+                #[cfg(not(feature = "datagen"))]
                 TB_HITS.fetch_add(1, Ordering::Relaxed);
 
                 let tb_value = wdl.to_eval(t.ply);

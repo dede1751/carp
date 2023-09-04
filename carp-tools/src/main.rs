@@ -32,10 +32,10 @@ enum Command {
 fn main() {
     let args = Cli::parse();
 
-    match &args.command {
+    match args.command {
         Some(Command::Datagen(opts)) => datagen::run_datagen(opts),
         Some(Command::Merge(opts)) => {
-            if let Err(err) = merge::merge(&opts.path) {
+            if let Err(err) = merge::merge(opts.path) {
                 eprintln!("{ORANGE}{err}");
                 std::process::exit(1)
             }
