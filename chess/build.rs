@@ -19,11 +19,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     bishop_magics.write_to_file(File::create(out_dir.join("bishop_magics.bin"))?)?;
     rook_magics.write_to_file(File::create(out_dir.join("rook_magics.bin"))?)?;
-    write_to_file_bin(
+    unsafe {
+        write_to_file_bin(
         &mut File::create(out_dir.join("attacks.bin"))?,
         &attacks,
         size_of::<[BitBoard; ATTACK_COUNT]>(),
-    )?;
+        )?;
+    }
 
     Ok(())
 }

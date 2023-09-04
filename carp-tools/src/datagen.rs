@@ -184,7 +184,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, path: &Path) {
 
             // filter noisy positions
             if !position.king_in_check()
-                && thread.eval.abs() < MATE_IN_PLY
+                && thread.eval.abs() < LONGEST_TB_MATE
                 && thread.best_move().get_type().is_quiet()
                 && position.ply() > 16
             {

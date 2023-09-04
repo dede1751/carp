@@ -19,14 +19,12 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
 const BASE_OPTIONS: &str = "
 option name Hash type spin default 16 min 1 max 1048576 
-option name Threads type spin default 1 min 1 max 512
-option name SyzygyPath type string default <empty>";
+option name Threads type spin default 1 min 1 max 512";
 
 #[cfg(feature = "syzygy")]
 const SYZYGY_OPTIONS: &str = "
 option name SyzygyPath type string default <empty>
-option name SyzygyProbeLimit type spin default 6 min 0 max 6
-";
+option name SyzygyProbeLimit type spin default 6 min 0 max 6";
 
 #[cfg(not(feature = "syzygy"))]
 const SYZYGY_OPTIONS: &str = "";
@@ -127,7 +125,7 @@ impl UCIReader {
                         UCICommand::Uci => {
                             println!("id name {NAME} {VERSION}");
                             println!("id author {AUTHOR}");
-                            println!("{BASE_OPTIONS}");
+                            print!("{BASE_OPTIONS}");
                             println!("{SYZYGY_OPTIONS}");
                             println!("uciok");
                         }
@@ -177,7 +175,10 @@ impl UCIController {
                     },
                     "SyzygyPath" => tb.activate(&value, syzygy_probe_limit),
                     "SyzygyProbeLimit" => match value.parse::<u8>() {
-                        Ok(limit) if limit <= TB::MAX_MEN => syzygy_probe_limit = limit,
+                        Ok(limit) if limit <= TB::MAX_MEN => {
+                            syzygy_probe_limit = limit;
+                            tb.n_men = limit;
+                        }
                         _ => eprintln!("Could not parse syzygy probe limit option value!"),
                     },
                     _ => eprintln!("Unsupported option command!"),

@@ -58,11 +58,11 @@ pub struct Thread {
 impl std::fmt::Display for Thread {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let abs_eval = self.eval.abs();
-        let score = if abs_eval >= TB_MATE_IN_PLY {
+        let score = if abs_eval >= LONGEST_TB_MATE {
             let moves_to_mate = if abs_eval > TB_MATE {
                 (MATE - abs_eval + 1) / 2
             } else {
-                1000 + (TB_MATE - abs_eval + 1) / 2 // Since we miss DTZ, add 1000 to avoid confusion
+                1000 + (TB_MATE - abs_eval + 1) / 2 // TB results add 1000 to avoid confusion
             };
 
             if self.eval > 0 {
@@ -335,7 +335,7 @@ impl ThreadPool {
             self.main_thread
                 .pv
                 .update_pv_line(result.best_move, &PVTable::default());
-            self.main_thread.eval = result.to_eval();
+            self.main_thread.eval = result.wdl.to_eval(0);
 
             TB_HITS.store(1, Ordering::SeqCst);
             println!("{}", self.main_thread);

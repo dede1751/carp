@@ -67,7 +67,7 @@ impl Position {
                 beta = (INFINITY).min(beta + delta);
                 t.pv = pv.clone();
 
-                if eval.abs() < MATE_IN_PLY && new_depth > 1 {
+                if eval.abs() < LONGEST_TB_MATE && new_depth > 1 {
                     new_depth -= 1;
                 }
             } else {
@@ -189,7 +189,7 @@ impl Position {
                 tt_move = entry.get_move();
                 possible_singularity = !ROOT
                     && depth >= SE_LOWER_LIMIT
-                    && tt_value.abs() < MATE_IN_PLY
+                    && tt_value.abs() < LONGEST_TB_MATE
                     && (tt_flag == TTFlag::Lower || tt_flag == TTFlag::Exact)
                     && tt_depth >= depth - 3;
             }
@@ -351,7 +351,7 @@ impl Position {
 
             // Quiet move pruning
             #[cfg(not(feature = "datagen"))]
-            if !pv_node && !in_check && !picker.skip_quiets && best_eval > -MATE_IN_PLY {
+            if !pv_node && !in_check && !picker.skip_quiets && best_eval > -LONGEST_TB_MATE {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
                 if is_quiet && depth <= HLP_THRESHOLD && s < HLP_BASE {
@@ -375,7 +375,7 @@ impl Position {
 
             // SEE pruning for captures and quiets
             #[cfg(not(feature = "datagen"))]
-            if best_eval > -MATE_IN_PLY
+            if best_eval > -LONGEST_TB_MATE
                 && depth <= SEE_PRUNING_THRESHOLD
                 && picker.stage > Stage::GoodTacticals
                 && !self.board.see(m, see_margins[is_quiet as usize])

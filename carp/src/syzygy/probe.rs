@@ -59,11 +59,10 @@ impl WDL {
     }
 }
 
-/// Full root probe result, consisting of both WDL and DTZ.
+/// Full root probe result, consisting of both WDL and the best move.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 pub struct TBProbe {
     pub wdl: WDL,
-    pub dtz: u32,
     pub best_move: Move,
 }
 
@@ -98,18 +97,8 @@ impl TBProbe {
 
         board.find_move(move_str.as_str()).map(|mv| Self {
             wdl,
-            dtz,
             best_move: mv,
         })
-    }
-
-    /// Convert a syzygy WDL-DTZ result to a search evaluation.
-    pub fn to_eval(self) -> Eval {
-        match self.wdl {
-            WDL::Win => MATE - self.dtz as Eval,
-            WDL::Loss => -MATE + self.dtz as Eval,
-            WDL::Draw => 0,
-        }
     }
 }
 
@@ -118,7 +107,7 @@ impl TBProbe {
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TB {
     active: bool,
-    n_men: u8,
+    pub n_men: u8,
 }
 
 impl TB {
