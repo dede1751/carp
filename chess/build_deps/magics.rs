@@ -3,7 +3,7 @@
 use std::{error::Error, fs::File, mem::size_of};
 
 use super::{
-    masks::{Bishop, Rook, Sliding},
+    sliders::{Bishop, Rook, Sliding},
     types::{BitBoard, Square},
     write_to_file_bin,
 };
@@ -157,17 +157,21 @@ impl<P: Sliding + MagicMap> Magics<P> {
     /// Write the Magics struct to a binary file.
     /// The format is that of chess::tables::Magics
     pub fn write_to_file(self, mut file: File) -> Result<(), Box<dyn Error>> {
-        write_to_file_bin(
-            &mut file,
-            &self.magics,
-            size_of::<[BlackMagic; Square::COUNT]>(),
-        )?;
-        write_to_file_bin(
-            &mut file,
-            &self.notmasks,
-            size_of::<[BitBoard; Square::COUNT]>(),
-        )?;
-        write_to_file_bin(&mut file, &[self.shift], size_of::<usize>())?;
+        unsafe {
+            write_to_file_bin(
+                &mut file,
+                &self.magics,
+                size_of::<[BlackMagic; Square::COUNT]>(),
+            )?
+        };
+        unsafe {
+            write_to_file_bin(
+                &mut file,
+                &self.notmasks,
+                size_of::<[BitBoard; Square::COUNT]>(),
+            )?
+        };
+        unsafe { write_to_file_bin(&mut file, &[self.shift], size_of::<usize>())? };
 
         Ok(())
     }

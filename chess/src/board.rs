@@ -542,12 +542,12 @@ impl Board {
         // pin masks are between the attacker and the king square (attacker included)
         let diag_pins = diag_attackers
             .into_iter()
-            .map(|sq| BETWEEN[sq as usize][king_square as usize].set_bit(sq))
+            .map(|sq| BETWEEN[king_square as usize][sq as usize])
             .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         let hv_pins = hv_attackers
             .into_iter()
-            .map(|sq| BETWEEN[sq as usize][king_square as usize].set_bit(sq))
+            .map(|sq| BETWEEN[king_square as usize][sq as usize])
             .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         (diag_pins, hv_pins)
@@ -595,9 +595,9 @@ impl Board {
     /// Generate all legal pawn quiet moves
     fn gen_pawn_quiets(
         &self,
+        check_mask: BitBoard,
         diag_pins: BitBoard,
         hv_pins: BitBoard,
-        block_check: BitBoard,
         move_list: &mut MoveList,
     ) {
         const START_RANKS: [Rank; 2] = [Rank::Second, Rank::Seventh];
@@ -616,7 +616,7 @@ impl Board {
 
             if !(occs.get_bit(target)) {
                 // normal pawn push
-                if block_check.get_bit(target) {
+                if check_mask.get_bit(target) {
                     move_list.push_pawn_quiet(src, target, self.side);
                 }
 
@@ -624,7 +624,7 @@ impl Board {
                 if src.rank() == START_RANKS[side] {
                     let target = src.forward(self.side).forward(self.side);
 
-                    if !(occs.get_bit(target)) && block_check.get_bit(target) {
+                    if !(occs.get_bit(target)) && check_mask.get_bit(target) {
                         move_list.push(Move::new(src, target, MoveType::DoublePush));
                     }
                 }
@@ -635,14 +635,12 @@ impl Board {
     /// Generate all legal pawn captures (including enpassant)
     fn gen_pawn_captures(
         &self,
+        check_mask: BitBoard,
         diag_pins: BitBoard,
         hv_pins: BitBoard,
-        block_check: BitBoard,
-        capture_check: BitBoard,
         move_list: &mut MoveList,
     ) {
         let pawn_bb = self.own_pawns() & !hv_pins; // hv pinned pawns cannot capture
-        let check_mask = block_check | capture_check;
 
         for source in pawn_bb {
             let mut attacks: BitBoard = pawn_attacks(source, self.side);
@@ -665,7 +663,7 @@ impl Board {
                 // Attack must land on ep square, and either capture the checking piece or
                 // block the check
                 if attacks.get_bit(ep_square)
-                    && (capture_check.get_bit(ep_target) || block_check.get_bit(ep_square))
+                    && (check_mask.get_bit(ep_target) || check_mask.get_bit(ep_square))
                 {
                     const EP_RANKS: [BitBoard; 2] = [BitBoard(4278190080), BitBoard(1095216660480)];
                     let ep_rank = EP_RANKS[self.side as usize];
@@ -675,7 +673,8 @@ impl Board {
                         && ep_rank & self.opp_queen_rook() != BitBoard::EMPTY
                     {
                         // remove the two pawns
-                        let occupancy = self.occupancy() & !source.to_board() & !ep_target.to_board();
+                        let occupancy =
+                            self.occupancy() & !source.to_board() & !ep_target.to_board();
 
                         let king_square = self.own_king().lsb();
                         let king_ray = rook_attacks(king_square, occupancy) & ep_rank;
@@ -827,21 +826,17 @@ impl Board {
 
         self.gen_king_moves::<QUIET>(threats, &mut move_list);
 
-        // with double checks, only king moves are legal, so we stop here
+        // With double checks, only king moves are legal, so we stop here
         if attacker_count > 1 {
             return move_list;
         }
 
-        // generate all the legal piece moves using pin and blocker/capture masks
-        let (block_check, capture_check) = if attacker_count == 1 {
-            (
-                BETWEEN[self.own_king().lsb() as usize][self.checkers.lsb() as usize],
-                self.checkers,
-            )
+        // Generate all the legal piece moves using pin and blocker/capture masks
+        let check_mask = if attacker_count == 1 {
+            BETWEEN[self.own_king().lsb() as usize][self.checkers.lsb() as usize] | self.checkers
         } else {
-            (BitBoard::FULL, BitBoard::FULL)
+            BitBoard::FULL
         };
-        let check_mask = capture_check | block_check;
         let (diag_pins, hv_pins) = self.map_pins();
 
         if QUIET && attacker_count == 0 {
@@ -849,15 +844,9 @@ impl Board {
             self.gen_queenside_castle(threats, &mut move_list);
         }
 
-        self.gen_pawn_captures(
-            diag_pins,
-            hv_pins,
-            block_check,
-            capture_check,
-            &mut move_list,
-        );
+        self.gen_pawn_captures(check_mask, diag_pins, hv_pins, &mut move_list);
         if QUIET {
-            self.gen_pawn_quiets(diag_pins, hv_pins, block_check, &mut move_list);
+            self.gen_pawn_quiets(check_mask, diag_pins, hv_pins, &mut move_list);
         }
 
         self.gen_piece_moves::<N, QUIET>(check_mask, diag_pins, hv_pins, &mut move_list);
