@@ -33,8 +33,9 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 ## Project Structure & Building Carp
 
 The project is structured in 3 main Cargo Workspaces: **Chess** is the game backend used by the engine,
-**Carp** is the UCI engine and **Carp-Tools** is an executable with developer tools. All external
-dependencies are limited to this last crate, while the first two are completely standalone.
+**Carp** is the UCI engine and **Carp-Tools** is an executable with developer tools. The first two
+crates are designed to be dependency-less, although Syzygy Tablebase support requires interfacing with
+[Fathom][fathom-link].
 
 Building Carp only requires [Cargo][cargo-link]. Carp is currently tested on *Rust Stable v1.70*, so that is
 the recommended version, although it could possibly work (without guarantees) on earlier releases.
@@ -90,10 +91,12 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
 * Extended Futility Pruning
 * Late Move Pruning
 * Singular Extensions
+* Syzygy Endgame Tablebases
 
 ## Dependencies
-None of these are necessary to run the engine, but they are vital for development:
+None of these are strictly necessary to run the engine, but they are vital for development:
 
+* [Fathom][fathom-link]
 * [Cutechess-Cli](https://github.com/cutechess/cutechess)
 * [MarlinFlow](https://github.com/dsekercioglu/marlinflow)
 * [OpenBench](https://github.com/AndyGrant/OpenBench)
@@ -117,6 +120,7 @@ None of these are necessary to run the engine, but they are vital for developmen
 [ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?class=None&only_best_in_class=on&num_best_in_class=1&family=Carp&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no
 [mcerl-link]:https://www.chessengeria.com/mcerl
 [movegen-link]:https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator
+[fathom-link]:https://github.com/jdart1/Fathom
 
 [build-badge]:https://img.shields.io/github/actions/workflow/status/dede1751/carp/build.yml?branch=main&logo=github&style=for-the-badge
 [build-link]:https://github.com/dede1751/carp/actions/workflows/build.yml

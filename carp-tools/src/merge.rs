@@ -86,7 +86,7 @@ impl<'a> PartialOrd for QuicklySortableString<'a> {
 
 /// Merge all datagen files in the given directory.
 /// This will read all the data into memory, so be careful with dataset size.
-pub fn merge<P: AsRef<Path>>(input_dir: &P) -> Result<(), Box<dyn Error>> {
+pub fn merge<P: AsRef<Path>>(input_dir: P) -> Result<(), Box<dyn Error>> {
     let out = input_dir.as_ref().join(format!(
         "merged_{}.txt",
         chrono::Local::now().format("%d-%m-%Y_%H-%M-%S")

@@ -9,15 +9,25 @@ use std::{
     thread,
 };
 
-use crate::{clock::TimeControl, position::Position, thread::ThreadPool, tt::TT};
+use crate::{
+    clock::TimeControl, position::Position, syzygy::probe::TB, thread::ThreadPool, tt::TT,
+};
 
 const NAME: &str = "Carp";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
-const ENGINE_OPTIONS: &str = "
+const BASE_OPTIONS: &str = "
 option name Hash type spin default 16 min 1 max 1048576 
 option name Threads type spin default 1 min 1 max 512";
+
+#[cfg(feature = "syzygy")]
+const SYZYGY_OPTIONS: &str = "
+option name SyzygyPath type string default <empty>
+option name SyzygyProbeLimit type spin default 6 min 0 max 6";
+
+#[cfg(not(feature = "syzygy"))]
+const SYZYGY_OPTIONS: &str = "";
 
 /// Enum to represent UCI commands (and extra debug commands)
 enum UCICommand {
@@ -115,7 +125,8 @@ impl UCIReader {
                         UCICommand::Uci => {
                             println!("id name {NAME} {VERSION}");
                             println!("id author {AUTHOR}");
-                            println!("{ENGINE_OPTIONS}");
+                            print!("{BASE_OPTIONS}");
+                            println!("{SYZYGY_OPTIONS}");
                             println!("uciok");
                         }
                         UCICommand::IsReady => {
@@ -141,6 +152,8 @@ impl UCIController {
     fn run(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) {
         let mut position = Position::default();
         let mut tt = TT::default();
+        let mut tb = TB::default();
+        let mut syzygy_probe_limit = TB::MAX_MEN;
         let mut thread_pool = ThreadPool::new(stop);
 
         for command in &rx {
@@ -159,6 +172,14 @@ impl UCIController {
                     "Threads" => match value.parse::<usize>() {
                         Ok(size) if size > 0 => thread_pool.resize(size - 1),
                         _ => eprintln!("Could not parse threads option value!"),
+                    },
+                    "SyzygyPath" => tb.activate(&value, syzygy_probe_limit),
+                    "SyzygyProbeLimit" => match value.parse::<u8>() {
+                        Ok(limit) if limit <= TB::MAX_MEN => {
+                            syzygy_probe_limit = limit;
+                            tb.n_men = limit;
+                        }
+                        _ => eprintln!("Could not parse syzygy probe limit option value!"),
                     },
                     _ => eprintln!("Unsupported option command!"),
                 },
@@ -183,7 +204,7 @@ impl UCIController {
                     tt.increment_age();
                     println!(
                         "bestmove {}",
-                        thread_pool.deploy_search(&mut position, &tt, tc),
+                        thread_pool.deploy_search(&mut position, &tt, tb, tc),
                     );
                 }
 

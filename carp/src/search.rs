@@ -1,9 +1,16 @@
 /// The Search module implements Carp's Alpha-Beta algorithm for single-threaded tree search.
+#[cfg(not(feature = "datagen"))]
+use std::sync::atomic::Ordering;
+
+#[cfg(not(feature = "datagen"))]
+use crate::syzygy::probe::TB_HITS;
+
 use crate::{
     move_picker::{Stage, TT_SCORE},
     position::Position,
     search_params::*,
     search_tables::PVTable,
+    syzygy::probe::{TB, WDL},
     thread::Thread,
     tt::{TTFlag, TT},
 };
@@ -15,9 +22,9 @@ use chess::{
 impl Position {
     /// Iteratively searches the position at increasing depth
     /// Search results remain stored within the thread.
-    pub fn iterative_search<const INFO: bool>(&mut self, t: &mut Thread, tt: &TT) {
+    pub fn iterative_search<const INFO: bool>(&mut self, t: &mut Thread, tt: &TT, tb: TB) {
         while t.depth < MAX_DEPTH && t.clock.start_search(t.depth + 1, t.nodes, t.best_move()) {
-            let eval = self.aspiration_window(t, tt);
+            let eval = self.aspiration_window(t, tt, tb);
 
             if t.stop {
                 break;
@@ -35,7 +42,7 @@ impl Position {
     /// Aspiration Window loop
     /// Run searches on progressively wider windows until we find a value within the window.
     /// This may update the best move even though we do not fully complete the loop.
-    fn aspiration_window(&mut self, t: &mut Thread, tt: &TT) -> Eval {
+    fn aspiration_window(&mut self, t: &mut Thread, tt: &TT, tb: TB) -> Eval {
         let mut pv = PVTable::default();
         let mut new_depth = t.depth + 1;
         let mut alpha = -INFINITY;
@@ -49,7 +56,7 @@ impl Position {
         }
 
         loop {
-            let eval = self.negamax::<true>(t, tt, &mut pv, alpha, beta, new_depth, false);
+            let eval = self.negamax::<true>(t, tt, tb, &mut pv, alpha, beta, new_depth, false);
             if t.stop {
                 return -INFINITY;
             }
@@ -64,7 +71,7 @@ impl Position {
                 beta = (INFINITY).min(beta + delta);
                 t.pv = pv.clone();
 
-                if eval.abs() < MATE_IN_PLY && new_depth > 1 {
+                if eval.abs() < LONGEST_TB_MATE && new_depth > 1 {
                     new_depth -= 1;
                 }
             } else {
@@ -83,16 +90,18 @@ impl Position {
     }
 
     /// Perform a Null-Window search to prove a position scores above/below the baseline eval.
+    #[allow(clippy::too_many_arguments)]
     fn zw_search(
         &mut self,
         t: &mut Thread,
         tt: &TT,
+        tb: TB,
         pv: &mut PVTable,
         eval: Eval,
         depth: usize,
         cutnode: bool,
     ) -> Eval {
-        self.negamax::<false>(t, tt, pv, eval - 1, eval, depth, cutnode)
+        self.negamax::<false>(t, tt, tb, pv, eval - 1, eval, depth, cutnode)
     }
 
     /// Standard alpha-beta negamax tree search
@@ -101,6 +110,7 @@ impl Position {
         &mut self,
         t: &mut Thread,
         tt: &TT,
+        tb: TB,
         pv: &mut PVTable,
         mut alpha: Eval,
         mut beta: Eval,
@@ -183,9 +193,51 @@ impl Position {
                 tt_move = entry.get_move();
                 possible_singularity = !ROOT
                     && depth >= SE_LOWER_LIMIT
-                    && tt_value.abs() < MATE_IN_PLY
+                    && tt_value.abs() < LONGEST_TB_MATE
                     && (tt_flag == TTFlag::Lower || tt_flag == TTFlag::Exact)
                     && tt_depth >= depth - 3;
+            }
+        }
+
+        // Probe the Syzygy tablebases for a WDL result.
+        let mut syzygy_max = INFINITY;
+        if !ROOT && !in_singular_search {
+            if let Some(wdl) = tb.probe_wdl(&self.board) {
+                #[cfg(not(feature = "datagen"))]
+                TB_HITS.fetch_add(1, Ordering::Relaxed);
+
+                let tb_value = wdl.to_eval(t.ply);
+                let tb_flag = match wdl {
+                    WDL::Win => TTFlag::Lower,
+                    WDL::Loss => TTFlag::Upper,
+                    WDL::Draw => TTFlag::Exact,
+                };
+
+                if tb_flag == TTFlag::Exact
+                    || (tb_flag == TTFlag::Lower && tb_value >= beta)
+                    || (tb_flag == TTFlag::Upper && tb_value <= alpha)
+                {
+                    tt.insert(
+                        self.board.hash,
+                        tb_flag,
+                        Move::NULL,
+                        -INFINITY,
+                        tb_value,
+                        depth,
+                        t.ply,
+                        pv_node,
+                    );
+
+                    return tb_value;
+                }
+
+                if pv_node && tb_flag == TTFlag::Lower {
+                    alpha = alpha.max(tb_value);
+                }
+
+                if pv_node && tb_flag == TTFlag::Upper {
+                    syzygy_max = tb_value;
+                }
             }
         }
 
@@ -249,7 +301,7 @@ impl Position {
                 let r = (NMP_BASE + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(t);
-                let eval = -self.zw_search(t, tt, opv, -(beta - 1), depth - r, !cutnode);
+                let eval = -self.zw_search(t, tt, tb, opv, -(beta - 1), depth - r, !cutnode);
                 self.undo_move(t);
 
                 // cutoff above beta
@@ -304,7 +356,7 @@ impl Position {
 
             // Quiet move pruning
             #[cfg(not(feature = "datagen"))]
-            if !pv_node && !in_check && !picker.skip_quiets && best_eval > -MATE_IN_PLY {
+            if !pv_node && !in_check && !picker.skip_quiets && best_eval > -LONGEST_TB_MATE {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
                 if is_quiet && depth <= HLP_THRESHOLD && s < HLP_BASE {
@@ -328,7 +380,7 @@ impl Position {
 
             // SEE pruning for captures and quiets
             #[cfg(not(feature = "datagen"))]
-            if best_eval > -MATE_IN_PLY
+            if best_eval > -LONGEST_TB_MATE
                 && depth <= SEE_PRUNING_THRESHOLD
                 && picker.stage > Stage::GoodTacticals
                 && !self.board.see(m, see_margins[is_quiet as usize])
@@ -347,7 +399,7 @@ impl Position {
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
 
                 t.excluded[t.ply] = Some(m);
-                let eval = self.zw_search(t, tt, opv, se_beta, se_depth, cutnode);
+                let eval = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
                 t.excluded[t.ply] = None;
 
                 if eval < se_beta {
@@ -388,7 +440,7 @@ impl Position {
 
                     // Reduced depth null window search
                     // Since we are speculating being an allnode, expect the child to be a cutnode
-                    eval = -self.zw_search(t, tt, opv, -alpha, ext_depth - r, true);
+                    eval = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - r, true);
                     eval > alpha && r > 1
                 } else {
                     !pv_node || move_count > 0
@@ -397,13 +449,13 @@ impl Position {
             // Full depth null window search when lmr fails or when using pvs
             // Allnodes/Cutnodes alternate
             if full_depth_search {
-                eval = -self.zw_search(t, tt, opv, -alpha, ext_depth - 1, !cutnode);
+                eval = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - 1, !cutnode);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
             // We expect the child node to be a PV node
             if pv_node && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax::<false>(t, tt, opv, -beta, -alpha, ext_depth - 1, false);
+                eval = -self.negamax::<false>(t, tt, tb, opv, -beta, -alpha, ext_depth - 1, false);
             }
 
             self.undo_move(t);
@@ -445,6 +497,8 @@ impl Position {
         }
 
         if !t.stop {
+            alpha = alpha.min(syzygy_max);
+
             let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
             } else if best_eval > old_alpha {
@@ -623,7 +677,7 @@ mod tests {
             println!("\n{}\n\n", position.board);
 
             let start = Instant::now();
-            position.iterative_search::<true>(&mut t, &TT::default());
+            position.iterative_search::<true>(&mut t, &TT::default(), TB::default());
             let duration = start.elapsed();
 
             println!(

@@ -162,17 +162,15 @@ impl<P: Sliding + MagicMap> Magics<P> {
                 &mut file,
                 &self.magics,
                 size_of::<[BlackMagic; Square::COUNT]>(),
-            )?
-        };
-        unsafe {
+            )?;
             write_to_file_bin(
                 &mut file,
                 &self.notmasks,
                 size_of::<[BitBoard; Square::COUNT]>(),
-            )?
-        };
-        unsafe { write_to_file_bin(&mut file, &[self.shift], size_of::<usize>())? };
+            )?;
+            write_to_file_bin(&mut file, &[self.shift], size_of::<usize>())?;
 
-        Ok(())
+            Ok(())
+        }
     }
 }

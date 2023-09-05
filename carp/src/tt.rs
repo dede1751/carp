@@ -55,9 +55,9 @@ const EVAL_MASK: u64 = 0xFFFF00000000;
 
 /// Convert from external root-distance to internal node-distance
 fn to_tt(value: Eval, ply: usize) -> i16 {
-    if value >= MATE_IN_PLY {
+    if value >= LONGEST_TB_MATE {
         (value + ply as Eval) as i16
-    } else if value <= -MATE_IN_PLY {
+    } else if value <= -LONGEST_TB_MATE {
         (value - ply as Eval) as i16
     } else {
         value as i16
@@ -68,9 +68,9 @@ fn to_tt(value: Eval, ply: usize) -> i16 {
 fn to_search(value: Eval, ply: usize) -> Eval {
     let ply = ply as Eval;
 
-    if value >= MATE_IN_PLY {
+    if value >= LONGEST_TB_MATE {
         value - ply
-    } else if value <= -MATE_IN_PLY {
+    } else if value <= -LONGEST_TB_MATE {
         value + ply
     } else {
         value

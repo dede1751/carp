@@ -112,6 +112,12 @@ impl BitBoard {
         Self(self.0 & !(1u64 << square as usize))
     }
 
+    /// Flip the bitboard vertically.
+    /// Only used because Syzygy TBs index the first bit with A1, not A8
+    pub const fn flipv(self) -> Self {
+        Self(self.0.swap_bytes())
+    }
+
     /// Returns popcnt
     /// Using RUSTFLAGS='target-cpu=native' we enforce the popcnt feature
     pub const fn count_bits(self) -> u32 {
