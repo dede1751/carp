@@ -54,7 +54,7 @@ pub(crate) fn rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
 }
 
 pub const QUIETS: bool = true;
-pub const CAPTURES: bool = false;
+pub const TACTICALS: bool = false;
 const KS: usize = 0;
 const QS: usize = 1;
 
@@ -100,7 +100,7 @@ impl Board {
     }
 
     /// Generate all legal pawn advancing moves, including double pushes and promotions.
-    fn gen_pawn_advances(
+    fn gen_pawn_advances<const QUIET: bool>(
         &self,
         check_mask: BitBoard,
         diag_pins: BitBoard,
@@ -117,10 +117,18 @@ impl Board {
             let tgt = src.forward(self.side);
             if !hv_pins.get_bit(src) || hv_pins.get_bit(tgt) {
                 move_list.push(Move::new(src, tgt, MoveType::QueenPromotion));
-                move_list.push(Move::new(src, tgt, MoveType::KnightPromotion));
-                move_list.push(Move::new(src, tgt, MoveType::RookPromotion));
-                move_list.push(Move::new(src, tgt, MoveType::BishopPromotion));
+
+                if QUIET {
+                    move_list.push(Move::new(src, tgt, MoveType::KnightPromotion));
+                    move_list.push(Move::new(src, tgt, MoveType::RookPromotion));
+                    move_list.push(Move::new(src, tgt, MoveType::BishopPromotion));
+                }
             }
+        }
+
+        // Only generate queen promotions when doing tacticals
+        if !QUIET {
+            return;
         }
 
         // Handle single pushes
@@ -325,10 +333,7 @@ impl Board {
         }
 
         self.gen_pawn_captures(check_mask, diag_pins, hv_pins, move_list);
-        if QUIET {
-            self.gen_pawn_advances(check_mask, diag_pins, hv_pins, move_list);
-        }
-
+        self.gen_pawn_advances::<QUIET>(check_mask, diag_pins, hv_pins, move_list);
         self.gen_piece::<{ Piece::N }, QUIET>(check_mask, BitBoard::EMPTY, all_pins, move_list);
         self.gen_piece::<{ Piece::B }, QUIET>(check_mask, diag_pins, hv_pins, move_list);
         self.gen_piece::<{ Piece::R }, QUIET>(check_mask, hv_pins, diag_pins, move_list);

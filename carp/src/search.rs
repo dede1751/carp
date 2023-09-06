@@ -15,7 +15,7 @@ use crate::{
     tt::{TTFlag, TT},
 };
 use chess::{
-    board::{CAPTURES, QUIETS},
+    board::{TACTICALS, QUIETS},
     moves::Move,
 };
 
@@ -594,7 +594,7 @@ impl Position {
 
         let mut best_move = Move::NULL;
         let mut best_eval = stand_pat;
-        let mut picker = self.gen_moves::<CAPTURES>(tt_move, 0);
+        let mut picker = self.gen_moves::<TACTICALS>(tt_move, 0);
 
         // The capture picker implicitly prunes bad SEE moves
         while let Some((m, _)) = picker.next(&self.board, t) {

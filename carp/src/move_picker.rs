@@ -320,7 +320,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 mod tests {
     use super::*;
     use chess::{
-        board::{CAPTURES, QUIETS},
+        board::{TACTICALS, QUIETS},
         piece::Color,
         square::Square,
     };
@@ -367,13 +367,13 @@ mod tests {
     #[test]
     fn test_capture_picker() {
         let b: Board = "2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1".parse().unwrap();
-        let move_list = b.gen_moves::<CAPTURES>();
+        let move_list = b.gen_moves::<TACTICALS>();
         let move_count = move_list.len();
 
         let tt_move = Move::new(Square::A2, Square::A4, MoveType::DoublePush);
         let good_cap = Move::new(Square::B7, Square::C8, MoveType::QueenCapPromo);
 
-        let mut picker = MovePicker::<CAPTURES>::new(move_list, Some(tt_move), 0);
+        let mut picker = MovePicker::<TACTICALS>::new(move_list, Some(tt_move), 0);
         let t = Thread::fixed_depth(0);
 
         println!("{b}");
