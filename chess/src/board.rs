@@ -151,7 +151,7 @@ impl FromStr for Board {
             Err(_) => return Err("Invalid halfmove count!"),
         }
 
-        board.map_checkers();
+        board.checkers = board.checkers();
 
         Ok(board)
     }
@@ -306,6 +306,26 @@ impl Board {
         }
     }
 
+    /// Mask all attackers of a certain square, given the blocker bitboard.
+    fn attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
+        self.opp_occupancy()
+            & (self.knights() & knight_attacks(square)
+                | self.kings() & king_attacks(square)
+                | self.pawns() & pawn_attacks(square, self.side)
+                | (self.queens() | self.rooks()) & rook_attacks(square, blockers)
+                | (self.queens() | self.bishops()) & bishop_attacks(square, blockers))
+    }
+
+    /// Mask all checking pieces
+    fn checkers(&self) -> BitBoard {
+        self.attackers(self.own_king().lsb(), self.occupancy())
+    }
+
+    /// Returns true if the square is attacked by at least one enemy piece
+    fn square_attacked(&self, square: Square, blockers: BitBoard) -> bool {
+        self.attackers(square, blockers) != BitBoard::EMPTY
+    }
+
     /// Set the piece on the board at the given square (remove first, set later)
     fn set_piece(&mut self, piece: Piece, square: Square) {
         let p = piece.index();
@@ -388,7 +408,7 @@ impl Board {
 
         new.side = !self.side;
         new.hash.toggle_side();
-        new.map_checkers();
+        new.checkers = new.checkers();
 
         new
     }
@@ -457,12 +477,13 @@ impl Board {
 
         new.side = !self.side;
         new.hash.toggle_side();
-        new.map_checkers();
+        new.checkers = new.checkers();
 
         new
     }
 
     /// Makes the null move on the board, giving the turn to the opponent
+    /// Calling this function when in check breaks the game state.
     pub fn make_null(&self) -> Board {
         let mut new = self.clone();
         new.side = !self.side;
@@ -472,181 +493,56 @@ impl Board {
         if let Some(square) = self.en_passant {
             new.hash.toggle_ep(square);
         }
-        new.map_checkers();
+        new.checkers = BitBoard::EMPTY;
 
         new
-    }
-
-    /// Set attackers to all enemy pieces directly attacking the king.
-    /// If there is at least one attacker, initialize the bitboards for blocking/capturing the check
-    fn map_checkers(&mut self) {
-        let square = self.own_king().lsb();
-
-        self.checkers = self.opp_pawns() & pawn_attacks(square, self.side)   | // pawns
-            self.opp_knights() & knight_attacks(square)                      | // knights
-            self.opp_queen_bishop() & bishop_attacks(square, self.occupancy()) | // bishops + queens
-            self.opp_queen_rook()   & rook_attacks(square, self.occupancy())   | // rooks + queens
-            self.opp_king() & king_attacks(square); // kings
-    }
-
-    /// Returns a BitBoard of all squares attacked by pieces who can attack any of the squares around
-    /// the king. The only relevant information is that in the squares around him, the rest is not
-    /// used but is kept because it does not cause problems.
-    ///
-    /// We only look at the squares from which a piece could threaten squares adjacent to the king.
-    ///
-    /// We pretend the king is not on the board so that sliders also attack behind the king, since
-    /// otherwise that square would be considered not attacked
-    fn map_king_threats(&self) -> BitBoard {
-        let king_square = self.own_king().lsb();
-        let ksq = king_square as usize;
-        let occupancies = self.occupancy().pop_bit(king_square);
-        let mut threats = BitBoard::EMPTY;
-
-        for sq in self.opp_pawns() & PAWN_THREATS[self.side as usize][ksq] {
-            threats |= pawn_attacks(sq, !self.side);
-        }
-        for sq in self.opp_knights() & KNIGHT_THREATS[ksq] {
-            threats |= knight_attacks(sq);
-        }
-        for sq in self.opp_queen_bishop() & DIAG_THREATS[ksq] {
-            threats |= bishop_attacks(sq, occupancies);
-        }
-        for sq in self.opp_queen_rook() & HV_THREATS[ksq] {
-            threats |= rook_attacks(sq, occupancies);
-        }
-        for sq in self.opp_king() & KING_THREATS[ksq] {
-            threats |= king_attacks(sq);
-        }
-
-        threats
-    }
-
-    /// Generates pinned pieces and diagonal/orthogonal pin maps
-    ///
-    /// Pin masks are defined as the squares between a pinning enemy piece and one's own king.
-    /// Any pinned piece can safely move along these squares (simply & moves with pinmask).
-    /// For simplicity, pin masks also indirectly include the check mask (this has no actual
-    /// effect on the pin use, as no piece can be sitting on the check mask anyways)
-    fn map_pins(&self) -> (BitBoard, BitBoard) {
-        let king_square = self.own_king().lsb();
-        let occs = self.occupancy();
-
-        // get all own pieces on diagonal/orthogonal rays from the king
-        let possible_diag_pins = bishop_attacks(king_square, occs) & self.own_occupancy();
-        let possible_hv_pins = rook_attacks(king_square, occs) & self.own_occupancy();
-
-        // remove the possible pinned pieces
-        let remove_diag_blockers = occs & !possible_diag_pins;
-        let remove_hv_blockers = occs & !possible_hv_pins;
-
-        // get all pinning pieces (pieces that see the king with pinned pieces removed)
-        let diag_attackers =
-            bishop_attacks(king_square, remove_diag_blockers) & self.opp_queen_bishop();
-        let hv_attackers = rook_attacks(king_square, remove_hv_blockers) & self.opp_queen_rook();
-
-        // pin masks are between the attacker and the king square (attacker included)
-        let diag_pins = diag_attackers
-            .into_iter()
-            .map(|sq| BETWEEN[king_square as usize][sq as usize])
-            .fold(BitBoard::EMPTY, |acc, x| acc | x);
-
-        let hv_pins = hv_attackers
-            .into_iter()
-            .map(|sq| BETWEEN[king_square as usize][sq as usize])
-            .fold(BitBoard::EMPTY, |acc, x| acc | x);
-
-        (diag_pins, hv_pins)
     }
 }
 
 pub const QUIETS: bool = true;
 pub const CAPTURES: bool = false;
+const KS: usize = 0;
+const QS: usize = 1;
 
 /// Implement board move generation
 impl Board {
     /// Generate all legal king moves, or only captures if QUIET==false
-    fn gen_king_moves<const QUIET: bool>(&self, threats: BitBoard, move_list: &mut MoveList) {
+    fn gen_king_moves<const QUIET: bool>(&self, move_list: &mut MoveList) {
         let src = self.own_king().lsb();
-        let attacks = king_attacks(src) & !threats;
+        let attacks = king_attacks(src);
+        let blockers = self.occupancy().pop_bit(src);
 
-        move_list.push_mask(src, attacks & self.opp_occupancy(), MoveType::Capture);
+        for tgt in attacks & self.opp_occupancy() {
+            if !self.square_attacked(tgt, blockers) {
+                move_list.push(Move::new(src, tgt, MoveType::Capture));
+            }
+        }
+
         if QUIET {
-            move_list.push_mask(src, attacks & !self.occupancy(), MoveType::Quiet);
-        }
-    }
-
-    /// Generate all legal Kingside Castle moves
-    fn gen_kingside_castle(&self, threats: BitBoard, move_list: &mut MoveList) {
-        const SRC: [Square; 2] = [Square::E1, Square::E8];
-        const TGT: [Square; 2] = [Square::G1, Square::G8];
-        // No friendly or enemy piece can be on these bitboards
-        const OCCS: [BitBoard; 2] = [BitBoard(6917529027641081856), BitBoard(96)];
-        // Kings or pawns on these squares would be attacking the king after it castles
-        const KP: [Square; 2] = [Square::H2, Square::H7];
-        // Knights on these bitboards would be attacking the king after it castles
-        const N: [BitBoard; 2] = [BitBoard(4679521487814656), BitBoard(10489856)];
-        // Orthogonal sliders on these bitboards would be attacking the king after it castles
-        const QR: [BitBoard; 2] = [BitBoard(18085043209519168), BitBoard(4629771061636907008)];
-        // Diagonal sliders on these bitboards would be attacking the king after it castles
-        const QB: [BitBoard; 2] = [BitBoard(45053622886727936), BitBoard(283691315142656)];
-
-        let side = self.side as usize;
-
-        if self.castling_rights.has_kingside(self.side)
-            && (threats | self.occupancy()) & OCCS[side] == BitBoard::EMPTY
-            && !((self.opp_king() | self.opp_pawns()).get_bit(KP[side]))
-            && self.opp_knights() & N[side] == BitBoard::EMPTY
-        {
-            let mut sliders = BitBoard::EMPTY;
-            for sq in self.opp_queen_rook() & QR[side] {
-                sliders |= rook_attacks(sq, self.occupancy());
-            }
-            for sq in self.opp_queen_bishop() & QB[side] {
-                sliders |= bishop_attacks(sq, self.occupancy());
-            }
-
-            if !sliders.get_bit(TGT[side]) {
-                move_list.push(Move::new(SRC[side], TGT[side], MoveType::Castle));
+            for tgt in attacks & !self.occupancy() {
+                if !self.square_attacked(tgt, blockers) {
+                    move_list.push(Move::new(src, tgt, MoveType::Quiet));
+                }
             }
         }
     }
 
-    /// Generate all legal Queenside Castle moves
-    /// Note that there is a slight asymmetry with kingside castling: for kingside castling,
-    /// both squares on the F and G files must be empty and not attacked. For queenside castling,
-    /// the D and C file squares must be empty and not attacked, while the B file square must only
-    /// be empty.
-    fn gen_queenside_castle(&self, threats: BitBoard, move_list: &mut MoveList) {
+    /// Generate castling moves for the given castling side.
+    fn gen_castling_moves<const KS: usize>(&self, move_list: &mut MoveList) {
         const SRC: [Square; 2] = [Square::E1, Square::E8];
-        const TGT: [Square; 2] = [Square::C1, Square::C8];
-        const OCCS: [BitBoard; 2] = [BitBoard(1008806316530991104), BitBoard(14)];
-        // Slight asymmetry: no enemy piece can attack these squares
-        const THREATS: [Square; 2] = [Square::D1, Square::D8];
-        const KP: [Square; 2] = [Square::B2, Square::B7];
-        const N: [BitBoard; 2] = [BitBoard(4796069720358912), BitBoard(659712)];
-        const QR: [BitBoard; 2] = [BitBoard(1130315200594948), BitBoard(289360691352306688)];
-        const QB: [BitBoard; 2] = [BitBoard(2833579985862656), BitBoard(141012904249856)];
-
+        const MID: [[Square; 2]; 2] = [[Square::F1, Square::F8], [Square::D1, Square::D8]];
+        const TGT: [[Square; 2]; 2] = [[Square::G1, Square::G8], [Square::C1, Square::C8]];
+        const OCCS: [[BitBoard; 2]; 2] = [
+            [BitBoard(0x6000000000000000), BitBoard(0x0000000000000060)],
+            [BitBoard(0x0E00000000000000), BitBoard(0x000000000000000E)],
+        ];
         let side = self.side as usize;
 
-        if self.castling_rights.has_queenside(self.side)
-            && self.occupancy() & OCCS[side] == BitBoard::EMPTY
-            && !threats.get_bit(THREATS[side])
-            && !(self.opp_king() | self.opp_pawns()).get_bit(KP[side])
-            && self.opp_knights() & N[side] == BitBoard::EMPTY
+        if self.occupancy() & OCCS[KS][side] == BitBoard::EMPTY
+            && !self.square_attacked(MID[KS][side], self.occupancy())
+            && !self.square_attacked(TGT[KS][side], self.occupancy())
         {
-            let mut sliders = BitBoard::EMPTY;
-            for sq in self.opp_queen_rook() & QR[side] {
-                sliders |= rook_attacks(sq, self.occupancy());
-            }
-            for sq in self.opp_queen_bishop() & QB[side] {
-                sliders |= bishop_attacks(sq, self.occupancy());
-            }
-
-            if !sliders.get_bit(TGT[side]) {
-                move_list.push(Move::new(SRC[side], TGT[side], MoveType::Castle));
-            }
+            move_list.push(Move::new(SRC[side], TGT[KS][side], MoveType::Castle));
         }
     }
 
@@ -795,11 +691,53 @@ impl Board {
                 attacks &= move_pin_mask;
             }
 
-            move_list.push_mask(src, attacks & self.opp_occupancy(), MoveType::Capture);
+            for tgt in attacks & self.opp_occupancy() {
+                move_list.push(Move::new(src, tgt, MoveType::Capture));
+            }
+
             if QUIET {
-                move_list.push_mask(src, attacks & !self.occupancy(), MoveType::Quiet);
+                for tgt in attacks & !self.occupancy() {
+                    move_list.push(Move::new(src, tgt, MoveType::Quiet));
+                }
             }
         }
+    }
+
+    /// Generates pinned pieces and diagonal/orthogonal pin maps
+    ///
+    /// Pin masks are defined as the squares between a pinning enemy piece and one's own king.
+    /// Any pinned piece can safely move along these squares (simply & moves with pinmask).
+    /// For simplicity, pin masks also indirectly include the check mask (this has no actual
+    /// effect on the pin use, as no piece can be sitting on the check mask anyways)
+    fn map_pins(&self) -> (BitBoard, BitBoard) {
+        let king_square = self.own_king().lsb();
+        let occs = self.occupancy();
+
+        // get all own pieces on diagonal/orthogonal rays from the king
+        let possible_diag_pins = bishop_attacks(king_square, occs) & self.own_occupancy();
+        let possible_hv_pins = rook_attacks(king_square, occs) & self.own_occupancy();
+
+        // remove the possible pinned pieces
+        let remove_diag_blockers = occs & !possible_diag_pins;
+        let remove_hv_blockers = occs & !possible_hv_pins;
+
+        // get all pinning pieces (pieces that see the king with pinned pieces removed)
+        let diag_attackers =
+            bishop_attacks(king_square, remove_diag_blockers) & self.opp_queen_bishop();
+        let hv_attackers = rook_attacks(king_square, remove_hv_blockers) & self.opp_queen_rook();
+
+        // pin masks are between the attacker and the king square (attacker included)
+        let diag_pins = diag_attackers
+            .into_iter()
+            .map(|sq| BETWEEN[king_square as usize][sq as usize])
+            .fold(BitBoard::EMPTY, |acc, x| acc | x);
+
+        let hv_pins = hv_attackers
+            .into_iter()
+            .map(|sq| BETWEEN[king_square as usize][sq as usize])
+            .fold(BitBoard::EMPTY, |acc, x| acc | x);
+
+        (diag_pins, hv_pins)
     }
 
     /// Inner move generation, generic over the side to move.
@@ -807,12 +745,10 @@ impl Board {
         let mut ml = MoveList::default();
         let move_list = &mut ml;
 
-        let attacker_count = self.checkers.count_bits();
-        let threats = self.map_king_threats();
-
-        self.gen_king_moves::<QUIET>(threats, move_list);
+        self.gen_king_moves::<QUIET>(move_list);
 
         // With double checks, only king moves are legal, so we stop here
+        let attacker_count = self.checkers.count_bits();
         if attacker_count > 1 {
             return ml;
         }
@@ -827,8 +763,12 @@ impl Board {
         let all_pins = diag_pins | hv_pins;
 
         if QUIET && attacker_count == 0 {
-            self.gen_kingside_castle(threats, move_list);
-            self.gen_queenside_castle(threats, move_list);
+            if self.castling_rights.has_kingside(self.side) {
+                self.gen_castling_moves::<KS>(move_list);
+            }
+            if self.castling_rights.has_queenside(self.side) {
+                self.gen_castling_moves::<QS>(move_list);
+            }
         }
 
         self.gen_pawn_captures(check_mask, diag_pins, hv_pins, move_list);

@@ -1,8 +1,4 @@
-use crate::{
-    bitboard::BitBoard,
-    moves::{Move, MoveType},
-    square::Square,
-};
+use crate::moves::Move;
 
 /// Simple movelist optimized to cacheline size
 #[derive(Clone, Debug)]
@@ -49,18 +45,12 @@ impl MoveList {
         self.moves[self.len] = m;
         self.len += 1;
     }
-
-    /// Push all targets in a mask to the movelist, with the given move type.
-    pub fn push_mask(&mut self, src: Square, mask: BitBoard, move_type: MoveType) {
-        for tgt in mask {
-            self.push(Move::new(src, tgt, move_type));
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{moves::MoveType, square::Square};
 
     #[test]
     fn test_movelist() {

@@ -99,6 +99,7 @@ impl Position {
     }
 
     /// Passes turn to opponent (this resets the ply_from_null clock in the thread)
+    /// Calling this when in check breaks the game state!
     pub fn make_null(&mut self, t: &mut Thread) {
         let new = self.board.make_null();
         let old = std::mem::replace(&mut self.board, new);
