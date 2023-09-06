@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{square::Square, transmute_enum};
+use crate::{piece::Color, square::Square, transmute_enum};
 
 /// Bitboard implemented as a simple tuple struct.
 /// Contents are public for convenience (direct initialization in various arrays/tests) but it
@@ -97,6 +97,11 @@ impl BitBoard {
     pub const FULL: Self = Self(0xFFFFFFFFFFFFFFFF);
     pub const EMPTY_BB64: BB64 = [Self::EMPTY; Square::COUNT];
 
+    // Rank masks
+    pub const START_RANKS: [Self; 2] = [Self(0x00FF000000000000), Self(0x000000000000FF00)];
+    pub const EP_RANKS: [Self; 2] = [Self(0x00000000FF000000), Self(0x000000FF00000000)];
+    pub const PROMO_RANKS: [Self; 2] = [Self(0x000000000000FF00), Self(0x00FF000000000000)];
+
     /// Check whether given square is set on the board
     pub const fn get_bit(self, square: Square) -> bool {
         self.0 & (1u64 << square as usize) != 0
@@ -116,6 +121,14 @@ impl BitBoard {
     /// Only used because Syzygy TBs index the first bit with A1, not A8
     pub const fn flipv(self) -> Self {
         Self(self.0.swap_bytes())
+    }
+
+    /// Shift the bitboard one rank forward for the side to move.
+    pub const fn forward(self, side: Color) -> Self {
+        match side {
+            Color::White => Self(self.0 >> 8),
+            Color::Black => Self(self.0 << 8),
+        }
     }
 
     /// Returns popcnt

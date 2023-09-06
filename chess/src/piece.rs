@@ -112,8 +112,14 @@ impl From<usize> for Piece {
 
 impl Piece {
     pub const COUNT: usize = 6;
-
     pub const TOTAL: usize = 12;
+
+    pub const P: usize = 0;
+    pub const N: usize = 1;
+    pub const B: usize = 2;
+    pub const R: usize = 3;
+    pub const Q: usize = 4;
+    pub const K: usize = 5;
 
     /// All pieces indexed by binary representation
     #[rustfmt::skip]

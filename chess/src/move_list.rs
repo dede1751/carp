@@ -1,6 +1,6 @@
 use crate::{
+    bitboard::BitBoard,
     moves::{Move, MoveType},
-    piece::Color,
     square::Square,
 };
 
@@ -50,39 +50,10 @@ impl MoveList {
         self.len += 1;
     }
 
-    /// Push a pawn quiet move to the back of the movelist (do not use for double push)
-    pub fn push_pawn_quiet(&mut self, src: Square, tgt: Square, side: Color) {
-        const PROMOTIONS: [MoveType; 4] = [
-            MoveType::QueenPromotion,
-            MoveType::KnightPromotion,
-            MoveType::RookPromotion,
-            MoveType::BishopPromotion,
-        ];
-
-        if tgt.is_promotion_square(side) {
-            for promotion in PROMOTIONS {
-                self.push(Move::new(src, tgt, promotion))
-            }
-        } else {
-            self.push(Move::new(src, tgt, MoveType::Quiet))
-        }
-    }
-
-    /// Push a pawn capture to the back of the movelist (do not use for enpassant)
-    pub fn push_pawn_capture(&mut self, src: Square, tgt: Square, side: Color) {
-        const PROMOTIONS: [MoveType; 4] = [
-            MoveType::QueenCapPromo,
-            MoveType::KnightCapPromo,
-            MoveType::RookCapPromo,
-            MoveType::BishopCapPromo,
-        ];
-
-        if tgt.is_promotion_square(side) {
-            for promotion in PROMOTIONS {
-                self.push(Move::new(src, tgt, promotion))
-            }
-        } else {
-            self.push(Move::new(src, tgt, MoveType::Capture))
+    /// Push all targets in a mask to the movelist, with the given move type.
+    pub fn push_mask(&mut self, src: Square, mask: BitBoard, move_type: MoveType) {
+        for tgt in mask {
+            self.push(Move::new(src, tgt, move_type));
         }
     }
 }
@@ -95,8 +66,8 @@ mod tests {
     fn test_movelist() {
         let mut l = MoveList::default();
 
-        l.push_pawn_capture(Square::E2, Square::D3, Color::White);
-        l.push_pawn_quiet(Square::E2, Square::E3, Color::White);
+        l.push(Move::new(Square::E2, Square::D3, MoveType::Quiet));
+        l.push(Move::new(Square::E2, Square::E3, MoveType::Quiet));
 
         assert_eq!(l.len, 2);
     }

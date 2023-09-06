@@ -10,7 +10,7 @@ mod constants;
 pub use constants::*;
 use magics::Magics;
 
-use crate::{bitboard::*, piece::*, square::*};
+use crate::{bitboard::BitBoard, piece::Color, square::Square};
 
 /// Gets pawn attacks from tables
 /// SAFETY: Square and Color only allow valid indices
@@ -42,11 +42,6 @@ pub fn bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
 /// Gets rook attacks based on the blocker bitboard
 pub fn rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     Magics::ROOK.attacks(square, blockers)
-}
-
-/// Gets queen attacks based on the blocker bitboard
-pub fn queen_attacks(square: Square, blockers: BitBoard) -> BitBoard {
-    rook_attacks(square, blockers) | bishop_attacks(square, blockers)
 }
 
 #[cfg(test)]
