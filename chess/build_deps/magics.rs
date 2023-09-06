@@ -3,7 +3,7 @@
 use std::{error::Error, fs::File, mem::size_of};
 
 use super::{
-    masks::{Bishop, Rook, Sliding},
+    sliders::{Bishop, Rook, Sliding},
     types::{BitBoard, Square},
     write_to_file_bin,
 };

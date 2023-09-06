@@ -4,11 +4,11 @@ pub mod bitboard;
 pub mod board;
 pub mod castle;
 pub mod move_list;
+mod movegen;
 pub mod moves;
 pub mod nnue;
 pub mod piece;
 pub mod square;
-mod tables;
 pub mod zobrist;
 
 /// Contains certain engine parameters necessarily kept in the backend.

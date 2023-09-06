@@ -40,6 +40,23 @@ pub trait Sliding {
 
         attacks
     }
+
+    /// Generate the between array, a lookup table for masks of the squares between two squares.
+    /// The mask never contains the from square and always the target square
+    fn gen_between(between: &mut [[BitBoard; Square::COUNT]; Square::COUNT]) {
+        for src in Square::ALL {
+            for step in Self::directions() {
+                let mut mask = BitBoard::EMPTY;
+                let mut tgt = step(src.to_board());
+
+                while tgt != BitBoard::EMPTY {
+                    mask |= tgt;
+                    between[src as usize][tgt.lsb() as usize] = mask;
+                    tgt = step(tgt);
+                }
+            }
+        }
+    }
 }
 
 /// Bishops are sliders that can move diagonally.

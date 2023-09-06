@@ -34,7 +34,8 @@ const NO_B: u8 = NO_BK & NO_BQ;
 pub const fn rook_castling_move(king_tgt: Square) -> (Square, Square) {
     match king_tgt.file() {
         File::C => (king_tgt.left().left(), king_tgt.right()),
-        _ => (king_tgt.right(), king_tgt.left()),
+        File::G => (king_tgt.right(), king_tgt.left()),
+        _ => unreachable!(),
     }
 }
 

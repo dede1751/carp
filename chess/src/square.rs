@@ -94,21 +94,10 @@ impl Square {
     pub const fn file(self) -> File {
         transmute_enum!(self as u8, 7)
     }
+
     /// Gets rank coordinate
     pub const fn rank(self) -> Rank {
         transmute_enum!(self as u8 >> 3, 7)
-    }
-    /// Get (rank, file) coordinates of square
-    pub const fn coords(self) -> (File, Rank) {
-        (self.file(), self.rank())
-    }
-
-    /// Gets integer distances between current and given square
-    pub const fn dist(self, tgt: Self) -> (i8, i8) {
-        let (tf, tr) = (tgt.file() as i8, tgt.rank() as i8);
-        let (sf, sr) = (self.file() as i8, self.rank() as i8);
-
-        (tf - sf, sr - tr)
     }
 
     /// Get new square by flipping the rank of the original.
@@ -143,22 +132,6 @@ impl Square {
     /// Get new square from original. Wrap linear over the Square enum (A8.up() = A1)
     pub const fn up(self) -> Self {
         transmute_enum!((self as u8).wrapping_sub(8), 63)
-    }
-
-    /// Checks if a square is on the starting rank for the given side
-    pub const fn is_start_square(self, side: Color) -> bool {
-        match side {
-            Color::White => self.rank() as u8 == Rank::Second as u8,
-            Color::Black => self.rank() as u8 == Rank::Seventh as u8,
-        }
-    }
-
-    /// Checks if a square is on the promoting rank for the given side
-    pub const fn is_promotion_square(self, side: Color) -> bool {
-        match side {
-            Color::White => self.rank() as u8 == Rank::Eight as u8,
-            Color::Black => self.rank() as u8 == Rank::First as u8,
-        }
     }
 }
 

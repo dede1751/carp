@@ -1,5 +1,6 @@
+pub mod hoppers;
 pub mod magics;
-pub mod masks;
+pub mod sliders;
 pub mod types;
 
 use std::{error::Error, fs::File, io::Write};

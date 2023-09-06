@@ -1,8 +1,4 @@
-use crate::{
-    moves::{Move, MoveType},
-    piece::Color,
-    square::Square,
-};
+use crate::moves::Move;
 
 /// Simple movelist optimized to cacheline size
 #[derive(Clone, Debug)]
@@ -49,54 +45,19 @@ impl MoveList {
         self.moves[self.len] = m;
         self.len += 1;
     }
-
-    /// Push a pawn quiet move to the back of the movelist (do not use for double push)
-    pub fn push_pawn_quiet(&mut self, src: Square, tgt: Square, side: Color) {
-        const PROMOTIONS: [MoveType; 4] = [
-            MoveType::QueenPromotion,
-            MoveType::KnightPromotion,
-            MoveType::RookPromotion,
-            MoveType::BishopPromotion,
-        ];
-
-        if tgt.is_promotion_square(side) {
-            for promotion in PROMOTIONS {
-                self.push(Move::new(src, tgt, promotion))
-            }
-        } else {
-            self.push(Move::new(src, tgt, MoveType::Quiet))
-        }
-    }
-
-    /// Push a pawn capture to the back of the movelist (do not use for enpassant)
-    pub fn push_pawn_capture(&mut self, src: Square, tgt: Square, side: Color) {
-        const PROMOTIONS: [MoveType; 4] = [
-            MoveType::QueenCapPromo,
-            MoveType::KnightCapPromo,
-            MoveType::RookCapPromo,
-            MoveType::BishopCapPromo,
-        ];
-
-        if tgt.is_promotion_square(side) {
-            for promotion in PROMOTIONS {
-                self.push(Move::new(src, tgt, promotion))
-            }
-        } else {
-            self.push(Move::new(src, tgt, MoveType::Capture))
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{moves::MoveType, square::Square};
 
     #[test]
     fn test_movelist() {
         let mut l = MoveList::default();
 
-        l.push_pawn_capture(Square::E2, Square::D3, Color::White);
-        l.push_pawn_quiet(Square::E2, Square::E3, Color::White);
+        l.push(Move::new(Square::E2, Square::D3, MoveType::Quiet));
+        l.push(Move::new(Square::E2, Square::E3, MoveType::Quiet));
 
         assert_eq!(l.len, 2);
     }

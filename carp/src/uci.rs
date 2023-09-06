@@ -12,6 +12,7 @@ use std::{
 use crate::{
     clock::TimeControl, position::Position, syzygy::probe::TB, thread::ThreadPool, tt::TT,
 };
+use chess::board::{BULK, NO_BULK};
 
 const NAME: &str = "Carp";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -42,6 +43,7 @@ enum UCICommand {
     Stop,
 
     // Extra debug commands
+    BulkPerft(usize),
     Perft(usize),
     Print,
     Eval,
@@ -70,8 +72,12 @@ impl FromStr for UCICommand {
 
                 Ok(Self::Option(opt_name, opt_value))
             }
+            Some("bperft") => match tokens.next().ok_or("No option value!")?.parse() {
+                Ok(d) if d > 0 => Ok(Self::BulkPerft(d)),
+                _ => Err("Could not parse depth!"),
+            },
             Some("perft") => match tokens.next().ok_or("No option value!")?.parse() {
-                Ok(d) => Ok(Self::Perft(d)),
+                Ok(d) if d > 0 => Ok(Self::Perft(d)),
                 _ => Err("Could not parse depth!"),
             },
             Some("print") => Ok(Self::Print),
@@ -184,8 +190,12 @@ impl UCIController {
                     _ => eprintln!("Unsupported option command!"),
                 },
 
+                UCICommand::BulkPerft(d) => {
+                    position.board.perft::<BULK>(d);
+                }
+
                 UCICommand::Perft(d) => {
-                    position.board.perft(d);
+                    position.board.perft::<NO_BULK>(d);
                 }
 
                 UCICommand::Print => {
