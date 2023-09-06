@@ -15,7 +15,7 @@ use crate::{
     tt::{TTFlag, TT},
 };
 use chess::{
-    board::{TACTICALS, QUIETS},
+    board::{QUIETS, TACTICALS},
     moves::Move,
 };
 
@@ -332,7 +332,8 @@ impl Position {
         let old_alpha = alpha;
         let mut best_move = Move::NULL;
         let mut best_eval = -INFINITY;
-        let mut searched_quiets = Vec::with_capacity(20);
+        let mut caps_tried = Vec::with_capacity(20);
+        let mut quiets_tried = Vec::with_capacity(20);
         let mut move_count = 0;
 
         #[cfg(not(feature = "datagen"))]
@@ -479,18 +480,18 @@ impl Position {
                 }
 
                 if eval >= beta {
-                    if is_quiet {
-                        t.update_tables(m, depth, self.board.side, searched_quiets);
-                    };
-
+                    t.update_tables(m, depth, &self.board, quiets_tried, caps_tried);
                     alpha = beta;
+                    
                     break;
                 }
             }
 
-            // save searched quiets that didn't cause a cutoff for negative history score
+            // Save moves that didn't cutoff for negative history bonuses
             if is_quiet {
-                searched_quiets.push(m);
+                quiets_tried.push(m);
+            } else if m.get_type().is_capture() {
+                caps_tried.push(m);
             }
 
             move_count += 1;
