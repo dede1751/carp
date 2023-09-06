@@ -142,7 +142,7 @@ impl TB {
         }
 
         let ep_sq = if let Some(sq) = board.en_passant {
-            sq as u32
+            sq.flipv() as u32
         } else {
             0
         };
@@ -175,7 +175,7 @@ impl TB {
         }
 
         let ep_sq = if let Some(sq) = board.en_passant {
-            sq as u32
+            sq.flipv() as u32
         } else {
             0
         };
