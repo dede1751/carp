@@ -90,7 +90,7 @@ impl BitBoard {
     pub const H_FILE: Self = Self(0x8080808080808080);
 
     pub fn north(self) -> Self {
-        self << Self(8)
+        self >> Self(8)
     }
 
     pub fn east(self) -> Self {
@@ -98,7 +98,7 @@ impl BitBoard {
     }
 
     pub fn south(self) -> Self {
-        self >> Self(8)
+        self << Self(8)
     }
 
     pub fn west(self) -> Self {
@@ -106,19 +106,19 @@ impl BitBoard {
     }
 
     pub fn north_east(self) -> Self {
-        (self & !Self::H_FILE) << Self(9)
-    }
-
-    pub fn south_east(self) -> Self {
         (self & !Self::H_FILE) >> Self(7)
     }
 
+    pub fn south_east(self) -> Self {
+        (self & !Self::H_FILE) << Self(9)
+    }
+
     pub fn south_west(self) -> Self {
-        (self & !Self::A_FILE) >> Self(9)
+        (self & !Self::A_FILE) << Self(7)
     }
 
     pub fn north_west(self) -> Self {
-        (self & !Self::A_FILE) << Self(7)
+        (self & !Self::A_FILE) >> Self(9)
     }
 
     pub const fn lsb(self) -> Square {
@@ -165,5 +165,15 @@ impl Square {
 
     pub const fn to_board(self) -> BitBoard {
         BitBoard(1 << self as u8)
+    }
+
+    pub const fn jump<const FILE: i8, const RANK: i8>(self) -> Option<Self> {
+        let (file, rank) = ((self as i8 & 7) + FILE, (self as i8 >> 3) - RANK);
+
+        if file >= 0 && file < 8 && rank >= 0 && rank < 8 {
+            Some(unsafe { std::mem::transmute((rank << 3) + file) })
+        } else {
+            None
+        }
     }
 }

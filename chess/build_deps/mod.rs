@@ -1,3 +1,4 @@
+pub mod hoppers;
 pub mod magics;
 pub mod sliders;
 pub mod types;

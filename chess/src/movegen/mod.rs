@@ -1,16 +1,27 @@
-/// Module allowing access to various lookup tables.
+/// Module allowing access to various lookup tables for move generation.
+/// Most of the work is actually done at build time by the build-deps crate.
 ///
 /// For attacks, Carp uses Black Magic BitBoards found by Volker Annuss and Niklas Fiekas
 /// https://www.talkchess.com/forum3/viewtopic.php?f=7&t=64790&sid=0cd7ee9568af2cbd4c7297b348b5a850
-pub mod magics;
+mod magics;
 
-#[rustfmt::skip]
-mod constants;
-
-pub use constants::*;
 use magics::Magics;
+use std::mem::transmute;
 
-use crate::{bitboard::BitBoard, piece::Color, square::Square};
+use crate::{
+    bitboard::{BitBoard, BB64},
+    piece::Color,
+    square::Square,
+};
+
+/// Attacks for the hopping pieces are just precalculated bitboards.
+const KING_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../bins/king.bin")) };
+const KNIGHT_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../bins/knight.bin")) };
+const PAWN_ATTACKS: [BB64; 2] = unsafe { transmute(*include_bytes!("../../../bins/pawn.bin")) };
+
+/// Bitboard of squares between two squares, excluding the squares themselves
+pub const BETWEEN: [BB64; Square::COUNT] =
+    unsafe { transmute(*include_bytes!("../../../bins/between.bin")) };
 
 /// Gets pawn attacks from tables
 /// SAFETY: Square and Color only allow valid indices

@@ -5,12 +5,12 @@ use crate::{
     bitboard::BitBoard,
     castle::{rook_castling_move, CastlingRights},
     move_list::MoveList,
+    movegen::*,
     moves::{Move, MoveType},
     nnue::{NNUEState, OFF, ON},
     params::*,
     piece::{Color, Piece},
     square::{File, Rank, Square},
-    tables::*,
     zobrist::ZHash,
 };
 
@@ -222,11 +222,9 @@ macro_rules! impl_piece_lookups {
             pub const fn $own(&self) -> BitBoard {
                 BitBoard(self.piece_bb[$piece].0 & self.side_bb[self.side as usize].0)
             }
-
             pub const fn $opp(&self) -> BitBoard {
                 BitBoard(self.piece_bb[$piece].0 & self.side_bb[self.side as usize ^ 1].0)
             }
-
             pub const fn $tot(&self) -> BitBoard {
                 self.piece_bb[$piece]
             }
