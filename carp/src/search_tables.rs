@@ -53,7 +53,7 @@ type CaptureHistory = [[[i16; Piece::COUNT - 1]; Square::COUNT]; Piece::TOTAL];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
-    400.min(depth * depth) as i16
+    HISTORY_MAX_BONUS.min(HISTORY_FACTOR * depth as i16 - HISTORY_OFFSET)
 }
 
 /// Taper history so that it's bounded to +-MAX
@@ -65,7 +65,7 @@ const fn taper_bonus<const MAX: i32>(bonus: i16, old: i16) -> i16 {
     let b = bonus as i32;
 
     // Use i32's to avoid overflows
-    (o + 8 * b - (o * b.abs()) / (MAX / 8)) as i16
+    (o + b - (o * b.abs()) / MAX) as i16
 }
 
 /// Simple history tables are used for standard move histories.
