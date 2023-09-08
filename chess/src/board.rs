@@ -317,6 +317,15 @@ impl Board {
         self.piece[square as usize].unwrap()
     }
 
+    /// Returns the piece being captured by the move.
+    pub fn get_capture(&self, m: Move) -> Piece {
+        if m.get_type() == MoveType::EnPassant {
+            (!self.side).pawn()
+        } else {
+            self.piece_at(m.get_tgt())
+        }
+    }
+
     /// Mask all attackers of a certain square, given the blocker bitboard.
     fn attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
         self.opp_occupancy()

@@ -3,6 +3,7 @@
 ///    - PV Table: holds the principal variation, which is the main line the engine predicts
 use crate::search_params::*;
 use chess::{
+    board::Board,
     moves::Move,
     piece::{Color, Piece},
     square::Square,
@@ -48,10 +49,11 @@ impl PVTable {
 
 type History = [[[i16; Square::COUNT]; Square::COUNT]; 2];
 type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::TOTAL];
+type CaptureHistory = [[[i16; Piece::COUNT - 1]; Square::COUNT]; Piece::TOTAL];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
-    400.min(depth * depth) as i16
+    HISTORY_MAX_BONUS.min(HISTORY_FACTOR * depth as i16 - HISTORY_OFFSET)
 }
 
 /// Taper history so that it's bounded to +-MAX
@@ -63,7 +65,7 @@ const fn taper_bonus<const MAX: i32>(bonus: i16, old: i16) -> i16 {
     let b = bonus as i32;
 
     // Use i32's to avoid overflows
-    (o + 8 * b - (o * b.abs()) / (MAX / 8)) as i16
+    (o + b - (o * b.abs()) / MAX) as i16
 }
 
 /// Simple history tables are used for standard move histories.
@@ -82,11 +84,15 @@ impl<const MAX: i32> Default for HistoryTable<MAX> {
 }
 
 impl<const MAX: i32> HistoryTable<MAX> {
+    /// Get an index for the given move.
+    fn index(m: Move, side: Color) -> (usize, usize, usize) {
+        (side as usize, m.get_src() as usize, m.get_tgt() as usize)
+    }
+
     /// Add a history bonus value to the given move.
     fn add_bonus(&mut self, bonus: i16, m: Move, side: Color) {
-        let src = m.get_src() as usize;
-        let tgt = m.get_tgt() as usize;
-        let old = &mut self.history[side as usize][src][tgt];
+        let index = Self::index(m, side);
+        let old = &mut self.history[index.0][index.1][index.2];
 
         *old = taper_bonus::<MAX>(bonus, *old);
     }
@@ -102,10 +108,9 @@ impl<const MAX: i32> HistoryTable<MAX> {
 
     /// Get the history score for a given move by the given side.
     pub fn get_score(&self, m: Move, side: Color) -> i32 {
-        let src = m.get_src() as usize;
-        let tgt = m.get_tgt() as usize;
+        let index = Self::index(m, side);
 
-        self.history[side as usize][src][tgt] as i32
+        self.history[index.0][index.1][index.2] as i32
     }
 }
 
@@ -143,11 +148,20 @@ impl<const MAX: i32> Default for ContinuationHistoryTable<MAX> {
 }
 
 impl<const MAX: i32> ContinuationHistoryTable<MAX> {
+    /// Get an index for the given move.
+    fn index(m: Move, prev_piece: Piece, prev_tgt: Square) -> (usize, usize, usize, usize) {
+        (
+            prev_piece as usize,
+            prev_tgt as usize,
+            m.get_src() as usize,
+            m.get_tgt() as usize,
+        )
+    }
+
     /// Add a history bonus value to the given move.
-    fn add_bonus(&mut self, bonus: i16, m: Move, p: usize, t: usize) {
-        let src = m.get_src() as usize;
-        let tgt = m.get_tgt() as usize;
-        let old = &mut self.history[p][t][src][tgt];
+    fn add_bonus(&mut self, bonus: i16, m: Move, prev_piece: Piece, prev_tgt: Square) {
+        let index = Self::index(m, prev_piece, prev_tgt);
+        let old = &mut self.history[index.0][index.1][index.2][index.3];
 
         *old = taper_bonus::<MAX>(bonus, *old);
     }
@@ -156,16 +170,69 @@ impl<const MAX: i32> ContinuationHistoryTable<MAX> {
     /// Gives a positive bonus to the fail-high move and a negative bonus to all other moves tried.
     pub fn update(&mut self, bonus: i16, best: Move, p: Piece, tgt: Square, searched: &Vec<Move>) {
         for m in searched {
-            self.add_bonus(-bonus, *m, p as usize, tgt as usize);
+            self.add_bonus(-bonus, *m, p, tgt);
         }
-        self.add_bonus(bonus, best, p as usize, tgt as usize);
+        self.add_bonus(bonus, best, p, tgt);
     }
 
     /// Get the double history score for a given move
-    pub fn get_score(&self, m: Move, p: Piece, prev_tgt: Square) -> i32 {
-        let src = m.get_src() as usize;
-        let tgt = m.get_tgt() as usize;
+    pub fn get_score(&self, m: Move, prev_piece: Piece, prev_tgt: Square) -> i32 {
+        let index = Self::index(m, prev_piece, prev_tgt);
 
-        self.history[p as usize][prev_tgt as usize][src][tgt] as i32
+        self.history[index.0][index.1][index.2][index.3] as i32
+    }
+}
+
+/// History tables used for captures.
+///     Indexing: [capturing piece][tgt][captured piece]
+#[derive(Clone, Debug)]
+pub struct CaptureHistoryTable<const MAX: i32> {
+    history: CaptureHistory,
+}
+
+impl<const MAX: i32> Default for CaptureHistoryTable<MAX> {
+    fn default() -> Self {
+        Self {
+            history: [[[0; Piece::COUNT - 1]; Square::COUNT]; Piece::TOTAL],
+        }
+    }
+}
+
+impl<const MAX: i32> CaptureHistoryTable<MAX> {
+    /// Get an index for the given move.
+    fn index(m: Move, board: &Board) -> (usize, usize, usize) {
+        (
+            board.piece_at(m.get_src()) as usize,
+            m.get_tgt() as usize,
+            board.get_capture(m).index(),
+        )
+    }
+
+    /// Add a history bonus value to the given move.
+    fn add_bonus(&mut self, bonus: i16, m: Move, board: &Board) {
+        let index = Self::index(m, board);
+        let old = &mut self.history[index.0][index.1][index.2];
+
+        *old = taper_bonus::<MAX>(bonus, *old);
+    }
+
+    /// Update the history table after a beta cutoff.
+    /// Gives a positive bonus to the fail-high move and a negative bonus to all other moves tried.
+    /// Can be called with a non-capture move to only give negative bonuses.
+    pub fn update(&mut self, bonus: i16, best: Move, board: &Board, searched: &Vec<Move>) {
+        for m in searched {
+            self.add_bonus(-bonus, *m, board);
+        }
+
+        if best.get_type().is_capture() {
+            self.add_bonus(bonus, best, board);
+        }
+    }
+
+    /// Get the double history score for a given move
+    pub fn get_score(&self, m: Move, board: &Board) -> i32 {
+        let index = Self::index(m, board);
+
+        self.history[index.0][index.1][index.2] as i32
     }
 }

@@ -100,7 +100,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         // Assign a score to all captures/queen promotions and move them to the front.
         if self.stage == Stage::ScoreTacticals {
             self.stage = Stage::GoodTacticals;
-            self.score_tacticals(board);
+            self.score_tacticals(board, t);
         }
 
         // Yield all captures/queen promotions with a positive SEE
@@ -245,18 +245,14 @@ pub const TT_SCORE: i32 = i32::MAX;
 pub const KILLER1: i32 = GOOD_TACTICAL + 2;
 pub const KILLER2: i32 = GOOD_TACTICAL + 1;
 
-/// Tactical scoring: [10 - 70] + [1.000.000-2.000.000]
+/// Tactical scoring: [1.000.000-2.000.000] +- 16_384 + [0/70_000]
 pub const GOOD_TACTICAL: i32 = 2_000_000;
 pub const BAD_TACTICAL: i32 = 1_000_000;
-
-const MVV: [i32; Piece::COUNT] = [10, 20, 30, 40, 50, 60];
-const LVA: [i32; Piece::COUNT] = [5, 4, 3, 2, 1, 0];
-
-const PROMO_SCORE: i32 = 70; // Queen promotions have best MVV-LVA value, but still less than good tacticals
-const EP_SCORE: i32 = 15; // EP equal to pxp
+const PROMO_SCORE: i32 = 70_000; // Queen promotions have best MVV + CapHist value, but still less than good tacticals
+const MVV: [i32; Piece::COUNT] = [0, 2400, 2400, 4800, 9600, 0];
 
 /// Score a single tactical move. These moves are either captures or queen promotions.
-fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
+fn score_tactical(m: Move, see_threshold: Eval, board: &Board, thread: &Thread) -> i32 {
     // Underpromotions get the worst score
     if m.get_type().is_underpromotion() {
         return BAD_TACTICAL;
@@ -264,15 +260,9 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
 
     // Enpassant/QueenCapPromo are always good
     let score = match m.get_type() {
-        MoveType::EnPassant => return GOOD_TACTICAL + EP_SCORE,
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
-        _ => {
-            let attacker = board.piece_at(m.get_src()).index();
-            let victim = board.piece_at(m.get_tgt()).index();
-
-            MVV[victim] + LVA[attacker]
-        }
+        _ => MVV[board.get_capture(m).index()] + thread.score_cap_hist(m, board),
     };
 
     // Give a bonus to moves with positive SEE
@@ -287,7 +277,7 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board) -> i32 {
 impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Assign a score to each tactical move.
     /// Good tacticals are moved to the front of the list, bad tacticals to the back.
-    fn score_tacticals(&mut self, board: &Board) {
+    fn score_tacticals(&mut self, board: &Board, thread: &Thread) {
         let mut i = self.index;
         self.good_tactical_index = self.index;
 
@@ -295,7 +285,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             let m = self.move_list.moves[i];
 
             if !QUIETS || !m.get_type().is_quiet() {
-                let score = score_tactical(m, self.see_threshold, board);
+                let score = score_tactical(m, self.see_threshold, board, thread);
 
                 if score >= GOOD_TACTICAL {
                     self.move_list.moves.swap(i, self.good_tactical_index);
@@ -320,8 +310,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 mod tests {
     use super::*;
     use chess::{
-        board::{TACTICALS, QUIETS},
-        piece::Color,
+        board::{QUIETS, TACTICALS},
         square::Square,
     };
 
@@ -342,7 +331,7 @@ mod tests {
         let mut picker = MovePicker::<QUIETS>::new(move_list, Some(tt_move), 0);
         let mut t = Thread::fixed_depth(0);
 
-        t.update_tables(good_quiet, 10, Color::White, vec![bad_quiet]);
+        t.update_tables(good_quiet, 10, &Board::default(), vec![bad_quiet], vec![]);
         t.killer_moves[t.ply][0] = k1;
         t.killer_moves[t.ply][1] = k2; // impossible move
 

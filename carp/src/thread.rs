@@ -11,6 +11,7 @@ use std::sync::{
 };
 use std::thread;
 
+use crate::search_tables::CaptureHistoryTable;
 use crate::{
     clock::{Clock, TimeControl},
     position::Position,
@@ -20,7 +21,7 @@ use crate::{
     tt::TT,
 };
 use chess::{
-    board::QUIETS,
+    board::{Board, QUIETS},
     moves::Move,
     piece::{Color, Piece},
 };
@@ -39,6 +40,7 @@ pub struct Thread {
     history: HistoryTable<HIST_MAX>,
     counter_moves: ContinuationHistoryTable<CONT_HIST_MAX>,
     followup_moves: ContinuationHistoryTable<CONT_HIST_MAX>,
+    capture_history: CaptureHistoryTable<CAP_HIST_MAX>,
 
     // Search stats
     pub nodes: u64,
@@ -135,6 +137,7 @@ impl Thread {
             history: HistoryTable::default(),
             counter_moves: ContinuationHistoryTable::default(),
             followup_moves: ContinuationHistoryTable::default(),
+            capture_history: CaptureHistoryTable::default(),
 
             nodes: 0,
             seldepth: 0,
@@ -214,25 +217,30 @@ impl Thread {
     }
 
     /// Upon a fail-high, update killer and history tables.
-    pub fn update_tables(&mut self, best: Move, depth: usize, side: Color, searched: Vec<Move>) {
-        if best != self.killer_moves[self.ply][0] {
-            self.killer_moves[self.ply][1] = self.killer_moves[self.ply][0];
-            self.killer_moves[self.ply][0] = best;
-        }
-
-        // Score histories
+    pub fn update_tables(
+        &mut self,
+        best: Move,
+        depth: usize,
+        board: &Board,
+        quiets: Vec<Move>,
+        captures: Vec<Move>,
+    ) {
+        // Score histories (only captures in case the best move is a capture)
         let bonus = history_bonus(depth);
+        self.capture_history.update(bonus, best, board, &captures);
 
-        self.history.update(bonus, best, side, &searched);
+        if best.get_type().is_quiet() {
+            self.history.update(bonus, best, board.side, &quiets);
 
-        if let Some((p, m, _)) = self.get_previous_entry(1) {
-            self.counter_moves
-                .update(bonus, best, p, m.get_tgt(), &searched);
-        }
+            if let Some((p, m, _)) = self.get_previous_entry(1) {
+                self.counter_moves
+                    .update(bonus, best, p, m.get_tgt(), &quiets);
+            }
 
-        if let Some((p, m, _)) = self.get_previous_entry(2) {
-            self.followup_moves
-                .update(bonus, best, p, m.get_tgt(), &searched);
+            if let Some((p, m, _)) = self.get_previous_entry(2) {
+                self.followup_moves
+                    .update(bonus, best, p, m.get_tgt(), &quiets);
+            }
         }
     }
 
@@ -257,6 +265,11 @@ impl Thread {
                     .get_score(moves[j], prev_p, prev_m.get_tgt());
             }
         }
+    }
+
+    /// Get a history score for a given move on the given board.
+    pub fn score_cap_hist(&self, m: Move, board: &Board) -> i32 {
+        self.capture_history.get_score(m, board)
     }
 
     /// Get the stack entry from 'rollback' ply ago

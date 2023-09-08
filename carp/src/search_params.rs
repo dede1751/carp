@@ -16,7 +16,11 @@ pub const LONGEST_TB_MATE: Eval = TB_MATE - MAX_DEPTH as Eval; // tb win in x mo
 
 pub const HIST_MAX: i32 = 8192;
 pub const CONT_HIST_MAX: i32 = 16384;
+pub const CAP_HIST_MAX: i32 = 16384;
 pub const HISTORY_MAX: i32 = HIST_MAX + 2 * CONT_HIST_MAX;
+pub const HISTORY_MAX_BONUS: i16 = 1600;
+pub const HISTORY_FACTOR: i16 = 350;
+pub const HISTORY_OFFSET: i16 = 350;
 
 pub const TT_REPLACE_OFFSET: usize = 11;
 
