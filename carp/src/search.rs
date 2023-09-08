@@ -586,9 +586,7 @@ impl Position {
         };
 
         // Stand pat pruning
-        let old_alpha = alpha;
         alpha = alpha.max(stand_pat);
-
         if stand_pat >= beta {
             return stand_pat;
         }
@@ -632,8 +630,6 @@ impl Position {
         if !t.stop {
             let tt_flag = if best_eval >= beta {
                 TTFlag::Lower
-            } else if best_eval > old_alpha {
-                TTFlag::Exact
             } else {
                 TTFlag::Upper
             };
