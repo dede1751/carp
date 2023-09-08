@@ -4,6 +4,7 @@
 /// in lockless fashion to minimize synchronization overhead. In this scheme, a searching thread pool
 /// has one main searching thread which also handles time controls, and multiple worker threads which
 /// only stop when the main thread modifies the global stop flag.
+use std::array;
 use std::iter;
 use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -38,9 +39,8 @@ pub struct Thread {
     // Move ordering
     pub killer_moves: [[Move; 2]; MAX_DEPTH],
     history: HistoryTable<HIST_MAX>,
-    counter_moves: ContinuationHistoryTable<CONT_HIST_MAX>,
-    followup_moves: ContinuationHistoryTable<CONT_HIST_MAX>,
     capture_history: CaptureHistoryTable<CAP_HIST_MAX>,
+    continuation_histories: [ContinuationHistoryTable<CONT_HIST_MAX>; CONT_HIST_COUNT],
 
     // Search stats
     pub nodes: u64,
@@ -135,10 +135,8 @@ impl Thread {
 
             killer_moves: [[Move::NULL; 2]; MAX_DEPTH],
             history: HistoryTable::default(),
-            counter_moves: ContinuationHistoryTable::default(),
-            followup_moves: ContinuationHistoryTable::default(),
             capture_history: CaptureHistoryTable::default(),
-
+            continuation_histories: array::from_fn(|_| ContinuationHistoryTable::default()),
             nodes: 0,
             seldepth: 0,
             ply: 0,
@@ -232,14 +230,11 @@ impl Thread {
         if best.get_type().is_quiet() {
             self.history.update(bonus, best, board.side, &quiets);
 
-            if let Some((p, m, _)) = self.get_previous_entry(1) {
-                self.counter_moves
-                    .update(bonus, best, p, m.get_tgt(), &quiets);
-            }
-
-            if let Some((p, m, _)) = self.get_previous_entry(2) {
-                self.followup_moves
-                    .update(bonus, best, p, m.get_tgt(), &quiets);
+            for i in 0..CONT_HIST_COUNT {
+                if let Some((p, m, _)) = self.get_previous_entry(1 + i) {
+                    self.continuation_histories[i]
+                        .update(bonus, best, p, m.get_tgt(), &quiets);
+                }
             }
         }
     }
@@ -250,19 +245,13 @@ impl Thread {
             scores[i] = self.history.get_score(moves[i], side);
         }
 
-        if let Some((prev_p, prev_m, _)) = self.get_previous_entry(1) {
-            for j in 0..moves.len() {
-                scores[j] += self
-                    .counter_moves
-                    .get_score(moves[j], prev_p, prev_m.get_tgt());
-            }
-        }
-
-        if let Some((prev_p, prev_m, _)) = self.get_previous_entry(2) {
-            for j in 0..moves.len() {
-                scores[j] += self
-                    .followup_moves
-                    .get_score(moves[j], prev_p, prev_m.get_tgt());
+        for i in 0..CONT_HIST_COUNT {
+            if let Some((prev_p, prev_m, _)) = self.get_previous_entry(1 + i) {
+                for j in 0..moves.len() {
+                    scores[j] += self
+                        .continuation_histories[i]
+                        .get_score(moves[j], prev_p, prev_m.get_tgt());
+                }
             }
         }
     }
