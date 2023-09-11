@@ -182,7 +182,7 @@ fn datagen_thread(id: usize, games: usize, tc: TimeControl, tb: TB, path: &Path)
             }
 
             tt.increment_age();
-            thread.advance_ply(1, position.ply(), position.board.halfmoves);
+            thread.clear_for_search(position.ply(), position.board.halfmoves);
             thread.clock = Clock::new(
                 Arc::new(AtomicBool::new(false)),
                 Arc::new(AtomicU64::new(0)),
