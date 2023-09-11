@@ -200,7 +200,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 }
 
 // TT Score must be greater than all other move values.
-// Tactical scoring: [1_000_000-2_000_000] + [0-2400-4800-9600] +- (0:16_384) +- [0-26384]
+// Tactical scoring: [1_000_000-2_000_000] + [0-2400-4800-9600] +- (0:16_384) + [0-26384]
 pub const TT_SCORE: i32 = i32::MAX;
 pub const GOOD_TACTICAL: i32 = 2_000_000;
 const BAD_TACTICAL: i32 = 1_000_000;
@@ -213,7 +213,7 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board, thread: &Thread) 
     let score = match m.get_type() {
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
-        t if t.is_underpromotion() => return BAD_TACTICAL - PROMO_SCORE,
+        t if t.is_underpromotion() => return BAD_TACTICAL,
         _ => MVV[board.get_capture(m).index()] + thread.score_cap_hist(m, board),
     };
 
@@ -300,7 +300,7 @@ mod tests {
         assert_eq!(moves[5].0, good_quiet);
         assert_eq!(moves[26].0, bad_quiet);
         assert_eq!(moves[27].0, bad_promo);
-        assert_eq!(moves[28].1, BAD_TACTICAL - PROMO_SCORE);
+        assert_eq!(moves[28].1, BAD_TACTICAL);
     }
 
     #[test]
