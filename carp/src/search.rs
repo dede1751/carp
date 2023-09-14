@@ -165,7 +165,7 @@ impl Position {
         // Singular Extension (first part):
         // If we are excluding a move to verify singularity, limit pruning in this node.
         // Otherwise, identify possibly singular moves based on the tt hit.
-        let excluded = t.excluded[t.ply];
+        let excluded = t.ss[t.ply].excluded;
         let in_singular_search = excluded.is_some();
         let mut possible_singularity = false;
 
@@ -246,7 +246,7 @@ impl Position {
         let mut stand_pat = -INFINITY;
 
         if in_singular_search {
-            stand_pat = t.eval_stack[t.ply];
+            stand_pat = t.ss[t.ply].eval;
         } else if !in_check {
             // If we have a tt entry, use the static eval from there
             if let Some(entry) = tt_entry {
@@ -271,12 +271,11 @@ impl Position {
             }
         };
 
-        t.eval_stack[t.ply] = stand_pat;
-
         // Improving is true when the current static eval is better than that of a move ago
         // Assuming this trend continues down this branch, we can prune high more aggressively,
         // while we should be less aggressive when pruning low.
-        let improving = !in_check && t.ply > 1 && stand_pat > t.eval_stack[t.ply - 2];
+        t.ss[t.ply].eval = stand_pat;
+        let improving = !in_check && t.ply > 1 && stand_pat > t.ss[t.ply - 2].eval;
 
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
@@ -399,9 +398,9 @@ impl Position {
                 let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
 
-                t.excluded[t.ply] = Some(m);
+                t.ss[t.ply].excluded = Some(m);
                 let eval = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
-                t.excluded[t.ply] = None;
+                t.ss[t.ply].excluded = None;
 
                 if eval < se_beta {
                     ext_depth += 1;
