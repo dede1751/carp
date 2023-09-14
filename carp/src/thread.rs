@@ -37,7 +37,6 @@ pub struct Thread {
     pub excluded: [Option<Move>; MAX_DEPTH],
 
     // Move ordering
-    pub killer_moves: [[Move; 2]; MAX_DEPTH],
     history: HistoryTable<HIST_MAX>,
     capture_history: CaptureHistoryTable<CAP_HIST_MAX>,
     continuation_histories: [ContinuationHistoryTable<CONT_HIST_MAX>; CONT_HIST_COUNT],
@@ -133,7 +132,6 @@ impl Thread {
             eval_stack: [0; MAX_DEPTH],
             excluded: [None; MAX_DEPTH],
 
-            killer_moves: [[Move::NULL; 2]; MAX_DEPTH],
             history: HistoryTable::default(),
             capture_history: CaptureHistoryTable::default(),
             continuation_histories: array::from_fn(|_| ContinuationHistoryTable::default()),
@@ -171,14 +169,8 @@ impl Thread {
         self.pv.moves[0]
     }
 
-    /// Advance a thread by the given amount of ply, resetting previous results.
-    pub fn advance_ply(&mut self, advance: usize, ply: usize, halfmoves: usize) {
-        // Killers are shifted back by the ply advance
-        self.killer_moves.copy_within(advance.., 0);
-        for k in &mut self.killer_moves[MAX_DEPTH - advance..] {
-            *k = [Move::NULL; 2];
-        }
-
+    /// Prepare a thread for a new search.
+    pub fn clear_for_search(&mut self, ply: usize, halfmoves: usize) {
         self.nodes = 0;
         self.clock.last_nodes = 0; // reset SMP worker threads
         self.seldepth = 0;
@@ -232,8 +224,7 @@ impl Thread {
 
             for i in 0..CONT_HIST_COUNT {
                 if let Some((p, m, _)) = self.get_previous_entry(1 + i) {
-                    self.continuation_histories[i]
-                        .update(bonus, best, p, m.get_tgt(), &quiets);
+                    self.continuation_histories[i].update(bonus, best, p, m.get_tgt(), &quiets);
                 }
             }
         }
@@ -248,9 +239,11 @@ impl Thread {
         for i in 0..CONT_HIST_COUNT {
             if let Some((prev_p, prev_m, _)) = self.get_previous_entry(1 + i) {
                 for j in 0..moves.len() {
-                    scores[j] += self
-                        .continuation_histories[i]
-                        .get_score(moves[j], prev_p, prev_m.get_tgt());
+                    scores[j] += self.continuation_histories[i].get_score(
+                        moves[j],
+                        prev_p,
+                        prev_m.get_tgt(),
+                    );
                 }
             }
         }
@@ -322,10 +315,10 @@ impl ThreadPool {
             pos.white_to_move(),
         );
         self.main_thread
-            .advance_ply(2, pos.ply(), pos.board.halfmoves);
+            .clear_for_search(pos.ply(), pos.board.halfmoves);
         self.workers
             .iter_mut()
-            .for_each(|t| t.advance_ply(2, pos.ply(), pos.board.halfmoves));
+            .for_each(|t| t.clear_for_search(pos.ply(), pos.board.halfmoves));
 
         self.global_stop.store(false, Ordering::SeqCst);
         self.global_nodes.store(0, Ordering::SeqCst);

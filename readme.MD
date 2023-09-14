@@ -76,9 +76,9 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
 * Fail-Hard Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
 * Move Ordering with a staged sorter:
-  - MVV-LVA with Threshold Static Exchange Evaluation
-  - Killers
-  - History / Counter Move History / Followup History
+  - MVV + Capture History with Threshold Static Exchange Evaluation
+  - Quiet History
+  - Continuation Histories
 * Multithreading with Lazy-SMP
 * Lockless Transposition table with aging
 * Principal Variation Search

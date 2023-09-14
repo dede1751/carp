@@ -428,10 +428,11 @@ impl Position {
                         r -= in_check as i32; // reduce less when in check
                         r -= is_check as i32; // reduce less when giving check
 
+                        // flat reduction/extension based on history
                         if s > HISTORY_MAX / 2 {
-                            r -= 1; // Reduce less high history moves/killers
+                            r -= 1;
                         } else if s < -HISTORY_MAX / 2 {
-                            r += 1; // Reduce more low history moves
+                            r += 1;
                         }
 
                         r.clamp(1, (depth - 1) as i32) as usize
@@ -482,7 +483,7 @@ impl Position {
                 if eval >= beta {
                     t.update_tables(m, depth, &self.board, quiets_tried, caps_tried);
                     alpha = beta;
-                    
+
                     break;
                 }
             }
