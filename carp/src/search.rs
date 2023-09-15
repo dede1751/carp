@@ -3,10 +3,10 @@
 use std::sync::atomic::Ordering;
 
 #[cfg(not(feature = "datagen"))]
-use crate::syzygy::probe::TB_HITS;
+use crate::{syzygy::probe::TB_HITS, move_picker::Stage};
 
 use crate::{
-    move_picker::{Stage, TT_SCORE},
+    move_picker::{MovePicker, TT_SCORE, GOOD_TACTICAL},
     position::Position,
     search_params::*,
     search_tables::PVTable,
@@ -326,17 +326,17 @@ impl Position {
             depth -= 1;
         }
 
-        let mut picker = self.gen_moves::<QUIETS>(tt_move, 0);
-
-        // Mate or stalemate. Don't save in the TT, simply return early
-        if picker.stage == Stage::Done {
+        
+        // Mate or Stalemate are detected at move generation (not saved in TT)
+        let move_list = self.board.gen_moves::<QUIETS>();
+        if move_list.is_empty() {
             if in_check {
                 return -MATE + t.ply as Eval;
             } else {
                 return 0;
             }
         };
-
+        
         let old_alpha = alpha;
         let mut best_move = Move::NULL;
         let mut best_value = -INFINITY;
@@ -346,14 +346,15 @@ impl Position {
 
         #[cfg(not(feature = "datagen"))]
         let lmp_count = LMP_BASE + (depth * depth);
-
+        
         #[cfg(not(feature = "datagen"))]
         let see_margins = [
             SEE_CAPTURE_MARGIN * (depth * depth) as Eval,
             SEE_QUIET_MARGIN * depth as Eval,
-        ];
-
-        while let Some((m, s)) = picker.next(&self.board, t) {
+            ];
+            
+        let mut picker = MovePicker::<QUIETS>::new(move_list, tt_move, 0);
+        while let Some((m, s)) = picker.next(&self.board, t, false) {
             // Skip SE excluded move
             if excluded == Some(m) {
                 move_count += 1;
@@ -604,10 +605,26 @@ impl Position {
 
         let mut best_move = Move::NULL;
         let mut best_value = eval;
-        let mut picker = self.gen_moves::<TACTICALS>(tt_move, 0);
 
-        // The capture picker implicitly prunes bad SEE moves
-        while let Some((m, _)) = picker.next(&self.board, t) {
+        let move_list = if in_check {
+            self.board.gen_moves::<QUIETS>()
+        } else {
+            self.board.gen_moves::<TACTICALS>()
+        };
+
+        // In check we generate all moves and can prove mate scores.
+        if in_check && move_list.is_empty() {
+            return -MATE + t.ply as Eval;
+        }
+
+        // The capture picker implicitly prunes bad SEE moves when not in check
+        let mut picker = MovePicker::<TACTICALS>::new(move_list, tt_move, 0);
+        while let Some((m, s)) = picker.next(&self.board, t, in_check) {
+            // We allow searching bad evading moves so long as we haven't found a mated line.
+            if best_value > -LONGEST_TB_MATE && s < GOOD_TACTICAL {
+                break;
+            }
+
             self.make_move(m, t);
             tt.prefetch(self.board.hash); // prefetch next hash
             let value = -self.quiescence(t, tt, -beta, -alpha);
@@ -630,11 +647,6 @@ impl Position {
                     break;
                 }
             }
-        }
-
-        // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
-        if in_check && best_value == -INFINITY {
-            return -5000;
         }
 
         // Save to TT if we at least improved on the static eval.

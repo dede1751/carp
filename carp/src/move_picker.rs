@@ -37,7 +37,7 @@ pub struct MovePicker<const QUIETS: bool> {
     index: usize,              // Index used for movelist traversal
     quiet_index: usize,        // Index of the first non-killer quiet move
     bad_tactical_index: usize, // Index of the first bad tactical move
-    pub stage: Stage,          // Stage is not totally accurate externally, use move scores
+    pub stage: Stage,              // Stage is not totally accurate externally, use move scores
     tt_move: Option<Move>,
     pub skip_quiets: bool,
     see_threshold: Eval,
@@ -53,12 +53,10 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         let bad_tactical_index = move_list.len();
         let stage = if move_list.is_empty() {
             Stage::Done
+        } else if tt_move.is_none(){
+            Stage::ScoreTacticals
         } else {
-            match tt_move {
-                Some(m) if !QUIETS && m.get_type().is_quiet() => Stage::ScoreTacticals,
-                None => Stage::ScoreTacticals,
-                _ => Stage::TTMove,
-            }
+            Stage::TTMove
         };
 
         MovePicker {
@@ -77,7 +75,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Fetch the next best move from the move list along with a move score.
     /// Note that most of the logic here is "fall through" where a stage may quietly pass without
     /// yielding a move (e.g. all scoring stages)
-    pub fn next(&mut self, board: &Board, thread: &Thread) -> Option<(Move, i32)> {
+    pub fn next(&mut self, board: &Board, thread: &Thread, do_evasions: bool) -> Option<(Move, i32)> {
         if self.stage == Stage::Done {
             return None;
         }
@@ -105,8 +103,9 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
                 return Some((m, s));
             }
 
-            // In QSearch we implicitly skip all captures with negative SEE and underpromotions.
-            if QUIETS {
+            // In QSearch we implicitly skip all captures with negative SEE and underpromotions,
+            // unless we are in check and doing check evasions.
+            if QUIETS || do_evasions {
                 self.stage = Stage::ScoreQuiets;
             } else {
                 self.stage = Stage::Done;
@@ -236,7 +235,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         while i < self.bad_tactical_index {
             let m = self.move_list.moves[i];
 
-            if !QUIETS || !m.get_type().is_quiet() {
+            if !m.get_type().is_quiet() {
                 let score = score_tactical(m, self.see_threshold, board, thread);
 
                 if score >= GOOD_TACTICAL {
@@ -283,7 +282,7 @@ mod tests {
         println!("{b}");
 
         let mut moves = Vec::new();
-        while let Some(m) = picker.next(&b, &t) {
+        while let Some(m) = picker.next(&b, &t, false) {
             println!(
                 "{:?} -- Move {}: {} Score: {}",
                 picker.stage,
@@ -318,7 +317,7 @@ mod tests {
         println!("{b}");
 
         let mut moves = Vec::new();
-        while let Some(m) = picker.next(&b, &t) {
+        while let Some(m) = picker.next(&b, &t, false) {
             println!("{:?} -- Move: {} Score: {}", picker.stage, m.0, m.1);
             moves.push(m);
             assert!(!m.0.get_type().is_quiet());

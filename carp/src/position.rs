@@ -1,5 +1,4 @@
 use crate::{
-    move_picker::MovePicker,
     search_params::*,
     syzygy::probe::{TB, WDL},
     thread::Thread,
@@ -75,17 +74,6 @@ impl Default for Position {
 }
 
 impl Position {
-    /// Produce a move picker for the current position
-    pub fn gen_moves<const QUIETS: bool>(
-        &self,
-        tt_move: Option<Move>,
-        see_threshold: Eval,
-    ) -> MovePicker<QUIETS> {
-        let move_list = self.board.gen_moves::<QUIETS>();
-
-        MovePicker::<QUIETS>::new(move_list, tt_move, see_threshold)
-    }
-
     /// Makes the given move within the game tree
     /// We use std::mem::replace to avoid cloning the board
     pub fn make_move(&mut self, m: Move, t: &mut Thread) {
