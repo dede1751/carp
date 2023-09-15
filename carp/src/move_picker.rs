@@ -37,7 +37,7 @@ pub struct MovePicker<const QUIETS: bool> {
     index: usize,              // Index used for movelist traversal
     quiet_index: usize,        // Index of the first non-killer quiet move
     bad_tactical_index: usize, // Index of the first bad tactical move
-    pub stage: Stage,              // Stage is not totally accurate externally, use move scores
+    pub stage: Stage,          // Stage is not totally accurate externally, use move scores
     tt_move: Option<Move>,
     pub skip_quiets: bool,
     see_threshold: Eval,
@@ -53,7 +53,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         let bad_tactical_index = move_list.len();
         let stage = if move_list.is_empty() {
             Stage::Done
-        } else if tt_move.is_none(){
+        } else if tt_move.is_none() {
             Stage::ScoreTacticals
         } else {
             Stage::TTMove
@@ -75,7 +75,12 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Fetch the next best move from the move list along with a move score.
     /// Note that most of the logic here is "fall through" where a stage may quietly pass without
     /// yielding a move (e.g. all scoring stages)
-    pub fn next(&mut self, board: &Board, thread: &Thread, do_evasions: bool) -> Option<(Move, i32)> {
+    pub fn next(
+        &mut self,
+        board: &Board,
+        thread: &Thread,
+        do_evasions: bool,
+    ) -> Option<(Move, i32)> {
         if self.stage == Stage::Done {
             return None;
         }

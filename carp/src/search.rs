@@ -3,10 +3,10 @@
 use std::sync::atomic::Ordering;
 
 #[cfg(not(feature = "datagen"))]
-use crate::{syzygy::probe::TB_HITS, move_picker::Stage};
+use crate::{move_picker::Stage, syzygy::probe::TB_HITS};
 
 use crate::{
-    move_picker::{MovePicker, TT_SCORE, GOOD_TACTICAL},
+    move_picker::{MovePicker, GOOD_TACTICAL, TT_SCORE},
     position::Position,
     search_params::*,
     search_tables::PVTable,
@@ -326,7 +326,6 @@ impl Position {
             depth -= 1;
         }
 
-        
         // Mate or Stalemate are detected at move generation (not saved in TT)
         let move_list = self.board.gen_moves::<QUIETS>();
         if move_list.is_empty() {
@@ -336,7 +335,7 @@ impl Position {
                 return 0;
             }
         };
-        
+
         let old_alpha = alpha;
         let mut best_move = Move::NULL;
         let mut best_value = -INFINITY;
@@ -346,13 +345,13 @@ impl Position {
 
         #[cfg(not(feature = "datagen"))]
         let lmp_count = LMP_BASE + (depth * depth);
-        
+
         #[cfg(not(feature = "datagen"))]
         let see_margins = [
             SEE_CAPTURE_MARGIN * (depth * depth) as Eval,
             SEE_QUIET_MARGIN * depth as Eval,
-            ];
-            
+        ];
+
         let mut picker = MovePicker::<QUIETS>::new(move_list, tt_move, 0);
         while let Some((m, s)) = picker.next(&self.board, t, false) {
             // Skip SE excluded move
