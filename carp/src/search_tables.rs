@@ -85,7 +85,7 @@ impl<const MAX: i32> Default for HistoryTable<MAX> {
 
 impl<const MAX: i32> HistoryTable<MAX> {
     /// Get an index for the given move.
-    fn index(m: Move, side: Color) -> (usize, usize, usize) {
+    const fn index(m: Move, side: Color) -> (usize, usize, usize) {
         (side as usize, m.get_src() as usize, m.get_tgt() as usize)
     }
 
@@ -107,7 +107,7 @@ impl<const MAX: i32> HistoryTable<MAX> {
     }
 
     /// Get the history score for a given move by the given side.
-    pub fn get_score(&self, m: Move, side: Color) -> i32 {
+    pub const fn get_score(&self, m: Move, side: Color) -> i32 {
         let index = Self::index(m, side);
 
         self.history[index.0][index.1][index.2] as i32
@@ -149,7 +149,7 @@ impl<const MAX: i32> Default for ContinuationHistoryTable<MAX> {
 
 impl<const MAX: i32> ContinuationHistoryTable<MAX> {
     /// Get an index for the given move.
-    fn index(m: Move, prev_piece: Piece, prev_tgt: Square) -> (usize, usize, usize, usize) {
+    const fn index(m: Move, prev_piece: Piece, prev_tgt: Square) -> (usize, usize, usize, usize) {
         (
             prev_piece as usize,
             prev_tgt as usize,
@@ -176,7 +176,7 @@ impl<const MAX: i32> ContinuationHistoryTable<MAX> {
     }
 
     /// Get the double history score for a given move
-    pub fn get_score(&self, m: Move, prev_piece: Piece, prev_tgt: Square) -> i32 {
+    pub const fn get_score(&self, m: Move, prev_piece: Piece, prev_tgt: Square) -> i32 {
         let index = Self::index(m, prev_piece, prev_tgt);
 
         self.history[index.0][index.1][index.2][index.3] as i32

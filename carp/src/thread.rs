@@ -27,19 +27,26 @@ use chess::{
     piece::{Color, Piece},
 };
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SearchStackEntry {
+    ply_from_null: usize,
+    moved: Option<Piece>,
+    move_made: Option<Move>,
+    pub eval: Eval,
+    pub excluded: Option<Move>,
+}
+
 /// Information only relevant within the search tree (thread local)
 #[derive(Clone, Debug)]
 pub struct Thread {
     // Structures used by the search
     pub clock: Clock,
-    search_stack: [(Piece, Move, usize); MAX_DEPTH],
-    pub eval_stack: [Eval; MAX_DEPTH],
-    pub excluded: [Option<Move>; MAX_DEPTH],
+    pub ss: [SearchStackEntry; MAX_DEPTH],
 
     // Move ordering
     history: HistoryTable<HIST_MAX>,
-    capture_history: CaptureHistoryTable<CAP_HIST_MAX>,
-    continuation_histories: [ContinuationHistoryTable<CONT_HIST_MAX>; CONT_HIST_COUNT],
+    caphist: CaptureHistoryTable<CAP_HIST_MAX>,
+    conthists: [ContinuationHistoryTable<CONT_HIST_MAX>; CONT_HIST_COUNT],
 
     // Search stats
     pub nodes: u64,
@@ -95,7 +102,7 @@ impl std::fmt::Display for Thread {
 /// Normalizes a +100 cp advantage to a 50% chance of winning.
 impl Thread {
     /// Normalize an evaluation score to a centipawn score (since nnue values are usually inflated)
-    pub fn normalize_cp_eval(&self) -> Eval {
+    pub const fn normalize_cp_eval(&self) -> Eval {
         const NORMALIZE_PAWN_VALUE: Eval = 199;
 
         if self.eval.abs() >= LONGEST_TB_MATE {
@@ -128,18 +135,17 @@ impl Thread {
     pub fn new(clock: Clock) -> Self {
         Self {
             clock,
-            search_stack: [(Piece::WP, Move::NULL, 0); MAX_DEPTH],
-            eval_stack: [0; MAX_DEPTH],
-            excluded: [None; MAX_DEPTH],
+            ss: [SearchStackEntry::default(); MAX_DEPTH],
 
             history: HistoryTable::default(),
-            capture_history: CaptureHistoryTable::default(),
-            continuation_histories: array::from_fn(|_| ContinuationHistoryTable::default()),
+            caphist: CaptureHistoryTable::default(),
+            conthists: array::from_fn(|_| ContinuationHistoryTable::default()),
+
             nodes: 0,
             seldepth: 0,
             ply: 0,
             ply_from_null: 0,
-            move_count: 0, // Init to -1 because we always increment first.
+            move_count: 0,
 
             pv: PVTable::default(),
             eval: -INFINITY,
@@ -165,7 +171,7 @@ impl Thread {
     }
 
     /// Get the current best move for the searching thread.
-    pub fn best_move(&self) -> Move {
+    pub const fn best_move(&self) -> Move {
         self.pv.moves[0]
     }
 
@@ -186,7 +192,10 @@ impl Thread {
 
     /// Push a non-null move to the search stack
     pub fn push_move(&mut self, piece: Piece, m: Move) {
-        self.search_stack[self.ply] = (piece, m, self.ply_from_null);
+        self.ss[self.ply].moved = Some(piece);
+        self.ss[self.ply].move_made = Some(m);
+        self.ss[self.ply].ply_from_null = self.ply_from_null;
+
         self.ply += 1;
         self.ply_from_null += 1;
         self.nodes += 1;
@@ -194,7 +203,10 @@ impl Thread {
 
     /// Push a null move to the search stack
     pub fn push_null(&mut self) {
-        self.search_stack[self.ply] = (Piece::WP, Move::NULL, self.ply_from_null);
+        self.ss[self.ply].moved = None;
+        self.ss[self.ply].move_made = None;
+        self.ss[self.ply].ply_from_null = self.ply_from_null;
+
         self.ply += 1;
         self.ply_from_null = 0;
         self.nodes += 1;
@@ -203,7 +215,7 @@ impl Thread {
     /// Pop a move from the search stack (panics if called at ply 0)
     pub fn pop_move(&mut self) {
         self.ply -= 1;
-        self.ply_from_null = self.search_stack[self.ply].2;
+        self.ply_from_null = self.ss[self.ply].ply_from_null;
     }
 
     /// Upon a fail-high, update killer and history tables.
@@ -217,17 +229,24 @@ impl Thread {
     ) {
         // Score histories (only captures in case the best move is a capture)
         let bonus = history_bonus(depth);
-        self.capture_history.update(bonus, best, board, &captures);
+        self.caphist.update(bonus, best, board, &captures);
 
         if best.get_type().is_quiet() {
             self.history.update(bonus, best, board.side, &quiets);
 
             for i in 0..CONT_HIST_COUNT {
-                if let Some((p, m, _)) = self.get_previous_entry(1 + i) {
-                    self.continuation_histories[i].update(bonus, best, p, m.get_tgt(), &quiets);
+                if let Some(entry) = self.get_previous_entry(1 + i) {
+                    let prev_piece = entry.moved.unwrap();
+                    let prev_tgt = entry.move_made.unwrap().get_tgt();
+                    self.conthists[i].update(bonus, best, prev_piece, prev_tgt, &quiets);
                 }
             }
         }
+    }
+
+    /// Get a history score for a given move on the given board.
+    pub fn score_cap_hist(&self, m: Move, board: &Board) -> i32 {
+        self.caphist.get_score(m, board)
     }
 
     /// Assign history scores to movelist slices
@@ -237,27 +256,20 @@ impl Thread {
         }
 
         for i in 0..CONT_HIST_COUNT {
-            if let Some((prev_p, prev_m, _)) = self.get_previous_entry(1 + i) {
+            if let Some(entry) = self.get_previous_entry(1 + i) {
+                let prev_piece = entry.moved.unwrap();
+                let prev_tgt = entry.move_made.unwrap().get_tgt();
                 for j in 0..moves.len() {
-                    scores[j] += self.continuation_histories[i].get_score(
-                        moves[j],
-                        prev_p,
-                        prev_m.get_tgt(),
-                    );
+                    scores[j] += self.conthists[i].get_score(moves[j], prev_piece, prev_tgt);
                 }
             }
         }
     }
 
-    /// Get a history score for a given move on the given board.
-    pub fn score_cap_hist(&self, m: Move, board: &Board) -> i32 {
-        self.capture_history.get_score(m, board)
-    }
-
     /// Get the stack entry from 'rollback' ply ago
-    fn get_previous_entry(&self, rollback: usize) -> Option<(Piece, Move, usize)> {
-        if self.ply >= rollback && self.search_stack[self.ply - rollback].1 != Move::NULL {
-            Some(self.search_stack[self.ply - rollback])
+    fn get_previous_entry(&self, rollback: usize) -> Option<SearchStackEntry> {
+        if self.ply >= rollback && self.ss[self.ply - rollback].move_made.is_some() {
+            Some(self.ss[self.ply - rollback])
         } else {
             None
         }

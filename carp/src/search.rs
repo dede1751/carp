@@ -56,28 +56,28 @@ impl Position {
         }
 
         loop {
-            let eval = self.negamax::<true>(t, tt, tb, &mut pv, alpha, beta, new_depth, false);
+            let value = self.negamax::<true>(t, tt, tb, &mut pv, alpha, beta, new_depth, false);
             if t.stop {
                 return -INFINITY;
             }
 
-            if eval <= alpha {
+            if value <= alpha {
                 // Fail-low: widen window down, reset depth, keep the old best move
                 beta = (alpha + beta) / 2;
                 alpha = (-INFINITY).max(alpha - delta);
                 new_depth = t.depth + 1;
-            } else if eval >= beta {
+            } else if value >= beta {
                 // Fail-high: widen window up, reduce depth and save the best move
                 beta = (INFINITY).min(beta + delta);
                 t.pv = pv.clone();
 
-                if eval.abs() < LONGEST_TB_MATE && new_depth > 1 {
+                if value.abs() < LONGEST_TB_MATE && new_depth > 1 {
                     new_depth -= 1;
                 }
             } else {
                 // Search within window, success
                 t.pv = pv;
-                return eval;
+                return value;
             }
 
             // Widen window, fully reopen when it's too wide
@@ -89,7 +89,7 @@ impl Position {
         }
     }
 
-    /// Perform a Null-Window search to prove a position scores above/below the baseline eval.
+    /// Perform a Null-Window search to prove a position scores above/below the baseline value.
     #[allow(clippy::too_many_arguments)]
     fn zw_search(
         &mut self,
@@ -97,11 +97,11 @@ impl Position {
         tt: &TT,
         tb: TB,
         pv: &mut PVTable,
-        eval: Eval,
+        value: Eval,
         depth: usize,
         cutnode: bool,
     ) -> Eval {
-        self.negamax::<false>(t, tt, tb, pv, eval - 1, eval, depth, cutnode)
+        self.negamax::<false>(t, tt, tb, pv, value - 1, value, depth, cutnode)
     }
 
     /// Standard alpha-beta negamax tree search
@@ -165,7 +165,7 @@ impl Position {
         // Singular Extension (first part):
         // If we are excluding a move to verify singularity, limit pruning in this node.
         // Otherwise, identify possibly singular moves based on the tt hit.
-        let excluded = t.excluded[t.ply];
+        let excluded = t.ss[t.ply].excluded;
         let in_singular_search = excluded.is_some();
         let mut possible_singularity = false;
 
@@ -181,7 +181,7 @@ impl Position {
                 let tt_value = entry.get_value(t.ply);
 
                 // TT Cutoffs
-                if tt_depth >= depth && !pv_node {
+                if !pv_node && tt_depth >= depth {
                     match tt_flag {
                         TTFlag::Exact => return tt_value,
                         TTFlag::Lower if tt_value >= beta => return beta,
@@ -243,40 +243,47 @@ impl Position {
 
         // Compute the static eval. Try to avoid re-computing it if we already have it in some form.
         // When in check, we keep -INFINITY.
-        let mut stand_pat = -INFINITY;
-
-        if in_singular_search {
-            stand_pat = t.eval_stack[t.ply];
+        let eval = if in_singular_search {
+            t.ss[t.ply].eval
         } else if !in_check {
             // If we have a tt entry, use the static eval from there
             if let Some(entry) = tt_entry {
                 let tt_value = entry.get_value(t.ply);
                 let tt_eval = entry.get_eval();
 
-                if tt_eval == -INFINITY {
-                    stand_pat = self.evaluate();
+                t.ss[t.ply].eval = if tt_eval == -INFINITY {
+                    self.evaluate()
                 } else {
-                    stand_pat = tt_eval;
-                }
+                    tt_eval
+                };
 
                 // If the tt eval is a tighter bound than the static eval, use it as stand pat
                 match entry.get_flag() {
-                    TTFlag::Lower if tt_value > stand_pat => stand_pat = tt_value,
-                    TTFlag::Upper if tt_value < stand_pat => stand_pat = tt_value,
-                    _ => (),
+                    TTFlag::Exact => tt_value,
+                    TTFlag::Lower if tt_value > t.ss[t.ply].eval => tt_value,
+                    TTFlag::Upper if tt_value < t.ss[t.ply].eval => tt_value,
+                    _ => t.ss[t.ply].eval,
                 }
             } else {
                 // Without a tt entry (and not in check), we have to compute the static eval
-                stand_pat = self.evaluate();
+                t.ss[t.ply].eval = self.evaluate();
+                t.ss[t.ply].eval
             }
+        } else {
+            t.ss[t.ply].eval = -INFINITY;
+            -INFINITY
         };
-
-        t.eval_stack[t.ply] = stand_pat;
 
         // Improving is true when the current static eval is better than that of a move ago
         // Assuming this trend continues down this branch, we can prune high more aggressively,
         // while we should be less aggressive when pruning low.
-        let improving = !in_check && t.ply > 1 && stand_pat > t.eval_stack[t.ply - 2];
+        let improving = if t.ply >= 2 && t.ss[t.ply - 2].eval != -INFINITY {
+            t.ss[t.ply].eval > t.ss[t.ply - 2].eval
+        } else if t.ply >= 4 && t.ss[t.ply - 4].eval != -INFINITY {
+            t.ss[t.ply].eval > t.ss[t.ply - 4].eval
+        } else {
+            true
+        };
 
         // Static pruning techniques:
         // these heuristics are trying to prove that the position is statically good enough to not
@@ -287,25 +294,26 @@ impl Position {
             // assuming a beta cutoff. If the static eval is improving, we reduce the margin.
             let rfp_margin =
                 RFP_MARGIN * (depth as Eval) - RFP_IMPROVING_MARGIN * (improving as Eval);
-            if depth <= RFP_THRESHOLD && stand_pat - rfp_margin >= beta {
+            if depth <= RFP_THRESHOLD && eval - rfp_margin >= beta {
                 return beta;
             }
 
             // Null Move Pruning (reduction value from CounterGO)
             // Give the opponent a "free shot" and see if that improves beta.
             if depth > NMP_LOWER_LIMIT
-                && stand_pat + NMP_IMPROVING_MARGIN * (improving as Eval) >= beta
                 && t.ply_from_null > 0
+                && eval >= t.ss[t.ply].eval
+                && eval + NMP_IMPROVING_MARGIN * (improving as Eval) >= beta
                 && !self.only_king_pawns_left()
             {
                 let r = (NMP_BASE + depth / NMP_FACTOR).min(depth);
 
                 self.make_null(t);
-                let eval = -self.zw_search(t, tt, tb, opv, -(beta - 1), depth - r, !cutnode);
+                let value = -self.zw_search(t, tt, tb, opv, -(beta - 1), depth - r, !cutnode);
                 self.undo_move(t);
 
                 // cutoff above beta
-                if eval >= beta {
+                if value >= beta {
                     return beta;
                 }
             }
@@ -331,7 +339,7 @@ impl Position {
 
         let old_alpha = alpha;
         let mut best_move = Move::NULL;
-        let mut best_eval = -INFINITY;
+        let mut best_value = -INFINITY;
         let mut caps_tried = Vec::with_capacity(20);
         let mut quiets_tried = Vec::with_capacity(20);
         let mut move_count = 0;
@@ -357,7 +365,7 @@ impl Position {
 
             // Quiet move pruning
             #[cfg(not(feature = "datagen"))]
-            if !pv_node && !in_check && !picker.skip_quiets && best_eval > -LONGEST_TB_MATE {
+            if !pv_node && !in_check && !picker.skip_quiets && best_value > -LONGEST_TB_MATE {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
                 if is_quiet && depth <= HLP_THRESHOLD && s < HLP_BASE {
@@ -369,7 +377,7 @@ impl Position {
                 // Extended Futility pruning
                 // Below a certain depth, prune moves which will most likely not improve alpha
                 let efp_margin = EFP_BASE + EFP_MARGIN * (lmr_depth as Eval);
-                if lmr_depth <= EFP_THRESHOLD && stand_pat + efp_margin < alpha {
+                if lmr_depth <= EFP_THRESHOLD && eval + efp_margin < alpha {
                     picker.skip_quiets = true;
                 }
 
@@ -381,7 +389,7 @@ impl Position {
 
             // SEE pruning for captures and quiets
             #[cfg(not(feature = "datagen"))]
-            if best_eval > -LONGEST_TB_MATE
+            if best_value > -LONGEST_TB_MATE
                 && depth <= SEE_PRUNING_THRESHOLD
                 && picker.stage > Stage::GoodTacticals
                 && !self.board.see(m, see_margins[is_quiet as usize])
@@ -395,15 +403,15 @@ impl Position {
             // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
             if possible_singularity && s == TT_SCORE {
-                let tt_eval = tt_entry.unwrap().get_value(t.ply); // Can't panic
-                let se_beta = (tt_eval - 2 * depth as Eval).max(-INFINITY);
+                let tt_value = tt_entry.unwrap().get_value(t.ply); // Can't panic
+                let se_beta = (tt_value - 2 * depth as Eval).max(-INFINITY);
                 let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
 
-                t.excluded[t.ply] = Some(m);
-                let eval = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
-                t.excluded[t.ply] = None;
+                t.ss[t.ply].excluded = Some(m);
+                let value = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
+                t.ss[t.ply].excluded = None;
 
-                if eval < se_beta {
+                if value < se_beta {
                     ext_depth += 1;
                 }
             }
@@ -415,7 +423,7 @@ impl Position {
             // Before most searches, we run a "verification" search on a null window to prove it
             // fails high on alpha. If it doesn't, it's likely a cutnode.
             // We reduce the depth of these searches the further in the move list we go.
-            let mut eval = -INFINITY;
+            let mut value = -INFINITY;
             let full_depth_search =
                 if depth >= LMR_LOWER_LIMIT && move_count >= LMR_THRESHOLD + pv_node as usize {
                     let r = if is_quiet {
@@ -442,8 +450,8 @@ impl Position {
 
                     // Reduced depth null window search
                     // Since we are speculating being an allnode, expect the child to be a cutnode
-                    eval = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - r, true);
-                    eval > alpha && r > 1
+                    value = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - r, true);
+                    value > alpha && r > 1
                 } else {
                     !pv_node || move_count > 0
                 };
@@ -451,13 +459,13 @@ impl Position {
             // Full depth null window search when lmr fails or when using pvs
             // Allnodes/Cutnodes alternate
             if full_depth_search {
-                eval = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - 1, !cutnode);
+                value = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - 1, !cutnode);
             }
 
             // Full depth full window search for the first move of all PV nodes and when pvs fails
             // We expect the child node to be a PV node
-            if pv_node && (move_count == 0 || eval > alpha) {
-                eval = -self.negamax::<false>(t, tt, tb, opv, -beta, -alpha, ext_depth - 1, false);
+            if pv_node && (move_count == 0 || value > alpha) {
+                value = -self.negamax::<false>(t, tt, tb, opv, -beta, -alpha, ext_depth - 1, false);
             }
 
             self.undo_move(t);
@@ -471,16 +479,16 @@ impl Position {
                 t.clock.update_node_counts(m, t.nodes - start_nodes);
             }
 
-            if eval > best_eval {
-                best_eval = eval;
+            if value > best_value {
+                best_value = value;
 
-                if eval > alpha {
+                if value > alpha {
                     best_move = m;
-                    alpha = eval;
+                    alpha = value;
                     pv.update_pv_line(m, opv);
                 }
 
-                if eval >= beta {
+                if value >= beta {
                     t.update_tables(m, depth, &self.board, quiets_tried, caps_tried);
                     alpha = beta;
 
@@ -501,9 +509,9 @@ impl Position {
         if !t.stop {
             alpha = alpha.min(syzygy_max);
 
-            let tt_flag = if best_eval >= beta {
+            let tt_flag = if best_value >= beta {
                 TTFlag::Lower
-            } else if best_eval > old_alpha {
+            } else if best_value > old_alpha {
                 TTFlag::Exact
             } else {
                 TTFlag::Upper
@@ -513,7 +521,7 @@ impl Position {
                 self.board.hash,
                 tt_flag,
                 best_move,
-                stand_pat,
+                t.ss[t.ply].eval,
                 alpha,
                 depth,
                 t.ply,
@@ -556,68 +564,68 @@ impl Position {
                 TTFlag::Exact => return tt_value,
                 TTFlag::Lower if tt_value >= beta => return beta,
                 TTFlag::Upper if tt_value <= alpha => return alpha,
-                _ => (),
+                _ => tt_move = entry.get_move(),
             }
-
-            tt_move = entry.get_move();
         };
 
         // Compute the static eval when not in check
-        let mut stand_pat = -INFINITY;
-
-        if !in_check {
+        let eval = if !in_check {
             if let Some(entry) = tt_entry {
                 let tt_value = entry.get_value(t.ply);
                 let tt_eval = entry.get_eval();
 
-                if tt_eval == -INFINITY {
-                    stand_pat = self.evaluate();
+                t.ss[t.ply].eval = if tt_eval == -INFINITY {
+                    self.evaluate()
                 } else {
-                    stand_pat = tt_eval;
-                }
+                    tt_eval
+                };
 
                 match entry.get_flag() {
-                    TTFlag::Lower if tt_value > stand_pat => stand_pat = tt_value,
-                    TTFlag::Upper if tt_value < stand_pat => stand_pat = tt_value,
-                    _ => (),
+                    TTFlag::Exact => tt_value,
+                    TTFlag::Lower if tt_value > t.ss[t.ply].eval => tt_value,
+                    TTFlag::Upper if tt_value < t.ss[t.ply].eval => tt_value,
+                    _ => t.ss[t.ply].eval,
                 }
             } else {
-                stand_pat = self.evaluate();
+                t.ss[t.ply].eval = self.evaluate();
+                t.ss[t.ply].eval
             }
+        } else {
+            t.ss[t.ply].eval = -INFINITY;
+            t.ss[t.ply].eval
         };
 
         // Stand pat pruning
         let old_alpha = alpha;
-        alpha = alpha.max(stand_pat);
-
-        if stand_pat >= beta {
-            return stand_pat;
+        alpha = alpha.max(eval);
+        if eval >= beta {
+            return beta;
         }
 
         let mut best_move = Move::NULL;
-        let mut best_eval = stand_pat;
+        let mut best_value = eval;
         let mut picker = self.gen_moves::<TACTICALS>(tt_move, 0);
 
         // The capture picker implicitly prunes bad SEE moves
         while let Some((m, _)) = picker.next(&self.board, t) {
             self.make_move(m, t);
             tt.prefetch(self.board.hash); // prefetch next hash
-            let eval = -self.quiescence(t, tt, -beta, -alpha);
+            let value = -self.quiescence(t, tt, -beta, -alpha);
             self.undo_move(t);
 
             if t.stop {
                 return 0;
             }
 
-            if eval > best_eval {
-                best_eval = eval;
+            if value > best_value {
+                best_value = value;
 
-                if eval > alpha {
+                if value > alpha {
                     best_move = m;
-                    alpha = eval;
+                    alpha = value;
                 }
 
-                if eval >= beta {
+                if value >= beta {
                     alpha = beta;
                     break;
                 }
@@ -625,15 +633,15 @@ impl Position {
         }
 
         // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
-        if in_check && best_eval == -INFINITY {
+        if in_check && best_value == -INFINITY {
             return -5000;
         }
 
         // Save to TT if we at least improved on the static eval.
         if !t.stop {
-            let tt_flag = if best_eval >= beta {
+            let tt_flag = if best_value >= beta {
                 TTFlag::Lower
-            } else if best_eval > old_alpha {
+            } else if best_value > old_alpha {
                 TTFlag::Exact
             } else {
                 TTFlag::Upper
@@ -643,7 +651,7 @@ impl Position {
                 self.board.hash,
                 tt_flag,
                 best_move,
-                stand_pat,
+                t.ss[t.ply].eval,
                 alpha,
                 0,
                 t.ply,
