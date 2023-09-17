@@ -204,7 +204,7 @@ impl NNUEState {
             Color::Black => (acc.black.iter(), acc.white.iter()),
         };
 
-        let mut out = MODEL.output_bias as i32;
+        let mut out = 0;
         for (&value, &weight) in us.zip(&MODEL.output_weights[..HIDDEN]) {
             out += squared_crelu(value) * (weight as i32);
         }
@@ -212,7 +212,7 @@ impl NNUEState {
             out += squared_crelu(value) * (weight as i32);
         }
 
-        ((out / QA) * SCALE / QAB) as Eval
+        ((out / QA + MODEL.output_bias as i32) * SCALE / QAB) as Eval
     }
 }
 
