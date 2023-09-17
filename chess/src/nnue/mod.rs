@@ -18,7 +18,7 @@ use crate::{
 
 // Network Arch
 const FEATURES: usize = 768;
-const HIDDEN: usize = 768;
+const HIDDEN: usize = 1024;
 
 // Clipped ReLu bounds
 const CR_MIN: i16 = 0;
