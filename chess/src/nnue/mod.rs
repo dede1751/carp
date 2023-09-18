@@ -1,5 +1,5 @@
 /// NNUE Implementation
-/// Carp uses a (768->768)x2->1 perspective net architecture, fully trained on self play data.
+/// Carp uses a (768->1024)x2->1 perspective net architecture, fully trained on self play data.
 /// Network is initialized at compile time from the 'net.bin' file in thie bins directory.
 /// A new net can be loaded by running the convert_json.py script in the scripts folder.
 ///

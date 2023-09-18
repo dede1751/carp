@@ -63,7 +63,7 @@ Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance]
 
 ## NNUE
 
-Carp uses a (768->768)x2->1 perspective net trained with MarlinFlow.
+Carp uses a (768->1024)x2->1 perspective net trained with Bullet.
 It fully relies on its own self-play data for training the network. Data can be generated with the
 utilities provided in the Tools module. To build for datagen, simply run ```make datagen``` which
 also performs PGO.
@@ -98,6 +98,7 @@ None of these are strictly necessary to run the engine, but they are vital for d
 
 * [Fathom][fathom-link]
 * [Cutechess-Cli](https://github.com/cutechess/cutechess)
+* [Bullet](https://github.com/jw1912/bullet)
 * [MarlinFlow](https://github.com/dsekercioglu/marlinflow)
 * [OpenBench](https://github.com/AndyGrant/OpenBench)
 * [Stockfish's WDL model](https://github.com/official-stockfish/WDL_model)
