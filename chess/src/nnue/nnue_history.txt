@@ -97,16 +97,21 @@
 │          │ 30 epoch, .3x/5 epoch  │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
 │ carp0019 │ 3.26B self-play fens   │           15.74 +- 8.39             │ Remove 600M old fens, use 1.59B 5k nodes and │
-│  (CURR)  │ 1024 hidden nodes      │               vs 0016               │ 591M d9 fresh fens. First Bullet net!        │
-│          │ lr=1e-3    wdl=0.5     │                                     │                                              │
+│          │ 1024 hidden nodes      │               vs 0016               │ 591M d9 fresh fens. First Bullet net!        │
+│  (CURR)  │ lr=1e-3    wdl=0.5     │                                     │                                              │
 │          │ 20 epoch, .1x/5 epoch  │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0020 │                        │                                     │                                              │
-│          │                        │                                     │                                              │
-│          │                        │                                     │                                              │
-│          │                        │                                     │                                              │
+│ carp0020 │ 3.26B self-play fens   │         -18.94 +- 11.21             │ Try a bigger hidden layer. Honestly don't    │
+│          │ 1536 hidden nodes      │               vs 0016               │ know what went wrong.                        │
+│          │ lr=1e-3    wdl=0.4     │                                     │                                              │
+│          │ 20 epoch, .1x/5 epoch  │                                     │                                              │
 ├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
-│ carp0021 │                        │                                     │                                              │
+│ carp0021 │ 3.26B self-play fens   │         -116.93 +- 30.74            │ Experimenting with output buckets, though    │
+│          │ 1024 hidden nodes      │               vs 0020               │ something has gone terribly wrong.           │
+│          │ lr=1e-3    wdl=0.4     │                                     │                                              │
+│          │ 26 epoch, .1x/8 epoch  │                                     │                                              │
+├──────────┼────────────────────────┼─────────────────────────────────────┼──────────────────────────────────────────────┤
+│ carp0022 │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
 │          │                        │                                     │                                              │
