@@ -25,10 +25,13 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 | **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**MCERL**][mcerl-link] |
 |-------------|----------------|-----------|-----------|
+| 3.0.0       | N/a            | N/a       | N/a       | 
 | 2.0.0       | 3087           | 3159      | 3117      | 
 | 1.3.0       | N/a            | N/a       | 2675      | 
 | 1.2.0       | N/a            | N/a       | 2488      | 
 | 1.1.0       | N/a            | N/a       | 2164      | 
+
+Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance][ob-link].
 
 ## Project Structure & Building Carp
 
@@ -49,18 +52,6 @@ levels][arch-link] for the running OS through ```make release```.
 
 **NOTE**: the PGO build requires having *llvm-profdata*, which should be included with LLVM or CLANG.
 
-
-## Performance
-
-Move generation is fully legal, inspired by [this article][movegen-link]
-and perft(8) on startpos will achieve ~340 MNodes/s on a 7950x.
-
-Newer versions added much more aggressive pruning techniques, which have brought a noticeable speedup in
-time to depth and reduced the branching factor greatly. During search, Carp will usually run at ~2MNodes/s on a single
-core (up to 3.8MN/s with PGO).
-
-Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance][ob-link].
-
 ## NNUE
 
 Carp uses a (768->1024)x2->1 perspective net trained with Bullet.
@@ -72,7 +63,7 @@ As of Carp 2.0, NNUE has compltely replaced the old HCE.
 
 ## Implemented optimizations
 
-* Fully legal move generation with Fixed Shift Black Magic Bitboards
+* Fully legal move generation (~435 MNodes/s on a 7950x) with Fixed Shift Black Magic Bitboards
 * Fail-Hard Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
 * Move Ordering with a staged sorter:
@@ -131,5 +122,5 @@ None of these are strictly necessary to run the engine, but they are vital for d
 [release-link]:https://github.com/dede1751/carp/releases/latest
 [license-badge]:https://img.shields.io/github/license/dede1751/carp?style=for-the-badge&label=license&color=success
 [license-link]:https://github.com/dede1751/carp/blob/main/LICENSE
-[lichess-badge]:https://img.shields.io/badge/Play%20Carp%20-v2.0-yellow?logo=lichess&style=for-the-badge
+[lichess-badge]:https://img.shields.io/badge/Play%20Carp%20-v3.0-yellow?logo=lichess&style=for-the-badge
 [lichess-link]:https://lichess.org/@/Carp_Bot

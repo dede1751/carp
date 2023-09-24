@@ -1,12 +1,36 @@
 
-Carp 2.0 introduces NNUE, likely pushing past 3000 CCRL ELO. I'm finally confident enough to start submitting Carp to engine tournaments.
-Starting from 2.0 I will also start focusing more on adding tooling/functionality around the engine, transitioning to a private OpenBench instance for testing.
+The cooking is complete!
+Carp 3.0 irons out a lot of the oddities in the previous release, though still maintaining a lot of
+its weird quirks (it is, quite possibly, the strongest Fail Hard engine around). The progtests should
+speak for themselves:
+
+## STC (8+0.08)
 
 ```
-Score of Carp v2.0 vs Carp v1.3: 101 - 8 - 4  [0.912] 113
-...      Carp v2.0 playing White: 55 - 1 - 0  [0.982] 56
-...      Carp v2.0 playing Black: 46 - 7 - 4  [0.842] 57
-...      White vs Black: 62 - 47 - 4  [0.566] 113
-Elo difference: 405.1 +/- 118.7, LOS: 100.0 %, DrawRatio: 3.5 %
-SPRT: llr 2.96 (100.5%), lbound -2.94, ubound 2.94 - H1 was accepted
+ELO   | 438.76 +- 18.13 (95%)
+CONF  | 8.0+0.08s Threads=1 Hash=16MB
+GAMES | N: 3024 W: 2609 L: 33 D: 382
 ```
+
+## LTC (60+0.6)
+
+```
+ELO   | 364.09 +- 24.95 (95%)
+CONF  | 60.0+0.60s Threads=1 Hash=128MB
+GAMES | N: 1000 W: 787 L: 6 D: 207
+```
+
+## Changes Overview
+
+* Network improvements: moved to a (768->1024)x2->1 network trained on 3.2B positions
+* Countless search improvements and bug fixes.
+* Support for Syzygy endgame tablebases.
+* Major project structural refactor.
+* Massively improved chess backend.
+
+## Contributors
+
+Carp development wouldn't be possible without the hardware contributed by the amazing people in the
+[SWEHosting](https://chess.swehosting.se/index/) OpenBench instance: @Adam-Kulju, @Alex2262, @archishou,
+@Ciekce, @cosmobobak, @crippa1337, @GediminasMasaitis, @jhonnold, @jw1912, @lucametehau, @raklaptudirm,
+@spamdrew128, @uwuplant and most importantly @JouanDeag.
