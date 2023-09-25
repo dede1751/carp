@@ -25,7 +25,7 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 | **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**MCERL**][mcerl-link] |
 |-------------|----------------|-----------|-----------|
-| 3.0.0       | N/a            | N/a       | N/a       | 
+| 3.0.1       | N/a            | N/a       | N/a       | 
 | 2.0.0       | 3087           | 3159      | 3117      | 
 | 1.3.0       | N/a            | N/a       | 2675      | 
 | 1.2.0       | N/a            | N/a       | 2488      | 

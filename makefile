@@ -29,7 +29,17 @@ x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
 	./$(LXE)-$(VER)-$@$(EXT) bench 16
 	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 	
-	cargo rustc -r -p carp --bins --features syzygy -- -C target-feature=+crt-static -C target-cpu=$@ -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)-$@$(EXT)
+	cargo rustc -r -p carp --bins -- -C target-feature=+crt-static -C target-cpu=$@ -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)-$@$(EXT)
+
+	rm -rf $(TMPDIR)/*
+	rm -f *.pdb
+
+syzygy: tmp-dir
+	cargo rustc -r -p carp --bins --features syzygy -- -C target-cpu=native -C profile-generate=$(TMPDIR) --emit link=$(LXE)-$(VER)$(EXT)
+	./$(LXE)-$(VER)$(EXT) bench 16
+	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
+	
+	cargo rustc -r -p carp --bins --features syzygy -- -C target-feature=+crt-static -C target-cpu=native -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)$(EXT)
 
 	rm -rf $(TMPDIR)/*
 	rm -f *.pdb

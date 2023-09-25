@@ -123,7 +123,7 @@ impl TB {
             );
         }
         self.active = true;
-        self.n_men = unsafe { TB_LARGEST as u8 }.min(syzygy_probe_limit);
+        self.n_men = unsafe { TB_LARGEST as u8 }.clamp(0, syzygy_probe_limit);
     }
 
     /// Check if the tablebases can be used to probe the given position.
