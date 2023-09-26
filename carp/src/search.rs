@@ -532,7 +532,7 @@ impl Position {
         alpha
     }
 
-    /// Quiescence search: only search captures to avoid the horizon effect
+    /// Quiescence search: only search tactical moves to avoid the horizon effect
     fn quiescence(&mut self, t: &mut Thread, tt: &TT, mut alpha: Eval, beta: Eval) -> Eval {
         if t.stop || !t.clock.continue_search(t.nodes) {
             t.stop = true;
