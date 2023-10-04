@@ -23,27 +23,27 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 ## Rating Lists
 
-| **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**MCERL**][mcerl-link] |
-|-------------|----------------|-----------|-----------|
-| 3.0.1       | N/a            | N/a       | N/a       | 
-| 2.0.0       | 3087           | 3159      | 3117      | 
-| 1.3.0       | N/a            | N/a       | 2675      | 
-| 1.2.0       | N/a            | N/a       | 2488      | 
-| 1.1.0       | N/a            | N/a       | 2164      | 
+| **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**CEGT 40/4**][cegt-link] | [**MCERL**][mcerl-link] |
+|-------------|----------------|-----------|-----------|-----------|
+| 3.0.1       | 3423           | 3501      | N/a       | N/a       | 
+| 2.0.0       | 3087           | 3159      | 2980      | 3117      | 
+| 1.3.0       | N/a            | N/a       | N/a       | 2675      | 
+| 1.2.0       | N/a            | N/a       | N/a       | 2488      | 
+| 1.1.0       | N/a            | N/a       | N/a       | 2164      | 
 
 Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance][ob-link].
 
 ## Project Structure & Building Carp
 
 The project is structured in 3 main Cargo Workspaces: **Chess** is the game backend used by the engine,
-**Carp** is the UCI engine and **Carp-Tools** is an executable with developer tools. The first two
+**Engine** is the UCI engine and **Tools** is an executable with developer tools. The first two
 crates are designed to be dependency-less, although Syzygy Tablebase support requires interfacing with
-[Fathom][fathom-link].
+[Fathom][fathom-link] (not compiled by default).
 
 Building Carp only requires [Cargo][cargo-link]. Carp is currently tested on *Rust Stable v1.70*, so that is
 the recommended version, although it could possibly work (without guarantees) on earlier releases.
 
-For development, Carp should be built through Cargo with ```cargo run --release --package carp```.
+For development, Carp should be built through Cargo with ```cargo run --release --package engine```.
 
 To compile Carp for maximum performance, the use of [PGO][pgo-link] is highly recommended. Depending on the CPU,
 it has shown to be up to 60 elo over a standard Cargo build. To do this, either run ```make native``` to only
@@ -108,9 +108,10 @@ None of these are strictly necessary to run the engine, but they are vital for d
 [pgo-link]:https://en.wikipedia.org/wiki/Profile-guided_optimization
 [cargo-link]:https://www.rust-lang.org/tools/install
 [arch-link]:https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels
-[ccrl-blitz-link]:https://ccrl.chessdom.com/ccrl/404/cgi/engine_details.cgi?print=Details&each_game=1&eng=Carp%202.0.0%2064-bit#Carp_2_0_0_64-bit
-[ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?class=None&only_best_in_class=on&num_best_in_class=1&family=Carp&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no
-[mcerl-link]:https://www.chessengeria.com/mcerl
+[ccrl-blitz-link]:https://ccrl.chessdom.com/ccrl/404/cgi/compare_engines.cgi?family=Carp&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents
+[ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?family=Carp&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents
+[cegt-link]:http://www.cegt.net/40_4_Ratinglist/40_4_single/rangliste.html
+[mcerl-link]:https://www.chessengeria.eu/mcerl
 [movegen-link]:https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator
 [fathom-link]:https://github.com/jdart1/Fathom
 

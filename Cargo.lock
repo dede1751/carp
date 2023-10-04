@@ -111,27 +111,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c6ed94e98ecff0c12dd1b04c15ec0d7d9458ca8fe806cea6f12954efe74c63b"
 
 [[package]]
-name = "carp"
-version = "3.0.1"
-dependencies = [
- "bindgen",
- "cc",
- "chess",
-]
-
-[[package]]
-name = "carp-tools"
-version = "1.0.0"
-dependencies = [
- "carp",
- "chrono",
- "clap",
- "ctrlc",
- "fastrand",
- "itertools",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,6 +229,15 @@ name = "either"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
+
+[[package]]
+name = "engine"
+version = "3.0.1"
+dependencies = [
+ "bindgen",
+ "cc",
+ "chess",
+]
 
 [[package]]
 name = "errno"
@@ -595,6 +583,18 @@ dependencies = [
  "libc",
  "wasi",
  "winapi",
+]
+
+[[package]]
+name = "tools"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "ctrlc",
+ "engine",
+ "fastrand",
+ "itertools",
 ]
 
 [[package]]

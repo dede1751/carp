@@ -10,7 +10,7 @@ use std::{
     time::Instant,
 };
 
-use carp::{
+use engine::{
     clock::{Clock, TimeControl},
     position::{GameResult, Position, ADJ},
     search_params::*,

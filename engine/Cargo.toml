@@ -1,5 +1,5 @@
 [package]
-name = "carp"
+name = "engine"
 version = "3.0.1"
 edition = "2021"
 authors = ["Andrea Sgobbi"]

@@ -2,8 +2,8 @@
 resolver = "2"
 members = [
     "chess",
-    "carp",
-    "carp-tools",
+    "engine",
+    "tools",
 ]
 
 [profile.release]
