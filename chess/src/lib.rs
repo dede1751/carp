@@ -6,17 +6,13 @@ pub mod castle;
 pub mod move_list;
 mod movegen;
 pub mod moves;
-pub mod nnue;
 pub mod piece;
 pub mod square;
 pub mod zobrist;
 
 /// Contains certain engine parameters necessarily kept in the backend.
 pub mod params {
-    /// Maximum depth supported by the NNUE implementation within the crate.
-    pub const MAX_DEPTH: usize = 127;
-
-    /// Eval type returned by the network.
+    /// Eval type utilized by the engine.
     pub type Eval = i32;
 
     /// Piece static values used in SEE.

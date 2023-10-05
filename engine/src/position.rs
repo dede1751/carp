@@ -1,5 +1,6 @@
 use crate::{
     move_picker::MovePicker,
+    nnue::NNUEState,
     search_params::*,
     syzygy::probe::{TB, WDL},
     thread::Thread,
@@ -8,7 +9,6 @@ use chess::{
     bitboard::BitBoard,
     board::Board,
     moves::Move,
-    nnue::NNUEState,
     piece::{Color, Piece},
 };
 
@@ -89,34 +89,33 @@ impl Position {
     /// Makes the given move within the game tree
     /// We use std::mem::replace to avoid cloning the board
     pub fn make_move(&mut self, m: Move, t: &mut Thread) {
-        let new = self.board.make_move_nnue(m, &mut self.nnue_state);
+        self.nnue_state.push();
+        self.nnue_state.update(m, &self.board);
+
+        let new = self.board.make_move(m);
         let old = std::mem::replace(&mut self.board, new);
 
         let piece = old.piece_at(m.get_src());
         self.history.push(old);
-
         t.push_move(piece, m);
     }
 
     /// Passes turn to opponent (this resets the ply_from_null clock in the thread)
     /// Calling this when in check breaks the game state!
     pub fn make_null(&mut self, t: &mut Thread) {
+        self.nnue_state.push();
         let new = self.board.make_null();
         let old = std::mem::replace(&mut self.board, new);
 
-        self.nnue_state.push();
         self.history.push(old);
-
         t.push_null();
     }
 
     /// Pops the current board, going back to previous history entry
     /// Panics if the history vector is empty!
     pub fn undo_move(&mut self, t: &mut Thread) {
-        let old_board = self.history.pop().unwrap();
+        self.board = self.history.pop().unwrap();
         self.nnue_state.pop();
-        self.board = old_board;
-
         t.pop_move();
     }
 

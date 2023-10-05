@@ -9,9 +9,11 @@ use std::alloc;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
-use crate::{
+use crate::search_params::*;
+use chess::{
     board::Board,
-    params::*,
+    castle::rook_castling_move,
+    moves::{Move, MoveType},
     piece::{Color, Piece},
     square::Square,
 };
@@ -64,7 +66,7 @@ type SideAccumulator = Align64<[i16; HIDDEN]>;
 
 /// Accumulators contain the efficiently updated hidden layer values
 /// Each accumulator is perspective, hence both contains the white and black pov
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Accumulator {
     white: SideAccumulator,
     black: SideAccumulator,
@@ -79,30 +81,29 @@ impl Default for Accumulator {
     }
 }
 
+// used for turning on/off features
+const ON: i16 = 1;
+const OFF: i16 = -1;
+
 impl Accumulator {
     /// Updates weights for a single feature, either turning them on or off
-    fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
-        fn update<const ON: bool>(acc: &mut SideAccumulator, idx: usize) {
+    fn update<const ON: i16>(&mut self, idx: (usize, usize)) {
+        fn side_update<const ON: i16>(acc: &mut SideAccumulator, idx: usize) {
             let zip = acc
                 .iter_mut()
                 .zip(&MODEL.feature_weights[idx..idx + HIDDEN]);
 
             for (acc_val, &weight) in zip {
-                if ON {
-                    *acc_val += weight;
-                } else {
-                    *acc_val -= weight;
-                }
+                *acc_val += weight * ON;
             }
         }
 
-        update::<ON>(&mut self.white, idx.0);
-        update::<ON>(&mut self.black, idx.1);
+        side_update::<ON>(&mut self.white, idx.0);
+        side_update::<ON>(&mut self.black, idx.1);
     }
 
-    /// Update accumulator for a quiet move.
     /// Adds in features for the destination and removes the features of the source
-    fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
+    fn swap(&mut self, from: (usize, usize), to: (usize, usize)) {
         fn add_sub(acc: &mut SideAccumulator, from: usize, to: usize) {
             let zip = acc.iter_mut().zip(
                 MODEL.feature_weights[from..from + HIDDEN]
@@ -123,13 +124,9 @@ impl Accumulator {
 /// NNUEState is simply a stack of accumulators, updated along the search tree
 #[derive(Debug, Clone)]
 pub struct NNUEState {
-    accumulator_stack: [Accumulator; MAX_DEPTH + 1],
-    current_acc: usize,
+    stack: [Accumulator; MAX_DEPTH + 1],
+    top: usize,
 }
-
-// used for turning on/off features
-pub const ON: bool = true;
-pub const OFF: bool = false;
 
 impl NNUEState {
     /// Inits nnue state from a board
@@ -145,9 +142,9 @@ impl NNUEState {
         };
 
         // init with feature biases and add in all features of the board
-        boxed.accumulator_stack[0] = Accumulator::default();
+        boxed.stack[0] = Accumulator::default();
         for sq in board.occupancy() {
-            boxed.manual_update::<ON>(board.piece_at(sq), sq);
+            boxed.stack[0].update::<ON>(nnue_index(board.piece_at(sq), sq));
         }
 
         boxed
@@ -155,41 +152,64 @@ impl NNUEState {
 
     /// Refresh the accumulator stack to the given board
     pub fn refresh(&mut self, board: &Board) {
-        // reset the accumulator stack
-        self.current_acc = 0;
-        self.accumulator_stack[self.current_acc] = Accumulator::default();
+        // Reset the accumulator stack
+        self.top = 0;
+        self.stack[0] = Accumulator::default();
 
-        // update the first accumulator
+        // Update the first accumulator
         for piece in Piece::ALL {
             for sq in board.piece_occupancy(piece) {
-                self.manual_update::<ON>(piece, sq);
+                self.stack[0].update::<ON>(nnue_index(piece, sq));
             }
         }
     }
 
     /// Add a new accumulator to the stack by copying the previous top
     pub fn push(&mut self) {
-        self.accumulator_stack[self.current_acc + 1] = self.accumulator_stack[self.current_acc];
-        self.current_acc += 1;
+        self.stack[self.top + 1] = self.stack[self.top].clone();
+        self.top += 1;
     }
 
     /// Pop the top off the accumulator stack
     pub fn pop(&mut self) {
-        self.current_acc -= 1;
+        self.top -= 1;
     }
 
-    /// Manually turn on or off the single given feature
-    pub fn manual_update<const ON: bool>(&mut self, piece: Piece, sq: Square) {
-        self.accumulator_stack[self.current_acc].update_weights::<ON>(nnue_index(piece, sq));
+    /// Efficiently update accumulator with the given move.
+    pub fn update(&mut self, m: Move, board: &Board) {
+        let (src, tgt, mt) = (m.get_src(), m.get_tgt(), m.get_type());
+        let piece = board.piece_at(m.get_src());
+
+        // Most moves only change from-to. For promotions, To is the promotion piece
+        let to = if mt.is_promotion() {
+            nnue_index(mt.get_promotion(board.side), tgt)
+        } else {
+            nnue_index(piece, tgt)
+        };
+        self.stack[self.top].swap(nnue_index(piece, src), to);
+
+        // Special moves can change more than just from-to
+        match mt {
+            MoveType::EnPassant => {
+                let ep_tgt = tgt.forward(!board.side);
+                self.stack[self.top].update::<OFF>(nnue_index((!board.side).pawn(), ep_tgt));
+            }
+            MoveType::Castle => {
+                let (rook_src, rook_tgt) = rook_castling_move(tgt);
+
+                self.stack[self.top].swap(
+                    nnue_index(board.side.rook(), rook_src),
+                    nnue_index(board.side.rook(), rook_tgt)
+                );
+            }
+            mt if mt.is_capture() => {
+                let captured = board.piece_at(tgt);
+                self.stack[self.top].update::<OFF>(nnue_index(captured, tgt));
+            }
+            _ => {}
+        }
     }
 
-    /// Efficiently update accumulator for a quiet move (that is, only changes from/to features)
-    pub fn move_update(&mut self, piece: Piece, from: Square, to: Square) {
-        let from_idx = nnue_index(piece, from);
-        let to_idx = nnue_index(piece, to);
-
-        self.accumulator_stack[self.current_acc].add_sub_weights(from_idx, to_idx);
-    }
 
     /// Evaluate the nn from the current accumulator
     /// Concatenates the accumulators based on the side to move, computes the activation function
@@ -197,7 +217,7 @@ impl NNUEState {
     /// with the bias.
     /// Since we are squaring activations, we need an extra quantization pass with QA.
     pub fn evaluate(&self, side: Color) -> Eval {
-        let acc = &self.accumulator_stack[self.current_acc];
+        let acc = &self.stack[self.top];
 
         let (us, them) = match side {
             Color::White => (acc.white.iter(), acc.black.iter()),
@@ -251,15 +271,15 @@ mod tests {
 
         for i in 0..HIDDEN {
             assert_eq!(
-                s1.accumulator_stack[0].white[i],
-                s2.accumulator_stack[0].white[i]
+                s1.stack[0].white[i],
+                s2.stack[0].white[i]
             );
             assert_eq!(
-                s1.accumulator_stack[0].black[i],
-                s2.accumulator_stack[0].black[i]
+                s1.stack[0].black[i],
+                s2.stack[0].black[i]
             );
         }
-        assert_eq!(s1.current_acc, s2.current_acc);
+        assert_eq!(s1.top, s2.top);
     }
 
     #[test]
@@ -278,16 +298,15 @@ mod tests {
     #[test]
     fn test_manual_update() {
         let b: Board = Board::default();
-        let mut s1 = NNUEState::from_board(&b);
+        let s1 = NNUEState::from_board(&b);
 
-        let old_acc = s1.accumulator_stack[0];
-
-        s1.manual_update::<ON>(Piece::WP, Square::A3);
-        s1.manual_update::<OFF>(Piece::WP, Square::A3);
+        let mut old_acc = s1.stack[0].clone();
+        old_acc.update::<ON>(nnue_index(Piece::WP, Square::A3));
+        old_acc.update::<OFF>(nnue_index(Piece::WP, Square::A3));
 
         for i in 0..HIDDEN {
-            assert_eq!(old_acc.white[i], s1.accumulator_stack[0].white[i]);
-            assert_eq!(old_acc.black[i], s1.accumulator_stack[0].black[i]);
+            assert_eq!(old_acc.white[i], s1.stack[0].white[i]);
+            assert_eq!(old_acc.black[i], s1.stack[0].black[i]);
         }
     }
 
@@ -300,16 +319,16 @@ mod tests {
         let mut s1 = NNUEState::from_board(&b1);
         let s2 = NNUEState::from_board(&b2);
 
-        s1.move_update(b1.piece_at(m.get_src()), m.get_src(), m.get_tgt());
+        s1.update(m, &b1);
 
         for i in 0..HIDDEN {
             assert_eq!(
-                s1.accumulator_stack[0].white[i],
-                s2.accumulator_stack[0].white[i]
+                s1.stack[0].white[i],
+                s2.stack[0].white[i]
             );
             assert_eq!(
-                s1.accumulator_stack[0].black[i],
-                s2.accumulator_stack[0].black[i]
+                s1.stack[0].black[i],
+                s2.stack[0].black[i]
             );
         }
     }

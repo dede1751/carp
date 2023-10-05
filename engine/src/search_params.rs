@@ -8,6 +8,8 @@
 pub use chess::params::*;
 use std::mem::transmute;
 
+pub const MAX_DEPTH: usize = 127;
+
 pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
 pub const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
