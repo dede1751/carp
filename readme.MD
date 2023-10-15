@@ -23,13 +23,13 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 ## Rating Lists
 
-| **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**CEGT 40/4**][cegt-link] | [**MCERL**][mcerl-link] |
-|-------------|----------------|-----------|-----------|-----------|
-| 3.0.1       | 3423           | 3501      | N/a       | N/a       | 
-| 2.0.0       | 3087           | 3159      | 2980      | 3117      | 
-| 1.3.0       | N/a            | N/a       | N/a       | 2675      | 
-| 1.2.0       | N/a            | N/a       | N/a       | 2488      | 
-| 1.1.0       | N/a            | N/a       | N/a       | 2164      | 
+| **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**CEGT 40/4**][cegt-link] | [**MCERL**][mcerl-link] | [**IPMAN**][ipman-link] |
+|-------------|----------------|-----------|-----------|-----------|-----------|
+| 3.0.1       | 3371           | 3501      | 3430      | N/a       | 3301      | 
+| 2.0.0       | 3087           | 3159      | 2980      | 3117      | N/a       | 
+| 1.3.0       | N/a            | N/a       | N/a       | 2675      | N/a       | 
+| 1.2.0       | N/a            | N/a       | N/a       | 2488      | N/a       | 
+| 1.1.0       | N/a            | N/a       | N/a       | 2164      | N/a       | 
 
 Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance][ob-link].
 
@@ -112,6 +112,7 @@ None of these are strictly necessary to run the engine, but they are vital for d
 [ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?family=Carp&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents
 [cegt-link]:http://www.cegt.net/40_4_Ratinglist/40_4_single/rangliste.html
 [mcerl-link]:https://www.chessengeria.eu/mcerl
+[ipman-link]:https://ipmanchess.yolasite.com/r9-7945hx.php
 [movegen-link]:https://www.codeproject.com/Articles/5313417/Worlds-Fastest-Bitboard-Chess-Movegenerator
 [fathom-link]:https://github.com/jdart1/Fathom
 
