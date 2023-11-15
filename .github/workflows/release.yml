@@ -56,6 +56,8 @@ jobs:
       
       - name: Build
         run: make ${{ matrix.targets }}
+        env:
+          TARGET_CPU: ${{ matrix.targets }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3

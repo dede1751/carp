@@ -22,4 +22,4 @@ syzygy = ["dep:cc", "dep:bindgen"]
 
 [build-dependencies]
 cc = { version = "1.0.73", optional = true }
-bindgen = { version = "0.65.1", optional = true }
+bindgen = { version = "0.69.1", optional = true }
