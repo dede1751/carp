@@ -1,9 +1,11 @@
 /// Handles time management for iterative deepening and async search.
-use std::str::{FromStr, SplitWhitespace};
-use std::time::{Duration, Instant};
 use std::{
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
-    sync::Arc,
+    str::{FromStr, SplitWhitespace},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
 };
 
 use chess::{moves::Move, square::Square};

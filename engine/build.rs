@@ -1,4 +1,4 @@
-/// Setup LMR tables which need float math.
+/// Setup Syzygy TBs and LMR tables which need float math.
 use std::{error::Error, fs::File, io::Write, path::PathBuf};
 
 #[cfg(feature = "syzygy")]

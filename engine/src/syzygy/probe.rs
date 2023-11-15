@@ -5,6 +5,7 @@
     unused_variables,
     clippy::missing_const_for_fn
 )]
+
 /// Wrapper over the Fathom interface.
 /// Most of the code is an adaptation of Wahoo/Viridithas, which in turn are based on the Stockfish
 /// implementation.

@@ -1,11 +1,9 @@
 /// Implement both static attack lookups and board move generation.
 use std::mem::transmute;
 
-use super::magics::Magics;
-
 use crate::{
     bitboard::{BitBoard, BB64},
-    board::Board,
+    board::{magics::Magics, Board},
     move_list::MoveList,
     moves::{Move, MoveType},
     piece::{Color, Piece},
@@ -23,7 +21,7 @@ const PAWN_ATTACKS: [BB64; 2] = unsafe { transmute(*include_bytes!("../../../bin
 
 /// Gets pawn attacks from tables
 /// SAFETY: Square and Color only allow valid indices
-pub(crate) fn pawn_attacks(square: Square, side: Color) -> BitBoard {
+pub fn pawn_attacks(square: Square, side: Color) -> BitBoard {
     unsafe {
         *PAWN_ATTACKS
             .get_unchecked(side as usize)
@@ -33,23 +31,23 @@ pub(crate) fn pawn_attacks(square: Square, side: Color) -> BitBoard {
 
 /// Gets knight attacks from tables
 /// SAFETY: Square only allows valid indices
-pub(crate) fn knight_attacks(square: Square) -> BitBoard {
+pub fn knight_attacks(square: Square) -> BitBoard {
     unsafe { *KNIGHT_ATTACKS.get_unchecked(square as usize) }
 }
 
 /// Gets king attacks from tables
 /// SAFETY: Square only allows valid indices
-pub(crate) fn king_attacks(square: Square) -> BitBoard {
+pub fn king_attacks(square: Square) -> BitBoard {
     unsafe { *KING_ATTACKS.get_unchecked(square as usize) }
 }
 
 /// Gets bishop attacks based on the blocker bitboard
-pub(crate) fn bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
+pub fn bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     Magics::BISHOP.attacks(square, blockers)
 }
 
 /// Gets rook attacks based on the blocker bitboard
-pub(crate) fn rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
+pub fn rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     Magics::ROOK.attacks(square, blockers)
 }
 

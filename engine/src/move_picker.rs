@@ -1,7 +1,6 @@
 /// The Move Picker is responsible for choosing which move to search next at a node.
-use crate::{search_params::*, thread::*};
+use crate::{position::Position, search_params::*, thread::Thread};
 use chess::{
-    board::Board,
     move_list::MoveList,
     moves::{Move, MoveType},
     piece::Piece,
@@ -77,7 +76,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Fetch the next best move from the move list along with a move score.
     /// Note that most of the logic here is "fall through" where a stage may quietly pass without
     /// yielding a move (e.g. all scoring stages)
-    pub fn next(&mut self, board: &Board, thread: &Thread) -> Option<(Move, i32)> {
+    pub fn next(&mut self, pos: &Position, thread: &Thread) -> Option<(Move, i32)> {
         if self.stage == Stage::Done {
             return None;
         }
@@ -96,7 +95,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         // Assign a score to all captures/queen promotions and move them to the front.
         if self.stage == Stage::ScoreTacticals {
             self.stage = Stage::GoodTacticals;
-            self.score_tacticals(board, thread);
+            self.score_tacticals(pos, thread);
         }
 
         // Yield all captures/queen promotions with a positive SEE
@@ -119,7 +118,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             self.stage = Stage::Quiets;
 
             thread.assign_history_scores(
-                board.side,
+                pos.board.side,
                 &self.move_list.moves[self.index..self.bad_tactical_index],
                 &mut self.scores[self.index..self.bad_tactical_index],
             );
@@ -208,17 +207,17 @@ const PROMO_SCORE: i32 = CAP_HIST_MAX + MVV[4] + 1; // Queen promotions have bes
 const MVV: [i32; Piece::COUNT] = [0, 2400, 2400, 4800, 9600, 0];
 
 /// Score a single tactical move. These moves are either captures or queen promotions.
-fn score_tactical(m: Move, see_threshold: Eval, board: &Board, thread: &Thread) -> i32 {
+fn score_tactical(m: Move, see_threshold: Eval, pos: &Position, thread: &Thread) -> i32 {
     // Enpassant/QueenCapPromo are always good
     let score = match m.get_type() {
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
         t if t.is_underpromotion() => return BAD_TACTICAL,
-        _ => MVV[board.get_capture(m).index()] + thread.score_cap_hist(m, board),
+        _ => MVV[pos.board.get_capture(m).index()] + thread.score_cap_hist(m, &pos.board),
     };
 
     // Give a bonus to moves with positive SEE
-    if board.see(m, see_threshold) {
+    if pos.see(m, see_threshold) {
         score + GOOD_TACTICAL
     } else {
         score + BAD_TACTICAL
@@ -229,7 +228,7 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board, thread: &Thread) 
 impl<const QUIETS: bool> MovePicker<QUIETS> {
     /// Assign a score to each tactical move.
     /// Good tacticals are moved to the front of the list, bad tacticals to the back.
-    fn score_tacticals(&mut self, board: &Board, thread: &Thread) {
+    fn score_tacticals(&mut self, pos: &Position, thread: &Thread) {
         let mut i = self.index;
         self.quiet_index = self.index;
 
@@ -237,7 +236,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
             let m = self.move_list.moves[i];
 
             if !QUIETS || !m.get_type().is_quiet() {
-                let score = score_tactical(m, self.see_threshold, board, thread);
+                let score = score_tactical(m, self.see_threshold, pos, thread);
 
                 if score >= GOOD_TACTICAL {
                     self.move_list.moves.swap(i, self.quiet_index);
@@ -260,14 +259,16 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 mod tests {
     use super::*;
     use chess::{
-        board::{QUIETS, TACTICALS},
+        board::{Board, QUIETS, TACTICALS},
         square::Square,
     };
 
     #[test]
     fn test_quiet_picker() {
-        let b: Board = "2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1".parse().unwrap();
-        let move_list = b.gen_moves::<QUIETS>();
+        let pos: Position = "fen 2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1"
+            .parse()
+            .unwrap();
+        let move_list = pos.board.gen_moves::<QUIETS>();
         let move_count = move_list.len();
 
         let tt_move = Move::new(Square::A2, Square::A4, MoveType::DoublePush);
@@ -280,10 +281,10 @@ mod tests {
         let mut t = Thread::fixed_depth(0);
         t.update_tables(good_quiet, 10, &Board::default(), vec![bad_quiet], vec![]);
 
-        println!("{b}");
+        println!("{}", pos.board);
 
         let mut moves = Vec::new();
-        while let Some(m) = picker.next(&b, &t) {
+        while let Some(m) = picker.next(&pos, &t) {
             println!(
                 "{:?} -- Move {}: {} Score: {}",
                 picker.stage,
@@ -305,8 +306,10 @@ mod tests {
 
     #[test]
     fn test_capture_picker() {
-        let b: Board = "2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1".parse().unwrap();
-        let move_list = b.gen_moves::<TACTICALS>();
+        let pos: Position = "fen 2r1k3/1P6/8/8/5b2/6P1/P7/2Q3K1 w - - 0 1"
+            .parse()
+            .unwrap();
+        let move_list = pos.board.gen_moves::<TACTICALS>();
         let move_count = move_list.len();
 
         let tt_move = Move::new(Square::A2, Square::A4, MoveType::DoublePush);
@@ -315,10 +318,10 @@ mod tests {
         let mut picker = MovePicker::<TACTICALS>::new(move_list, Some(tt_move), 0);
         let t = Thread::fixed_depth(0);
 
-        println!("{b}");
+        println!("{}", pos.board);
 
         let mut moves = Vec::new();
-        while let Some(m) = picker.next(&b, &t) {
+        while let Some(m) = picker.next(&pos, &t) {
             println!("{:?} -- Move: {} Score: {}", picker.stage, m.0, m.1);
             moves.push(m);
             assert!(!m.0.get_type().is_quiet());

@@ -199,7 +199,7 @@ impl NNUEState {
 
                 self.stack[self.top].swap(
                     nnue_index(board.side.rook(), rook_src),
-                    nnue_index(board.side.rook(), rook_tgt)
+                    nnue_index(board.side.rook(), rook_tgt),
                 );
             }
             mt if mt.is_capture() => {
@@ -209,7 +209,6 @@ impl NNUEState {
             _ => {}
         }
     }
-
 
     /// Evaluate the nn from the current accumulator
     /// Concatenates the accumulators based on the side to move, computes the activation function
@@ -270,14 +269,8 @@ mod tests {
         s2.pop();
 
         for i in 0..HIDDEN {
-            assert_eq!(
-                s1.stack[0].white[i],
-                s2.stack[0].white[i]
-            );
-            assert_eq!(
-                s1.stack[0].black[i],
-                s2.stack[0].black[i]
-            );
+            assert_eq!(s1.stack[0].white[i], s2.stack[0].white[i]);
+            assert_eq!(s1.stack[0].black[i], s2.stack[0].black[i]);
         }
         assert_eq!(s1.top, s2.top);
     }
@@ -322,14 +315,8 @@ mod tests {
         s1.update(m, &b1);
 
         for i in 0..HIDDEN {
-            assert_eq!(
-                s1.stack[0].white[i],
-                s2.stack[0].white[i]
-            );
-            assert_eq!(
-                s1.stack[0].black[i],
-                s2.stack[0].black[i]
-            );
+            assert_eq!(s1.stack[0].white[i], s2.stack[0].white[i]);
+            assert_eq!(s1.stack[0].black[i], s2.stack[0].black[i]);
         }
     }
 }

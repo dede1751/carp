@@ -8,7 +8,8 @@ use crate::{
 use chess::{
     bitboard::BitBoard,
     board::Board,
-    moves::Move,
+    board::{bishop_attacks, rook_attacks},
+    moves::{Move, MoveType},
     piece::{Color, Piece},
 };
 
@@ -206,6 +207,110 @@ impl Position {
             _ => false,
         }
     }
+
+    /// Checks if the static exchange after a move is enough to beat the given threshold
+    /// This can be used for both captures and quiet moves.
+    /// This implementation is basically that seen in Viri, which in turn is that of Ethereal
+    pub fn see(&self, m: Move, threshold: Eval) -> bool {
+        let b = &self.board;
+        let src = m.get_src();
+        let tgt = m.get_tgt();
+        let mt = m.get_type();
+
+        // Castling cannot have bad SEE, since all squares the king passes through are not attacked
+        if mt == MoveType::Castle {
+            return true;
+        }
+
+        // Piece being swapped off is the promoted piece
+        let victim = if mt.is_promotion() {
+            mt.get_promotion(b.side)
+        } else {
+            b.piece_at(src)
+        };
+
+        // Get the static move value (also works for quiets)
+        let mut move_value = if mt.is_capture() {
+            if mt == MoveType::EnPassant {
+                PIECE_VALUES[Piece::WP as usize]
+            } else {
+                PIECE_VALUES[b.piece_at(tgt) as usize]
+            }
+        } else {
+            0
+        };
+        if mt.is_promotion() {
+            move_value += PIECE_VALUES[victim as usize] - PIECE_VALUES[0];
+        }
+
+        // Lose if the balance is already in our opponent's favor and it's their turn
+        let mut balance = move_value - threshold;
+        if balance < 0 {
+            return false;
+        }
+
+        // Win if the balance is still in our favor even if we lose the capturing piece
+        // This ensures a positive SEE in case of even trades.
+        balance -= PIECE_VALUES[victim as usize];
+        if balance >= 0 {
+            return true;
+        }
+
+        let diagonal_sliders = b.bishops() | b.queens();
+        let orthogonal_sliders = b.rooks() | b.queens();
+
+        // Updated occupancy map after capture
+        let mut occs = b.occupancy().pop_bit(src).set_bit(tgt);
+        if mt == MoveType::EnPassant {
+            let ep_tgt = b.en_passant.unwrap().forward(!b.side); // guaranteed to be Some
+            occs = occs.pop_bit(ep_tgt);
+        }
+
+        // Get all pieces covering the exchange square and start exchanging
+        let mut attackers = b.map_all_attackers(tgt, occs) & occs;
+        let mut side_to_move = !b.side;
+
+        loop {
+            // SEE terminates when no recapture is possible.
+            let own_attackers = attackers & b.side_bb[side_to_move as usize];
+            if own_attackers == BitBoard::EMPTY {
+                break;
+            }
+
+            // Get the least valuable attacker and simulate the recapture
+            let (attacker_square, attacker) = b.get_lva(own_attackers, side_to_move).unwrap(); // attackers are at least one
+            occs = occs.pop_bit(attacker_square);
+
+            // Diagonal recaptures uncover bishops/queens
+            if attacker.is_pawn() || attacker.is_bishop() || attacker.is_queen() {
+                attackers |= bishop_attacks(tgt, occs) & diagonal_sliders;
+            }
+
+            // Orthogonal recaptures uncover rooks/queens
+            if attacker.is_rook() || attacker.is_queen() {
+                attackers |= rook_attacks(tgt, occs) & orthogonal_sliders;
+            }
+            attackers &= occs; // ignore pieces already "used up"
+
+            // Negamax the balance, cutoff if losing our attacker would still win the exchange
+            side_to_move = !side_to_move;
+            balance = -balance - 1 - PIECE_VALUES[attacker as usize];
+            if balance >= 0 {
+                // If the recapturing piece is a king, and the opponent has another attacker,
+                // a positive balance should not translate to an exchange win.
+                if attacker.is_king()
+                    && attackers & b.side_bb[side_to_move as usize] != BitBoard::EMPTY
+                {
+                    return b.side == side_to_move;
+                }
+
+                break;
+            }
+        }
+
+        // We win the exchange if we are not the one who should recapture
+        b.side != side_to_move
+    }
 }
 
 /// Game result, used for datagen
@@ -286,5 +391,33 @@ mod tests {
         assert!(!kbvkn_mate.insufficient_material());
         assert!(kbvkn_draw.insufficient_material());
         assert!(!krvkn.insufficient_material());
+    }
+
+    #[test]
+    fn test_see() {
+        #[rustfmt::skip]
+        const SEE_SUITE: [(&str, &str, Eval, bool); 13] = [
+            ("fen 1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1", "e1e5", 0, true),
+            ("fen 1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1", "d3e5", 0, false),
+            ("fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", "g2h3", 0, true),
+            ("fen k3r3/8/8/4p3/8/2B5/1B6/K7 w - - 0 1", "c3e5", 0, true),
+            ("fen 4kbnr/p1P4p/b1q5/5pP1/4n3/5Q2/PP1PPP1P/RNB1KBNR w KQk f6 0 1", "g5f6", 0, true),
+            ("fen 6k1/1pp4p/p1pb4/6q1/3P1pRr/2P4P/PP1Br1P1/5RKN w - - 0 1", "f1f4", 0, false),
+            ("fen 6RR/4bP2/8/8/5r2/3K4/5p2/4k3 w - - 0 1", "f7f8q", 0, true),
+            ("fen r1bqk1nr/pppp1ppp/2n5/1B2p3/1b2P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1", "e1g1", 0, true),
+            ("fen 4kbnr/p1P1pppp/b7/4q3/7n/8/PPQPPPPP/RNB1KBNR w KQk - 0 1", "c7c8q", 0, true),
+            ("fen 4kbnr/p1P1pppp/b7/4q3/7n/8/PP1PPPPP/RNBQKBNR w KQk - 0 1", "c7c8q", 0, false),
+            ("fen 3r3k/3r4/2n1n3/8/3p4/2PR4/1B1Q4/3R3K w - - 0 1", "d3d4", 0, false),
+            ("fen 5rk1/1pp2q1p/p1pb4/8/3P1NP1/2P5/1P1BQ1P1/5RK1 b - - 0 1", "d6f4", 0, false),
+            ("fen 5rk1/1pp2q1p/p1pb4/8/3P1NP1/2P5/1P1BQ1P1/5RK1 b - - 0 1", "d6f4", -108, true),
+        ];
+
+        for (b, m, t, r) in SEE_SUITE {
+            let pos: Position = b.parse().unwrap();
+            let m = pos.board.find_move(m).unwrap();
+
+            println!("Move: {m}{}", pos.board);
+            assert_eq!(pos.see(m, t), r);
+        }
     }
 }

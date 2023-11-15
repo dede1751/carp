@@ -25,16 +25,17 @@ struct BlackMagic {
 /// https://www.talkchess.com/forum3/viewtopic.php?f=7&t=64790&sid=0cd7ee9568af2cbd4c7297b348b5a850
 #[repr(C)]
 #[derive(Clone, Debug)]
-pub struct Magics {
+pub(crate) struct Magics {
     magics: [BlackMagic; Square::COUNT],
     notmasks: BB64,
     shift: usize,
 }
 
 impl Magics {
-    pub const BISHOP: Self =
+    pub(crate) const BISHOP: Self =
         unsafe { transmute(*include_bytes!("../../../bins/bishop_magics.bin")) };
-    pub const ROOK: Self = unsafe { transmute(*include_bytes!("../../../bins/rook_magics.bin")) };
+    pub(crate) const ROOK: Self =
+        unsafe { transmute(*include_bytes!("../../../bins/rook_magics.bin")) };
 
     /// Get magic index for the tables given the blocker board and source square
     const fn magic_map(&self, square: Square, blockers: BitBoard) -> usize {
@@ -51,7 +52,7 @@ impl Magics {
     /// Get slider attack from square with given blockers
     /// SAFETY: Magic_map is guaranteed to fall within ATTACKS bounds because of the way
     ///         magics are initialized.
-    pub fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
+    pub(crate) fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
         unsafe { *ATTACKS.get_unchecked(self.magic_map(square, blockers)) }
     }
 }

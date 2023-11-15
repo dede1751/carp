@@ -353,7 +353,7 @@ impl Position {
             SEE_QUIET_MARGIN * depth as Eval,
         ];
 
-        while let Some((m, s)) = picker.next(&self.board, t) {
+        while let Some((m, s)) = picker.next(self, t) {
             // Skip SE excluded move
             if excluded == Some(m) {
                 move_count += 1;
@@ -392,7 +392,7 @@ impl Position {
             if best_value > -LONGEST_TB_MATE
                 && depth <= SEE_PRUNING_THRESHOLD
                 && picker.stage > Stage::GoodTacticals
-                && !self.board.see(m, see_margins[is_quiet as usize])
+                && !self.see(m, see_margins[is_quiet as usize])
             {
                 move_count += 1;
                 continue;
@@ -607,7 +607,7 @@ impl Position {
         let mut picker = self.gen_moves::<TACTICALS>(tt_move, 0);
 
         // The capture picker implicitly prunes bad SEE moves
-        while let Some((m, _)) = picker.next(&self.board, t) {
+        while let Some((m, _)) = picker.next(self, t) {
             self.make_move(m, t);
             tt.prefetch(self.board.hash); // prefetch next hash
             let value = -self.quiescence(t, tt, -beta, -alpha);

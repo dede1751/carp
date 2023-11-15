@@ -5,11 +5,11 @@
 ///     BASE: flat bonus in a formula
 ///     MARGIN: multiplicative (usually depth) coefficient in a formula
 ///     FACTOR: dividing coefficient in a formula
-pub use chess::params::*;
 use std::mem::transmute;
 
 pub const MAX_DEPTH: usize = 127;
 
+pub type Eval = i32;
 pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
 pub const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
@@ -66,3 +66,5 @@ pub const LMP_BASE: usize = 4;
 pub const SEE_PRUNING_THRESHOLD: usize = 9;
 pub const SEE_CAPTURE_MARGIN: Eval = -20;
 pub const SEE_QUIET_MARGIN: Eval = -65;
+
+pub const PIECE_VALUES: [Eval; 12] = [161, 161, 446, 446, 464, 464, 705, 705, 1322, 1322, 0, 0];

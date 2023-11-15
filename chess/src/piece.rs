@@ -1,5 +1,4 @@
-use std::fmt;
-use std::ops::Not;
+use std::{fmt, ops::Not};
 
 use crate::transmute_enum;
 

@@ -1,7 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use crate::transmute_enum;
-use crate::{bitboard::BitBoard, piece::Color};
+use crate::{bitboard::BitBoard, piece::Color, transmute_enum};
 
 /// Board square enum, indexed from A8 = 0 to H1 = 63
 #[repr(u8)]

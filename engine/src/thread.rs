@@ -12,12 +12,13 @@ use std::sync::{
 };
 use std::thread;
 
-use crate::search_tables::CaptureHistoryTable;
 use crate::{
     clock::{Clock, TimeControl},
     position::Position,
     search_params::*,
-    search_tables::{history_bonus, ContinuationHistoryTable, HistoryTable, PVTable},
+    search_tables::{
+        history_bonus, CaptureHistoryTable, ContinuationHistoryTable, HistoryTable, PVTable,
+    },
     syzygy::probe::{TB, TB_HITS},
     tt::TT,
 };
