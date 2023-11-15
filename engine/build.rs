@@ -7,6 +7,11 @@ fn build_fathom() {
     cc.file("./external/fathom/src/tbprobe.c");
     cc.include("./external/fathom/src/");
     cc.define("_CRT_SECURE_NO_WARNINGS", None);
+
+    // From Princhess, compiler seems to not be passing the target correctly.
+    let target_cpu = std::env::var("TARGET_CPU").unwrap_or("native".to_string());
+    cc.flag(&format!("-march={}", target_cpu));
+
     cc.flag("-march=native");
     cc.flag("-w");
 
@@ -22,7 +27,7 @@ fn build_fathom() {
 fn generate_fathom_bindings() {
     let bindings = bindgen::Builder::default()
         .header("./external/fathom/src/tbprobe.h")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .layout_tests(false)
         .generate()
         .unwrap();
