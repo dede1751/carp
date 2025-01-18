@@ -25,7 +25,7 @@ The main goal of this project is to learn the basics of both Rust and Chess Prog
 
 | **Version** | [**CCRL 40/15**][ccrl-ltc-link] | [**CCRL BLITZ**][ccrl-blitz-link] | [**CEGT 40/4**][cegt-link] | [**MCERL**][mcerl-link] | [**IPMAN**][ipman-link] |
 |-------------|----------------|-----------|-----------|-----------|-----------|
-| 3.0.1       | 3406           | 3509      | 3430      | N/a       | 3301      | 
+| 3.0.1       | 3502           | 3538      | 3430      | N/a       | 3301      | 
 | 2.0.0       | 3087           | 3159      | 2980      | 3117      | N/a       | 
 | 1.3.0       | N/a            | N/a       | N/a       | 2675      | N/a       | 
 | 1.2.0       | N/a            | N/a       | N/a       | 2488      | N/a       | 
@@ -108,8 +108,8 @@ None of these are strictly necessary to run the engine, but they are vital for d
 [pgo-link]:https://en.wikipedia.org/wiki/Profile-guided_optimization
 [cargo-link]:https://www.rust-lang.org/tools/install
 [arch-link]:https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels
-[ccrl-blitz-link]:https://ccrl.chessdom.com/ccrl/404/cgi/compare_engines.cgi?family=Carp&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents
-[ccrl-ltc-link]:https://ccrl.chessdom.com/ccrl/4040/cgi/compare_engines.cgi?family=Carp&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents
+[ccrl-blitz-link]:https://computerchess.org.uk/ccrl/404/cgi/engine_details.cgi?print=Details&each_game=1&eng=Carp%203.0.1%2064-bit#Carp_3_0_1_64-bit
+[ccrl-ltc-link]:https://computerchess.org.uk/ccrl/4040/cgi/engine_details.cgi?print=Details&each_game=0&eng=Carp%203.0.0%2064-bit%204CPU#Carp_3_0_0_64-bit_4CPU
 [cegt-link]:http://www.cegt.net/40_4_Ratinglist/40_4_single/rangliste.html
 [mcerl-link]:https://www.chessengeria.eu/mcerl
 [ipman-link]:https://ipmanchess.yolasite.com/r9-7945hx.php
