@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// Bitboard of squares between two squares, excluding the squares themselves
-const BETWEEN: [BB64; Square::COUNT] =
+static BETWEEN: [BB64; Square::COUNT] =
     unsafe { transmute(*include_bytes!("../../../bins/between.bin")) };
 
 /// Attacks for the hopping pieces are just precalculated bitboards.

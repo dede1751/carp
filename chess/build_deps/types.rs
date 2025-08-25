@@ -171,7 +171,7 @@ impl Square {
         let (file, rank) = ((self as i8 & 7) + FILE, (self as i8 >> 3) - RANK);
 
         if file >= 0 && file < 8 && rank >= 0 && rank < 8 {
-            Some(unsafe { std::mem::transmute((rank << 3) + file) })
+            Some(unsafe { std::mem::transmute::<i8, Square>((rank << 3) + file) })
         } else {
             None
         }

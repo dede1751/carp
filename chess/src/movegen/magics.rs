@@ -6,7 +6,7 @@ use crate::{
 };
 
 const ATTACK_COUNT: usize = 87988;
-const ATTACKS: [BitBoard; ATTACK_COUNT] =
+static ATTACKS: [BitBoard; ATTACK_COUNT] =
     unsafe { transmute(*include_bytes!("../../../bins/sliders.bin")) };
 
 /// Black magics, contain the magic number and attack table index

@@ -2,7 +2,6 @@
 ///
 /// This is a didactic chess engine for both approaching chess programming and learning to code
 /// in Rust.
-
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("bench") {
         match std::env::args().nth(2).as_deref() {

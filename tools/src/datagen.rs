@@ -10,6 +10,7 @@ use std::{
     time::Instant,
 };
 
+use clap::Args;
 use engine::{
     clock::{Clock, TimeControl},
     position::{GameResult, Position, ADJ},
@@ -18,7 +19,6 @@ use engine::{
     thread::Thread,
     tt::TT,
 };
-use clap::Args;
 
 /// Generate training data through self-play, defaulting to depth 8 searches.
 #[derive(Args)]

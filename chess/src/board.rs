@@ -11,7 +11,7 @@ use crate::{
 };
 
 // Re-export the movegen module into the board.
-pub use crate::movegen::{gen::*, make_move::*, perft::*};
+pub use crate::movegen::{gen::*, perft::*};
 
 /// Bitboard-based board representation
 /// Any board without a king for each player (and with more than one for either) is UB!
