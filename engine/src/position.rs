@@ -1,5 +1,6 @@
 use crate::{
     move_picker::MovePicker,
+    nnue::*,
     search_params::*,
     syzygy::probe::{TB, WDL},
     thread::Thread,
@@ -8,7 +9,6 @@ use chess::{
     bitboard::BitBoard,
     board::Board,
     moves::Move,
-    nnue::NNUEState,
     piece::{Color, Piece},
 };
 

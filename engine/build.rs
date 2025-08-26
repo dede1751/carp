@@ -1,5 +1,5 @@
 /// Setup LMR tables which need float math.
-use std::{error::Error, fs::File, io::Write, path::PathBuf};
+use std::{env, error::Error, fs::File, io::Write, path::PathBuf};
 
 #[cfg(feature = "syzygy")]
 fn build_fathom() {
@@ -35,7 +35,41 @@ fn generate_fathom_bindings() {
     bindings.write_to_file("./src/syzygy/bindings.rs").unwrap();
 }
 
+fn setup_simd_flags() {
+    // Notify rustc of custom feature flags.
+    println!("cargo:rustc-check-cfg=cfg(simd_avx512)");
+    println!("cargo:rustc-check-cfg=cfg(simd_avx2)");
+    println!("cargo:rustc-check-cfg=cfg(simd_sse2)");
+    println!("cargo:rustc-check-cfg=cfg(simd_neon)");
+    println!("cargo:rustc-check-cfg=cfg(simd_none)");
+
+    // Re-run if these env vars change.
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ARCH");
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FEATURE");
+
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    let features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
+    let has = |name: &str| features.split(',').any(|f| f == name);
+
+    let mut selected_cfg = "simd_none";
+    if arch == "x86_64" {
+        if has("avx512f") {
+            selected_cfg = "simd_avx512";
+        } else if has("avx2") {
+            selected_cfg = "simd_avx2";
+        } else if has("sse2") {
+            selected_cfg = "simd_sse2";
+        }
+    } else if arch == "aarch64" && has("neon") {
+        selected_cfg = "simd_neon";
+    }
+
+    println!("cargo:rustc-cfg={selected_cfg}");
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    setup_simd_flags();
+
     // Build LMR table
     const LMR_BASE: f32 = 0.75;
     const LMR_FACTOR: f32 = 2.0;

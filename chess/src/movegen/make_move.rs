@@ -3,8 +3,19 @@ use crate::{
     board::Board,
     castle::rook_castling_move,
     moves::{Move, MoveType},
-    nnue::{NNUEState, OFF, ON},
+    piece::Piece,
+    square::Square,
 };
+
+pub const OFF: bool = false;
+pub const ON: bool = true;
+
+pub trait AccumulatorStack {
+    fn push(&mut self);
+    fn pop(&mut self);
+    fn manual_update<const ON: bool>(&mut self, piece: Piece, square: Square);
+    fn move_update(&mut self, piece: Piece, from: Square, to: Square);
+}
 
 impl Board {
     /// Makes (legal) move on the board
@@ -71,7 +82,7 @@ impl Board {
     }
 
     /// Make move with NNUE accumulator increments.
-    pub fn make_move_nnue(&self, m: Move, nnue_state: &mut Box<NNUEState>) -> Board {
+    pub fn make_move_nnue<T: AccumulatorStack>(&self, m: Move, stack: &mut Box<T>) -> Board {
         let mut new = self.clone();
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = self.piece_at(src);
@@ -79,7 +90,7 @@ impl Board {
         let capture = move_type.is_capture();
 
         // add new accumulator
-        nnue_state.push();
+        stack.push();
 
         new.remove_piece(src);
         if capture || piece.is_pawn() {
@@ -92,28 +103,28 @@ impl Board {
             let ep_target = tgt.forward(!self.side);
 
             new.remove_piece(ep_target);
-            nnue_state.manual_update::<OFF>((!self.side).pawn(), ep_target);
+            stack.manual_update::<OFF>((!self.side).pawn(), ep_target);
         } else if capture {
             new.remove_piece(tgt);
-            nnue_state.manual_update::<OFF>(self.piece_at(tgt), tgt);
+            stack.manual_update::<OFF>(self.piece_at(tgt), tgt);
         } else if move_type == MoveType::Castle {
             let rook = self.side.rook();
             let (rook_src, rook_tgt) = rook_castling_move(tgt);
 
             new.remove_piece(rook_src);
             new.set_piece(rook, rook_tgt);
-            nnue_state.move_update(rook, rook_src, rook_tgt);
+            stack.move_update(rook, rook_src, rook_tgt);
         }
 
         if move_type.is_promotion() {
             let promotion = move_type.get_promotion(self.side);
 
             new.set_piece(promotion, tgt);
-            nnue_state.manual_update::<OFF>(piece, src);
-            nnue_state.manual_update::<ON>(promotion, tgt);
+            stack.manual_update::<OFF>(piece, src);
+            stack.manual_update::<ON>(promotion, tgt);
         } else {
             new.set_piece(piece, tgt);
-            nnue_state.move_update(piece, src, tgt);
+            stack.move_update(piece, src, tgt);
         }
 
         if let Some(square) = self.en_passant {
