@@ -51,7 +51,7 @@ mod scalar_eval {
     }
 
     /// Squared Clipped ReLu activation function
-    /// Uses Lizard-SIMD trick (autovec)
+    /// Uses Lizard screlu trick (autovec)
     #[inline(always)]
     fn squared_crelu(value: i16, weight: i16) -> i32 {
         let v = value.clamp(CR_MIN, CR_MAX);
@@ -89,7 +89,7 @@ mod scalar_eval {
 #[cfg(not(simd_none))]
 mod simd_eval {
     use super::*;
-    //use crate::nnue::simd::*;
+    use crate::nnue::simd::{self, ACC, VEC_I16_SIZE};
 
     impl Accumulator {
         /// Updates weights for a single feature, either turning them on or off
@@ -132,15 +132,6 @@ mod simd_eval {
         }
     }
 
-    /// Squared Clipped ReLu activation function
-    /// Uses Lizard-SIMD trick (autovec)
-    #[inline(always)]
-    fn squared_crelu(value: i16, weight: i16) -> i32 {
-        let v = value.clamp(CR_MIN, CR_MAX);
-        let vw = v * weight;
-        (v as i32) * (vw as i32)
-    }
-
     impl NNUEState {
         /// Evaluate the nn from the current accumulator
         /// Concatenates the accumulators based on the side to move, computes the activation function
@@ -149,19 +140,40 @@ mod simd_eval {
         /// Since we are squaring activations, we need an extra quantization pass with QA.
         pub fn evaluate(&self, side: Color) -> Eval {
             let acc = &self.accumulator_stack[self.current_acc];
-
             let (us, them) = match side {
-                Color::White => (acc.white.iter(), acc.black.iter()),
-                Color::Black => (acc.black.iter(), acc.white.iter()),
+                Color::White => (&acc.white, &acc.black),
+                Color::Black => (&acc.black, &acc.white),
             };
 
-            let mut out = 0;
-            for (&value, &weight) in us.zip(&MODEL.output_weights[..HIDDEN]) {
-                out += squared_crelu(value, weight);
-            }
-            for (&value, &weight) in them.zip(&MODEL.output_weights[HIDDEN..]) {
-                out += squared_crelu(value, weight);
-            }
+            let out = unsafe {                
+                let cr_min = simd::set_i16(CR_MIN);
+                let cr_max = simd::set_i16(CR_MAX);
+                let mut sum1 = simd::zero_i32::<ACC>();
+                let mut sum2 = simd::zero_i32::<ACC>();
+
+                let x1_ptr = us.as_ptr();
+                let x2_ptr = them.as_ptr();
+                let w1_ptr = MODEL.output_weights.as_ptr();
+                let w2_ptr = w1_ptr.add(HIDDEN);
+
+                for i in (0..HIDDEN).step_by(VEC_I16_SIZE * ACC) {
+                    let x1 = simd::load_i16::<ACC>(x1_ptr.add(i));
+                    let x2 = simd::load_i16::<ACC>(x2_ptr.add(i));
+                    let w1 = simd::load_i16::<ACC>(w1_ptr.add(i));
+                    let w2 = simd::load_i16::<ACC>(w2_ptr.add(i));
+
+                    let v1 = simd::clamp_i16(x1, cr_min, cr_max);
+                    let v2 = simd::clamp_i16(x2, cr_min, cr_max);
+
+                    let vw1 = simd::mullo_i16(v1, w1);
+                    let vw2 = simd::mullo_i16(v2, w2);
+
+                    sum1 = simd::fmadd_i16(sum1, v1, vw1);
+                    sum2 = simd::fmadd_i16(sum2, v2, vw2);
+                }
+
+                simd::sum_reduce_i32(simd::add_i32(sum1, sum2))
+            };
 
             ((out / QA + MODEL.output_bias as i32) * SCALE / QAB) as Eval
         }
