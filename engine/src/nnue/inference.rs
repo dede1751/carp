@@ -16,7 +16,7 @@ mod scalar_eval {
                 let zip = acc
                     .iter_mut()
                     .zip(&MODEL.feature_weights[idx..idx + HIDDEN]);
-    
+
                 for (acc_val, &weight) in zip {
                     if ON {
                         *acc_val += weight;
@@ -25,11 +25,11 @@ mod scalar_eval {
                     }
                 }
             }
-    
+
             update::<ON>(&mut self.white, idx.0);
             update::<ON>(&mut self.black, idx.1);
         }
-    
+
         /// Update accumulator for a quiet move.
         /// Adds in features for the destination and removes the features of the source
         pub fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
@@ -39,23 +39,26 @@ mod scalar_eval {
                         .iter()
                         .zip(&MODEL.feature_weights[to..to + HIDDEN]),
                 );
-    
+
                 for (acc_val, (&remove_weight, &add_weight)) in zip {
                     *acc_val += add_weight - remove_weight;
                 }
             }
-    
+
             add_sub(&mut self.white, from.0, to.0);
             add_sub(&mut self.black, from.1, to.1);
         }
     }
 
     /// Squared Clipped ReLu activation function
-    fn squared_crelu(value: i16) -> i32 {
-        let v = value.clamp(CR_MIN, CR_MAX) as i32;
-        v * v
+    /// Uses Lizard-SIMD trick (autovec)
+    #[inline(always)]
+    fn squared_crelu(value: i16, weight: i16) -> i32 {
+        let v = value.clamp(CR_MIN, CR_MAX);
+        let vw = v * weight;
+        (v as i32) * (vw as i32)
     }
-    
+
     impl NNUEState {
         /// Evaluate the nn from the current accumulator
         /// Concatenates the accumulators based on the side to move, computes the activation function
@@ -64,20 +67,20 @@ mod scalar_eval {
         /// Since we are squaring activations, we need an extra quantization pass with QA.
         pub fn evaluate(&self, side: Color) -> Eval {
             let acc = &self.accumulator_stack[self.current_acc];
-    
+
             let (us, them) = match side {
                 Color::White => (acc.white.iter(), acc.black.iter()),
                 Color::Black => (acc.black.iter(), acc.white.iter()),
             };
-    
+
             let mut out = 0;
             for (&value, &weight) in us.zip(&MODEL.output_weights[..HIDDEN]) {
-                out += squared_crelu(value) * (weight as i32);
+                out += squared_crelu(value, weight);
             }
             for (&value, &weight) in them.zip(&MODEL.output_weights[HIDDEN..]) {
-                out += squared_crelu(value) * (weight as i32);
+                out += squared_crelu(value, weight);
             }
-    
+
             ((out / QA + MODEL.output_bias as i32) * SCALE / QAB) as Eval
         }
     }
@@ -95,7 +98,7 @@ mod simd_eval {
                 let zip = acc
                     .iter_mut()
                     .zip(&MODEL.feature_weights[idx..idx + HIDDEN]);
-    
+
                 for (acc_val, &weight) in zip {
                     if ON {
                         *acc_val += weight;
@@ -104,11 +107,11 @@ mod simd_eval {
                     }
                 }
             }
-    
+
             update::<ON>(&mut self.white, idx.0);
             update::<ON>(&mut self.black, idx.1);
         }
-    
+
         /// Update accumulator for a quiet move.
         /// Adds in features for the destination and removes the features of the source
         pub fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
@@ -118,23 +121,26 @@ mod simd_eval {
                         .iter()
                         .zip(&MODEL.feature_weights[to..to + HIDDEN]),
                 );
-    
+
                 for (acc_val, (&remove_weight, &add_weight)) in zip {
                     *acc_val += add_weight - remove_weight;
                 }
             }
-    
+
             add_sub(&mut self.white, from.0, to.0);
             add_sub(&mut self.black, from.1, to.1);
         }
     }
-    
+
     /// Squared Clipped ReLu activation function
-    fn squared_crelu(value: i16) -> i32 {
-        let v = value.clamp(CR_MIN, CR_MAX) as i32;
-        v * v
+    /// Uses Lizard-SIMD trick (autovec)
+    #[inline(always)]
+    fn squared_crelu(value: i16, weight: i16) -> i32 {
+        let v = value.clamp(CR_MIN, CR_MAX);
+        let vw = v * weight;
+        (v as i32) * (vw as i32)
     }
-    
+
     impl NNUEState {
         /// Evaluate the nn from the current accumulator
         /// Concatenates the accumulators based on the side to move, computes the activation function
@@ -143,20 +149,20 @@ mod simd_eval {
         /// Since we are squaring activations, we need an extra quantization pass with QA.
         pub fn evaluate(&self, side: Color) -> Eval {
             let acc = &self.accumulator_stack[self.current_acc];
-    
+
             let (us, them) = match side {
                 Color::White => (acc.white.iter(), acc.black.iter()),
                 Color::Black => (acc.black.iter(), acc.white.iter()),
             };
-    
+
             let mut out = 0;
             for (&value, &weight) in us.zip(&MODEL.output_weights[..HIDDEN]) {
-                out += squared_crelu(value) * (weight as i32);
+                out += squared_crelu(value, weight);
             }
             for (&value, &weight) in them.zip(&MODEL.output_weights[HIDDEN..]) {
-                out += squared_crelu(value) * (weight as i32);
+                out += squared_crelu(value, weight);
             }
-    
+
             ((out / QA + MODEL.output_bias as i32) * SCALE / QAB) as Eval
         }
     }

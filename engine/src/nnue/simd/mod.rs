@@ -1,4 +1,10 @@
-#![allow(clippy::all, clippy::nursery, clippy::pedantic, dead_code, unused_imports)]
+#![allow(
+    clippy::all,
+    clippy::nursery,
+    clippy::pedantic,
+    dead_code,
+    unused_imports
+)]
 
 /// Yoinked from Viridithas: https://github.com/cosmobobak/viridithas/blob/master/src/nnue/simd.rs
 /// Given a regular type and a SIMD register type, and the new type name, create a new type that wraps the register type.
@@ -38,7 +44,6 @@ pub use sse2::*;
 
 #[cfg(simd_neon)]
 pub use neon::*;
-
 
 // All non-neon reinterpret casts can just rely on the same underlying register type for all Vecs
 #[cfg(all(not(simd_none), not(simd_neon)))]

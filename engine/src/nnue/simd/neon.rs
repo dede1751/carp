@@ -9,7 +9,7 @@ wrap_simd_register!(int8x16_t, i8, VecI8);
 wrap_simd_register!(int16x8_t, i16, VecI16);
 wrap_simd_register!(int32x4_t, i32, VecI32);
 
-// NEON-specific reinterpret casts 
+// NEON-specific reinterpret casts
 pub unsafe fn reinterpret_i32s_as_i8s(vec: VecI32) -> VecI8 {
     VecI8::from_raw(vreinterpretq_s8_s32(vec.inner()))
 }

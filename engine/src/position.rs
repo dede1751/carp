@@ -1,3 +1,5 @@
+use std::{hint::black_box, time::Instant};
+
 use crate::{
     move_picker::MovePicker,
     nnue::*,
@@ -156,6 +158,17 @@ impl Position {
             self.board.queens().count_bits() as Eval  * PIECE_VALUES[Piece::WQ as usize];
 
         (eval * (700 + total_material / 32)) / 1024
+    }
+
+    pub fn nnuebench(&self) -> f64 {
+        let runs = 100_000_000;
+        let start = Instant::now();
+        for _ in 0..runs {
+            black_box(black_box(&self.nnue_state).evaluate(black_box(Color::White)));
+        }
+        let elapsed = start.elapsed();
+        let nanos = elapsed.as_nanos();
+        nanos as f64 / runs as f64
     }
 
     /// Check for repetitions in hash history (twofold)
