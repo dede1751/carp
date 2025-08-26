@@ -1,3 +1,5 @@
+use std::{hint::black_box, time::Instant};
+
 use crate::{
     move_picker::MovePicker,
     nnue::*,
@@ -158,6 +160,17 @@ impl Position {
         (eval * (700 + total_material / 32)) / 1024
     }
 
+    pub fn nnuebench(&self) -> f64 {
+        let runs = 100_000_000;
+        let start = Instant::now();
+        for _ in 0..runs {
+            black_box(black_box(&self.nnue_state).evaluate(black_box(Color::White)));
+        }
+        let elapsed = start.elapsed();
+        let nanos = elapsed.as_nanos();
+        nanos as f64 / runs as f64
+    }
+
     /// Check for repetitions in hash history (twofold)
     fn is_repetition(&self, ply_from_null: usize) -> bool {
         let rollback = 1 + ply_from_null.min(self.board.halfmoves);
@@ -217,6 +230,22 @@ pub enum GameResult {
     WhiteWin(bool),
     BlackWin(bool),
     Draw(bool),
+}
+
+#[cfg(feature = "datagen")]
+impl GameResult {
+    pub const WHITE_WIN: u8 = 2;
+    pub const BLACK_WIN: u8 = 0;
+    pub const DRAW: u8 = 1;
+
+    pub const fn as_packed_u8(self) -> u8 {
+        match self {
+            Self::WhiteWin(_) => Self::WHITE_WIN,
+            Self::BlackWin(_) => Self::BLACK_WIN,
+            Self::Draw(_) => Self::DRAW,
+            Self::Ongoing => panic!("Game is not over!"),
+        }
+    }
 }
 
 pub const ADJ: bool = true;

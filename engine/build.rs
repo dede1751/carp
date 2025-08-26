@@ -1,5 +1,5 @@
 /// Setup LMR tables which need float math.
-use std::{env, error::Error, fs::File, io::Write, path::PathBuf};
+use std::{collections::HashMap, env, error::Error, fs::File, io::Write, path::PathBuf};
 
 #[cfg(feature = "syzygy")]
 fn build_fathom() {
@@ -10,7 +10,7 @@ fn build_fathom() {
 
     // From Princhess, compiler seems to not be passing the target correctly.
     let target_cpu = std::env::var("TARGET_CPU").unwrap_or("native".to_string());
-    cc.flag(&format!("-march={}", target_cpu));
+    cc.flag(format!("-march={}", target_cpu));
 
     cc.flag("-march=native");
     cc.flag("-w");
@@ -37,10 +37,15 @@ fn generate_fathom_bindings() {
 
 fn setup_simd_flags() {
     // Notify rustc of custom feature flags.
-    println!("cargo:rustc-check-cfg=cfg(simd_avx512)");
-    println!("cargo:rustc-check-cfg=cfg(simd_avx2)");
-    println!("cargo:rustc-check-cfg=cfg(simd_sse2)");
-    println!("cargo:rustc-check-cfg=cfg(simd_neon)");
+    let mut supported_simd = HashMap::new();
+    supported_simd.insert("x86_64", vec!["avx512vnni", "avx512f", "avxvnni", "avx2"]);
+    supported_simd.insert("aarch64", vec!["neon"]);
+
+    for arch_simd in supported_simd.values() {
+        for simd in arch_simd.iter() {
+            println!("cargo:rustc-check-cfg=cfg(simd_{})", simd);
+        }
+    }
     println!("cargo:rustc-check-cfg=cfg(simd_none)");
 
     // Re-run if these env vars change.
@@ -50,21 +55,11 @@ fn setup_simd_flags() {
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
     let features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
     let has = |name: &str| features.split(',').any(|f| f == name);
-
-    let mut selected_cfg = "simd_none";
-    if arch == "x86_64" {
-        if has("avx512f") {
-            selected_cfg = "simd_avx512";
-        } else if has("avx2") {
-            selected_cfg = "simd_avx2";
-        } else if has("sse2") {
-            selected_cfg = "simd_sse2";
-        }
-    } else if arch == "aarch64" && has("neon") {
-        selected_cfg = "simd_neon";
-    }
-
-    println!("cargo:rustc-cfg={selected_cfg}");
+    supported_simd
+        .get(arch.as_str())
+        .and_then(|simd_list| simd_list.iter().find(|&&simd| has(simd)))
+        .map(|&simd| println!("cargo:rustc-cfg=simd_{}", simd))
+        .unwrap_or_else(|| println!("cargo:rustc-cfg=simd_none"));
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

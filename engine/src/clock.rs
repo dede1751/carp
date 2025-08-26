@@ -246,6 +246,12 @@ impl Clock {
             if self.global_stop.load(Ordering::SeqCst) {
                 return false;
             }
+
+            #[cfg(feature = "datagen")]
+            // ciekce::rand::gen_very_large()
+            if self.last_nodes >= 8_000_000 {
+                return false;
+            }
         }
 
         let proceed = match self.time_control {

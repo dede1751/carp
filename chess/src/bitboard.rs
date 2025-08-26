@@ -102,6 +102,11 @@ impl BitBoard {
     pub const EP_RANKS: [Self; 2] = [Self(0x00000000FF000000), Self(0x000000FF00000000)];
     pub const PROMO_RANKS: [Self; 2] = [Self(0x000000000000FF00), Self(0x00FF000000000000)];
 
+    /// Returns underlying u64 representation
+    pub const fn inner(self) -> u64 {
+        self.0
+    }
+
     /// Check whether given square is set on the board
     pub const fn get_bit(self, square: Square) -> bool {
         self.0 & (1u64 << square as usize) != 0

@@ -6,5 +6,6 @@
     clippy::all,
     clippy::pedantic
 )]
+#[cfg(feature = "syzygy")]
 mod bindings;
 pub mod probe;
