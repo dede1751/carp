@@ -7,13 +7,15 @@ TMPDIR := $(_THIS)/tmp
 ifeq ($(OS),Windows_NT)
 	EXT := .exe
 	VER := win
-	# Different native flag for macOS
+	PROF := llvm-profdata
 else ifeq ($(shell uname -s), Darwin)
 	EXT :=
 	VER := darwin
+	PROF := xcrun llvm-profdata
 else
 	EXT :=
 	VER := linux
+	PROF := llvm-profdata
 endif
 
 NAME := $(EXE)$(EXT)
@@ -24,10 +26,10 @@ rule:
 tmp-dir:
 	mkdir -p $(TMPDIR)
 
-x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
+x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
 	cargo rustc -r -p engine --bins -- -C target-cpu=$@ -C profile-generate=$(TMPDIR) --emit link=$(LXE)-$(VER)-$@$(EXT)
 	./$(LXE)-$(VER)-$@$(EXT) bench 16
-	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
+	${PROF} merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 	
 	cargo rustc -r -p engine --bins -- -C target-feature=+crt-static -C target-cpu=$@ -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)-$@$(EXT)
 
@@ -37,7 +39,7 @@ x86-64 x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
 syzygy: tmp-dir
 	cargo rustc -r -p engine --bins --features syzygy -- -C target-cpu=native -C profile-generate=$(TMPDIR) --emit link=$(LXE)-$(VER)$(EXT)
 	./$(LXE)-$(VER)$(EXT) bench 16
-	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
+	${PROF} merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
 	
 	cargo rustc -r -p engine --bins --features syzygy -- -C target-feature=+crt-static -C target-cpu=native -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)$(EXT)
 
@@ -56,5 +58,5 @@ datagen: tmp-dir
 	rm -rf $(_THIS)/data
 	rm -f *.pdb
 
-release: x86-64 x86-64-v2 x86-64-v3 x86-64-v4
+release: x86-64-v2 x86-64-v3 x86-64-v4
 	rm -rf $(TMPDIR)

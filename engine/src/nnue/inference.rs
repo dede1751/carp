@@ -92,7 +92,6 @@ mod simd_eval {
     use crate::nnue::simd::{self, ACC, VEC_I16_SIZE};
 
     impl Accumulator {
-        /// Updates weights for a single feature, either turning them on or off
         pub fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
             fn update<const ON: bool>(acc: &mut SideAccumulator, idx: usize) {
                 let zip = acc
@@ -112,8 +111,6 @@ mod simd_eval {
             update::<ON>(&mut self.black, idx.1);
         }
 
-        /// Update accumulator for a quiet move.
-        /// Adds in features for the destination and removes the features of the source
         pub fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
             fn add_sub(acc: &mut SideAccumulator, from: usize, to: usize) {
                 let zip = acc.iter_mut().zip(
@@ -133,11 +130,6 @@ mod simd_eval {
     }
 
     impl NNUEState {
-        /// Evaluate the nn from the current accumulator
-        /// Concatenates the accumulators based on the side to move, computes the activation function
-        /// with Squared CReLu and multiplies activation by weight. The result is the sum of all these
-        /// with the bias.
-        /// Since we are squaring activations, we need an extra quantization pass with QA.
         pub fn evaluate(&self, side: Color) -> Eval {
             let acc = &self.accumulator_stack[self.current_acc];
             let (us, them) = match side {
@@ -172,7 +164,7 @@ mod simd_eval {
                     sum2 = simd::fmadd_i16(sum2, v2, vw2);
                 }
 
-                simd::sum_reduce_i32(simd::add_i32(sum1, sum2))
+                simd::hsum_i32(simd::sum_reduce_i32(simd::add_i32(sum1, sum2)))
             };
 
             ((out / QA + MODEL.output_bias as i32) * SCALE / QAB) as Eval
