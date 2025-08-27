@@ -2,7 +2,7 @@
 EXE   := Carp
 LXE   := carp
 _THIS := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-TMPDIR := $(_THIS)/tmp
+TMP := $(_THIS)/tmp
 
 ifeq ($(OS),Windows_NT)
 	EXT := .exe
@@ -20,43 +20,45 @@ endif
 
 NAME := $(EXE)$(EXT)
 
+.PHONY: rule tmp-dir release syzygy datagen
+
 rule:
 	cargo rustc -r -p engine --bins -- -C target-cpu=native --emit link=$(NAME)
 
 tmp-dir:
-	mkdir -p $(TMPDIR)
+	mkdir -p $(TMP)
 
-x86-64-v2 x86-64-v3 x86-64-v4 native: tmp-dir
-	cargo rustc -r -p engine --bins -- -C target-cpu=$@ -C profile-generate=$(TMPDIR) --emit link=$(LXE)-$(VER)-$@$(EXT)
+x86-64-v2 x86-64-v3 x86-64-v4 apple-m1 apple-m2 apple-m3 apple-m4 generic native: tmp-dir
+	cargo rustc -r -p engine --bins -- -C target-cpu=$@ -C profile-generate=$(TMP) --emit link=$(LXE)-$(VER)-$@$(EXT)
 	./$(LXE)-$(VER)-$@$(EXT) bench 16
-	${PROF} merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
+	${PROF} merge -o $(TMP)/merged.profdata $(TMP)
 	
-	cargo rustc -r -p engine --bins -- -C target-feature=+crt-static -C target-cpu=$@ -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)-$@$(EXT)
+	cargo rustc -r -p engine --bins -- -C target-feature=+crt-static -C target-cpu=$@ -C profile-use=$(TMP)/merged.profdata --emit link=$(LXE)-$(VER)-$@$(EXT)
 
-	rm -rf $(TMPDIR)/*
+	rm -rf $(TMP)/*
 	rm -f *.pdb
 
 syzygy: tmp-dir
-	cargo rustc -r -p engine --bins --features syzygy -- -C target-cpu=native -C profile-generate=$(TMPDIR) --emit link=$(LXE)-$(VER)$(EXT)
+	cargo rustc -r -p engine --bins --features syzygy -- -C target-cpu=native -C profile-generate=$(TMP) --emit link=$(LXE)-$(VER)$(EXT)
 	./$(LXE)-$(VER)$(EXT) bench 16
-	${PROF} merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
+	${PROF} merge -o $(TMP)/merged.profdata $(TMP)
 	
-	cargo rustc -r -p engine --bins --features syzygy -- -C target-feature=+crt-static -C target-cpu=native -C profile-use=$(TMPDIR)/merged.profdata --emit link=$(LXE)-$(VER)$(EXT)
+	cargo rustc -r -p engine --bins --features syzygy -- -C target-feature=+crt-static -C target-cpu=native -C profile-use=$(TMP)/merged.profdata --emit link=$(LXE)-$(VER)$(EXT)
 
-	rm -rf $(TMPDIR)/*
+	rm -rf $(TMP)/*
 	rm -f *.pdb
 
 datagen: tmp-dir
-	cargo rustc -r -p tools -- -C target-cpu=native -C profile-generate=$(TMPDIR) --emit link=datagen$(EXT)
+	cargo rustc -r -p tools -- -C target-cpu=native -C profile-generate=$(TMP) --emit link=datagen$(EXT)
 	./datagen$(EXT) datagen -g 256 -t 32 -n 5000
 	./datagen$(EXT) datagen -g 256 -t 32 -d 8
-	llvm-profdata merge -o $(TMPDIR)/merged.profdata $(TMPDIR)
+	llvm-profdata merge -o $(TMP)/merged.profdata $(TMP)
 
-	cargo rustc -r -p tools -- -C target-cpu=native -C profile-use=$(TMPDIR)/merged.profdata --emit link=datagen$(EXT)
+	cargo rustc -r -p tools -- -C target-cpu=native -C profile-use=$(TMP)/merged.profdata --emit link=datagen$(EXT)
 
-	rm -rf $(TMPDIR)
+	rm -rf $(TMP)
 	rm -rf $(_THIS)/data
 	rm -f *.pdb
 
-release: x86-64-v2 x86-64-v3 x86-64-v4
-	rm -rf $(TMPDIR)
+release-x86: generic x86-64-v2 x86-64-v3 x86-64-v4
+	rm -rf $(TMP)
