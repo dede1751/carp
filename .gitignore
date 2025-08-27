@@ -1,3 +1,4 @@
 target
 tmp
 **/.DS_Store
+engine/src/syzygy/bindings.rs
