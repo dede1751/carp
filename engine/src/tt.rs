@@ -140,7 +140,7 @@ impl From<(u64, u64)> for TTEntry {
             key: key ^ data,
             age: (data & AGE_MASK) as u8,
             depth: ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8,
-            flag: unsafe { transmute(((data & FLAG_MASK) >> FLAG_OFFSET) as u8) },
+            flag: unsafe { transmute::<u8, TTFlag>(((data & FLAG_MASK) >> FLAG_OFFSET) as u8) },
             best_move: Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u16),
             eval: ((data & EVAL_MASK) >> EVAL_OFFSET) as i16,
             value: (data >> VALUE_OFFSET) as i16,
@@ -232,8 +232,8 @@ impl TT {
 
     /// Prefetch a cache line containing the entry for the given hash
     /// Implementation from Viridithas
+    #[cfg(target_arch = "x86_64")]
     pub fn prefetch(&self, hash: ZHash) {
-        #[cfg(target_arch = "x86_64")]
         unsafe {
             use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
 
@@ -245,6 +245,8 @@ impl TT {
             _mm_prefetch((entry as *const AtomicField).cast::<i8>(), _MM_HINT_T0);
         }
     }
+    #[cfg(not(target_arch = "x86_64"))]
+    pub fn prefetch(&self, _hash: ZHash) {}
 
     /// Probe tt for entry
     /// UB: so long and we use the wrapped key from TT::get_key, we are guaranteed to be within bounds

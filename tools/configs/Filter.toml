@@ -1,0 +1,24 @@
+# Material filters
+min_ply = 16
+min_pieces = 4
+max_eval = 29_000 # A bit less than TB mate scores
+
+# Move filters
+filter_tactical = true
+filter_check = true
+filter_castling = true
+
+# Position-based filters
+max_eval_incorrectness = 4_294_967_295 #u32::MAX, disables feature
+random_fen_skipping = false
+random_fen_skip_probability = 0.0
+wdl_filtered = false
+
+# Note: Carp uses an older version of WDL model and these parameters are thus outdated
+# Since we dont use the wdl filter it's not relevant yet
+wdl_model_params_a = [-0.77690016, 10.19729841, 14.69567024, 175.35727553]
+wdl_model_params_b = [-3.74786075, 28.20402419, -53.21735403, 85.17319775]
+material_min = 17,
+material_max = 78,
+mom_target = 58,
+wdl_heuristic_scale = 1.5

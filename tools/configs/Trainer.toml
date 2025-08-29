@@ -1,0 +1,21 @@
+# Network parameters
+name = "carp0025"
+hidden_size = 1024
+
+# Training parameters
+num_superbatch = 10
+batch_size = 16_384
+superbatch_size = 100_000_000
+
+initial_lr = 1e-3
+final_lr = 2.43e-6 # 0.001 * 0.3f32.powi(5)
+wdl_fraction = 0.75
+eval_scale = 400.0
+
+# IO
+loader_threads = 8
+batch_queue_size = 64
+
+save_freq = 10
+save_dir = "checkpoints"
+data_dir = "/home/asgobbi/data/bulletformat.bin"

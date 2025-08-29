@@ -80,6 +80,11 @@ impl Square {
         "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
     ];
 
+    /// Get underlying u8 representation
+    pub const fn inner(self) -> u8 {
+        self as u8
+    }
+
     /// Get square from (rank, file) coordinates
     pub const fn from_coords(file: File, rank: Rank) -> Self {
         transmute_enum!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file

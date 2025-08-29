@@ -11,9 +11,18 @@ categories = ["games"]
 repository = "https://github.com/dede1751/carp"
 
 [dependencies]
+chess = { path = "../chess" }
 engine = { path = "../engine", features = ["datagen", "syzygy"] }
+
 clap = { version = "4.2.1", features = ["derive"] }
+anyhow = "1"
 chrono = "0.4"
 fastrand = "1.9.0"
 ctrlc = "3.2.5"
-itertools = "0.10.5"
+
+bullet = { git = "https://github.com/jw1912/bullet", package = "bullet_lib", optional = true }
+toml = { version = "0.9.5", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+
+[features]
+train = ["dep:bullet", "dep:toml", "dep:serde"]

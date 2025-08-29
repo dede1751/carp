@@ -10,6 +10,7 @@
 /// implementation.
 use std::{error::Error, ffi::CString, ptr, sync::atomic::AtomicU64};
 
+#[cfg(feature = "syzygy")]
 use super::bindings::{
     tb_init, tb_probe_root, tb_probe_wdl, TB_BLESSED_LOSS, TB_CURSED_WIN, TB_DRAW, TB_LARGEST,
     TB_LOSS, TB_PROMOTES_BISHOP, TB_PROMOTES_KNIGHT, TB_PROMOTES_QUEEN, TB_PROMOTES_ROOK,
@@ -37,8 +38,8 @@ pub enum WDL {
     Loss,
     Draw,
 }
-
 impl WDL {
+    #[cfg(feature = "syzygy")]
     /// Convert from a simple WDL (resulting from tb_probe_wdl) to a WDL.
     fn new(result: u32) -> Option<Self> {
         match result {
@@ -66,6 +67,7 @@ pub struct TBProbe {
     pub best_move: Move,
 }
 
+#[cfg(feature = "syzygy")]
 impl TBProbe {
     /// Convert from a full probe result (resulting from tb_probe_root) to a TBProbe.
     fn new(result: u32, board: &Board) -> Option<Self> {
@@ -235,7 +237,7 @@ mod tests {
     impl TB {
         /// Multiple testing threads cannot initialize the TBs or they can cause UB.
         fn activate_once() -> TB {
-            const SYZYGY_PATH: &str = "/home/dede/Documents/Syzygy";
+            const SYZYGY_PATH: &str = "/home/asgobbi/chess/syzygy/3-4-5";
             const SYZYGY_MEN: u8 = 5;
 
             let mut loaded = LOADED_TB.lock().unwrap();

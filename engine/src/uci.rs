@@ -47,6 +47,7 @@ enum UCICommand {
     Perft(usize),
     Print,
     Eval,
+    NNUEBench,
 }
 
 /// Parse string into uci command
@@ -82,6 +83,7 @@ impl FromStr for UCICommand {
             },
             Some("print") => Ok(Self::Print),
             Some("eval") => Ok(Self::Eval),
+            Some("nnuebench") => Ok(Self::NNUEBench),
             Some("position") => Ok(Self::Position(Box::new(
                 tokens.collect::<Vec<&str>>().join(" ").parse()?,
             ))),
@@ -204,6 +206,10 @@ impl UCIController {
 
                 UCICommand::Eval => {
                     println!("Static evaluation: {}", position.evaluate());
+                }
+
+                UCICommand::NNUEBench => {
+                    println!("Eval time: {:.3}ns", position.nnuebench());
                 }
 
                 UCICommand::Position(pos) => {

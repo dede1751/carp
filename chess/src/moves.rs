@@ -103,6 +103,11 @@ impl Move {
         Self((src as u16) | (tgt as u16) << 6 | (move_type as u16) << 12)
     }
 
+    /// Returns the underlying u16 representation
+    pub const fn inner(self) -> u16 {
+        self.0
+    }
+
     /// Returns the move source square
     pub const fn get_src(self) -> Square {
         transmute_enum!((self.0 & SRC) as u8, 63)

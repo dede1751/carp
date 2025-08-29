@@ -108,6 +108,11 @@ impl CastlingRights {
         self.0 as usize
     }
 
+    /// Returns underlying u8 representation
+    pub const fn inner(self) -> u8 {
+        self.0
+    }
+
     /// Checks whether given color has kingside rights
     pub const fn has_kingside(self, side: Color) -> bool {
         self.0 & KINGSIDE[side as usize] != 0

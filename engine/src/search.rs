@@ -27,6 +27,14 @@ impl Position {
             let eval = self.aspiration_window(t, tt, tb);
 
             if t.stop {
+                // If we are here, the nodecount exploded in datagen
+                #[cfg(feature = "datagen")]
+                eprintln!(
+                    "WARNING: The node count exploded to {}, FEN: {}",
+                    t.nodes,
+                    self.board.to_fen()
+                );
+
                 break;
             }
 

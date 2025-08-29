@@ -1,7 +1,10 @@
 /// Tools encapsulates various cli utilities for engine development
 /// Will get expanded as more functionality is introduced
+mod binpack;
 mod datagen;
-mod merge;
+
+#[cfg(feature = "train")]
+mod train;
 
 use clap::{Parser, Subcommand};
 
@@ -26,7 +29,8 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Datagen(datagen::DatagenOptions),
-    Merge(merge::MergeOptions),
+    #[cfg(feature = "train")]
+    Train(train::TrainerOptions),
 }
 
 fn main() {
@@ -34,12 +38,8 @@ fn main() {
 
     match args.command {
         Some(Command::Datagen(opts)) => datagen::run_datagen(opts),
-        Some(Command::Merge(opts)) => {
-            if let Err(err) = merge::merge(opts.path) {
-                eprintln!("{ORANGE}{err}");
-                std::process::exit(1)
-            }
-        }
+        #[cfg(feature = "train")]
+        Some(Command::Train(opts)) => train::run_trainer(opts),
         _ => eprintln!("{ORANGE}No valid command provided! Exiting. . . "),
     }
 }

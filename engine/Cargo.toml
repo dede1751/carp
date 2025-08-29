@@ -21,5 +21,5 @@ datagen = []
 syzygy = ["dep:cc", "dep:bindgen"]
 
 [build-dependencies]
-cc = { version = "1.0.73", optional = true }
-bindgen = { version = "0.69.1", optional = true }
+cc = { version = "1.0.79", optional = true }
+bindgen = { version = "0.69.4", optional = true }

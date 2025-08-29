@@ -21,13 +21,11 @@ impl MoveList {
     /// Assuming we have 8 cache lines, which should be 512B, we use up enough to fill a single
     /// cache line with the array and a pointer of our current architecture.
     /// With 2B moves, this results in (512B - {ARCH_POINTER_SIZE}B) / 2B
-    #[cfg(target_pointer_width = "128")]
-    pub const SIZE: usize = 248;
     #[cfg(target_pointer_width = "64")]
     pub const SIZE: usize = 252;
     #[cfg(target_pointer_width = "32")]
     pub const SIZE: usize = 254;
-    #[cfg(any(target_pointer_width = "16", target_pointer_width = "8",))]
+    #[cfg(target_pointer_width = "16")]
     pub const SIZE: usize = 255;
 
     /// Returns move list length

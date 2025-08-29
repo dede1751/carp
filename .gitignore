@@ -1,2 +1,6 @@
+engine/src/syzygy/bindings.rs
 target
 tmp
+data
+checkpoints
+**/.DS_Store

@@ -32,10 +32,10 @@ pub const BIG_DELTA: Eval = 1100;
 
 pub const LMR_THRESHOLD: usize = 2;
 pub const LMR_LOWER_LIMIT: usize = 2;
-const LMR_TABLE: [[usize; 64]; 64] = unsafe { transmute(*include_bytes!("../../bins/lmr.bin")) };
+static LMR_TABLE: [[u64; 64]; 64] = unsafe { transmute(*include_bytes!("../../bins/lmr.bin")) };
 
 pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
-    LMR_TABLE[depth.min(63)][move_count.min(63)]
+    LMR_TABLE[depth.min(63)][move_count.min(63)] as usize
 }
 
 pub const SE_LOWER_LIMIT: usize = 8;

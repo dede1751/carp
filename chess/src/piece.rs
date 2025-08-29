@@ -34,6 +34,13 @@ impl fmt::Display for Color {
     }
 }
 
+impl Color {
+    /// Returns underlying u8 representation
+    pub const fn inner(self) -> u8 {
+        self as u8
+    }
+}
+
 /// Chess Piece enum (includes color)
 /// Pieces alternate between Black and White so that the least significant bit is the color
 #[repr(u8)]
@@ -145,6 +152,11 @@ impl Piece {
     /// Returns a usize index between 0 and 5 (indexes the piece type)
     pub const fn index(self) -> usize {
         self as usize / 2
+    }
+
+    /// Returns underlying u8 representation between 0 and 5 (indexes the piece type)
+    pub const fn inner(self) -> u8 {
+        self as u8 / 2
     }
 
     /// Returns fen formatted piece
