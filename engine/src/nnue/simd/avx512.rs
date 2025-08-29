@@ -1,14 +1,13 @@
 #![allow(non_camel_case_types)]
-use std::arch::avx512f::*;
+use std::arch::x86_64::*;
 use std::array;
 use std::mem::size_of;
-use super::mm_shuffle;
 
 pub type VecI16 = __m512i;
 pub type VecI32 = __m512i;
 
 pub const VEC_I16_SIZE: usize = size_of::<VecI16>() / size_of::<i16>();
-pub const ACC: usize = 2; // number of accumuators to use for unrolling
+pub const ACC: usize = 1; // number of accumuators to use for unrolling
 
 //////////////////////////////// i16 ////////////////////////////////
 #[inline(always)]
@@ -17,7 +16,7 @@ pub unsafe fn set_i16(val: i16) -> VecI16 {
 }
 #[inline(always)]
 pub unsafe fn load_i16<const N: usize>(ptr: *const i16) -> [VecI16; N] {
-    array::from_fn(|i| _mm512_load_si512(ptr.add(i * VEC_I16_SIZE)))
+    array::from_fn(|i| _mm512_load_si512(ptr.add(i * VEC_I16_SIZE).cast()))
 }
 #[inline(always)]
 pub unsafe fn clamp_i16<const N: usize>(val: [VecI16; N], min: VecI16, max: VecI16) -> [VecI16; N] {
@@ -43,7 +42,7 @@ pub unsafe fn fmadd_i16<const N: usize>(
     a: [VecI16; N],
     b: [VecI16; N],
 ) -> [VecI32; N] {
-    let prod_32 = array::from_fn(|i| _mm512_madd_epi16(a[i], b[i]));
+    let prod_32: [VecI32; N] = array::from_fn(|i| _mm512_madd_epi16(a[i], b[i]));
     array::from_fn(|i| _mm512_add_epi32(sum[i], prod_32[i]))
 }
 

@@ -1,14 +1,18 @@
 #![allow(non_camel_case_types)]
-use std::arch::avx2::*;
+use std::arch::x86_64::*;
 use std::array;
 use std::mem::size_of;
-use super::mm_shuffle;
 
 pub type VecI16 = __m256i;
 pub type VecI32 = __m256i;
 
 pub const VEC_I16_SIZE: usize = size_of::<VecI16>() / size_of::<i16>();
-pub const ACC: usize = 4; // number of accumuators to use for unrolling
+pub const ACC: usize = 1; // number of accumuators to use for unrolling
+
+#[inline(always)]
+pub const fn mm_shuffle(z: i32, y: i32, x: i32, w: i32) -> i32 {
+    ((z) << 6) | ((y) << 4) | ((x) << 2) | (w)
+}
 
 //////////////////////////////// i16 ////////////////////////////////
 #[inline(always)]
@@ -17,7 +21,7 @@ pub unsafe fn set_i16(val: i16) -> VecI16 {
 }
 #[inline(always)]
 pub unsafe fn load_i16<const N: usize>(ptr: *const i16) -> [VecI16; N] {
-    array::from_fn(|i| _mm256_load_si256(ptr.add(i * VEC_I16_SIZE)))
+    array::from_fn(|i| _mm256_load_si256(ptr.add(i * VEC_I16_SIZE).cast()))
 }
 #[inline(always)]
 pub unsafe fn clamp_i16<const N: usize>(val: [VecI16; N], min: VecI16, max: VecI16) -> [VecI16; N] {
@@ -43,14 +47,14 @@ pub unsafe fn fmadd_i16<const N: usize>(
     a: [VecI16; N],
     b: [VecI16; N],
 ) -> [VecI32; N] {
-    let prod_32 = array::from_fn(|i| _mm256_madd_epi16(a[i], b[i]));
+    let prod_32: [VecI32; N] = array::from_fn(|i| _mm256_madd_epi16(a[i], b[i]));
     array::from_fn(|i| _mm256_add_epi32(sum[i], prod_32[i]))
 }
 
 //////////////////////////////// i32 ////////////////////////////////
 #[inline(always)]
 pub unsafe fn zero_i32<const N: usize>() -> [VecI32; N] {
-    [_mm256_setzero_epi32(); N]
+    [_mm256_setzero_si256(); N]
 }
 #[inline(always)]
 pub unsafe fn add_i32<const N: usize>(a: [VecI32; N], b: [VecI32; N]) -> [VecI32; N] {
@@ -67,9 +71,9 @@ pub unsafe fn sum_reduce_i32<const N: usize>(val: [VecI32; N]) -> VecI32 {
 // See: https://stackoverflow.com/a/60109639
 #[inline(always)]
 pub unsafe fn hsum_i32(val: VecI32) -> i32 {
-    let hi_128 = _mm256_extracti128_si256(v, 1);
+    let hi_128 = _mm256_extracti128_si256(val, 1);
     let lo_128 = _mm256_castsi256_si128(val);
-    let sum_128 = _mm_add_epi32(hi, lo);
+    let sum_128 = _mm_add_epi32(hi_128, lo_128);
 
     let hi_64 = _mm_unpackhi_epi64(sum_128, sum_128);
     let sum_64 = _mm_add_epi32(hi_64, sum_128);
