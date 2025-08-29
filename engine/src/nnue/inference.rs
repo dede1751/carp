@@ -49,11 +49,12 @@ mod scalar_eval {
         }
     }
 
-    /// Squared Clipped ReLu activation function
+    /// Squared Clipped ReLu activation function using the lizard trick
     #[inline(always)]
-    fn squared_crelu(value: i16) -> i32 {
-        let v = value.clamp(CR_MIN, CR_MAX) as i32;
-        v * v
+    fn lizard_screlu(value: i16, weight: i16) -> i32 {
+        let v = value.clamp(CR_MIN, CR_MAX);
+        let vw = v * weight;
+        (v as i32) * (vw as i32)
     }
 
     impl NNUEState {
@@ -72,10 +73,10 @@ mod scalar_eval {
 
             let mut out = 0;
             for (&value, &weight) in us.zip(&MODEL.output_weights[..HIDDEN]) {
-                out += squared_crelu(value) * weight as i32;
+                out += lizard_screlu(value, weight);
             }
             for (&value, &weight) in them.zip(&MODEL.output_weights[HIDDEN..]) {
-                out += squared_crelu(value) * weight as i32;
+                out += lizard_screlu(value, weight);
             }
 
             ((out / QA + MODEL.output_bias as i32) * SCALE / QAB) as Eval
