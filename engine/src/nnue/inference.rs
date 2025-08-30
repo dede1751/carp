@@ -88,7 +88,7 @@ mod scalar_eval {
 #[cfg(not(simd_none))]
 mod simd_eval {
     use super::*;
-    use crate::nnue::simd::{self, ACC, VEC_I16_SIZE};
+    use crate::nnue::simd::{self, VEC_I16_SIZE};
 
     impl Accumulator {
         pub fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
@@ -136,22 +136,22 @@ mod simd_eval {
                 Color::Black => (&acc.black, &acc.white),
             };
 
-            let out = unsafe {                
+            let out = unsafe {
                 let cr_min = simd::set_i16(CR_MIN);
                 let cr_max = simd::set_i16(CR_MAX);
-                let mut sum1 = simd::zero_i32::<ACC>();
-                let mut sum2 = simd::zero_i32::<ACC>();
+                let mut sum1 = simd::zero_i32();
+                let mut sum2 = simd::zero_i32();
 
                 let x1_ptr = us.as_ptr();
                 let x2_ptr = them.as_ptr();
                 let w1_ptr = MODEL.output_weights.as_ptr();
                 let w2_ptr = w1_ptr.add(HIDDEN);
 
-                for i in (0..HIDDEN).step_by(VEC_I16_SIZE * ACC) {
-                    let x1 = simd::load_i16::<ACC>(x1_ptr.add(i));
-                    let x2 = simd::load_i16::<ACC>(x2_ptr.add(i));
-                    let w1 = simd::load_i16::<ACC>(w1_ptr.add(i));
-                    let w2 = simd::load_i16::<ACC>(w2_ptr.add(i));
+                for i in (0..HIDDEN).step_by(VEC_I16_SIZE) {
+                    let x1 = simd::load_i16(x1_ptr.add(i));
+                    let x2 = simd::load_i16(x2_ptr.add(i));
+                    let w1 = simd::load_i16(w1_ptr.add(i));
+                    let w2 = simd::load_i16(w2_ptr.add(i));
 
                     let v1 = simd::clamp_i16(x1, cr_min, cr_max);
                     let v2 = simd::clamp_i16(x2, cr_min, cr_max);
@@ -163,7 +163,7 @@ mod simd_eval {
                     sum2 = simd::fmadd_i16(sum2, v2, vw2);
                 }
 
-                simd::hsum_i32(simd::sum_reduce_i32(simd::add_i32(sum1, sum2)))
+                simd::hsum_i32(simd::add_i32(sum1, sum2))
             };
 
             ((out / QA + MODEL.output_bias as i32) * SCALE / QAB) as Eval
