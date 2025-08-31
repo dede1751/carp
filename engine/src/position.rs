@@ -152,7 +152,7 @@ impl Position {
 
         #[rustfmt::skip]
         let total_material =
-            self.board.knights().count_bits() as Eval * PIECE_VALUES[Piece::WK as usize] +
+            self.board.knights().count_bits() as Eval * PIECE_VALUES[Piece::WN as usize] +
             self.board.bishops().count_bits() as Eval * PIECE_VALUES[Piece::WB as usize] +
             self.board.rooks().count_bits() as Eval   * PIECE_VALUES[Piece::WR as usize] +
             self.board.queens().count_bits() as Eval  * PIECE_VALUES[Piece::WQ as usize];
