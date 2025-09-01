@@ -22,7 +22,7 @@ mod scalar_eval {
         /// with the bias.
         /// Since we are squaring activations, we need an extra quantization pass with QA.
         pub fn evaluate(&self, side: Color) -> Eval {
-            let acc = &self.accumulator_stack[self.current_acc];
+            let acc = &self.accs[self.top];
 
             let (us, them) = match side {
                 Color::White => (acc.white.iter(), acc.black.iter()),
