@@ -2,7 +2,7 @@ use std::{hint::black_box, time::Instant};
 
 use crate::{
     move_picker::MovePicker,
-    nnue::*,
+    nnue::AccumulatorStack,
     search_params::*,
     syzygy::probe::{TB, WDL},
     thread::Thread,
@@ -20,7 +20,7 @@ use chess::{
 pub struct Position {
     pub board: Board,
     history: Vec<Board>,
-    nnue_state: Box<NNUEState>,
+    acc_stack: Box<AccumulatorStack>,
 }
 
 /// Get position from uci position string
@@ -59,12 +59,12 @@ impl std::str::FromStr for Position {
             }
         };
 
-        let nnue_state = NNUEState::from_board(&board);
+        let acc_stack = AccumulatorStack::from_board(&board);
 
         Ok(Self {
             board,
             history,
-            nnue_state,
+            acc_stack,
         })
     }
 }
@@ -91,7 +91,9 @@ impl Position {
     /// Makes the given move within the game tree
     /// We use std::mem::replace to avoid cloning the board
     pub fn make_move(&mut self, m: Move, t: &mut Thread) {
-        let new = self.board.make_move_nnue(m, &mut self.nnue_state);
+        self.acc_stack.push();
+        let acc = &mut self.acc_stack.accs[self.acc_stack.top];
+        let new = self.board.make_move_nnue(m, acc);
         let old = std::mem::replace(&mut self.board, new);
 
         let piece = old.piece_at(m.get_src());
@@ -106,7 +108,7 @@ impl Position {
         let new = self.board.make_null();
         let old = std::mem::replace(&mut self.board, new);
 
-        self.nnue_state.push();
+        self.acc_stack.push();
         self.history.push(old);
 
         t.push_null();
@@ -116,7 +118,7 @@ impl Position {
     /// Panics if the history vector is empty!
     pub fn undo_move(&mut self, t: &mut Thread) {
         let old_board = self.history.pop().unwrap();
-        self.nnue_state.pop();
+        self.acc_stack.pop();
         self.board = old_board;
 
         t.pop_move();
@@ -148,7 +150,7 @@ impl Position {
     /// Return the NNUE evaluation of the current position
     /// We scale the evaluation by the total material on the board
     pub fn evaluate(&self) -> Eval {
-        let eval = self.nnue_state.evaluate(self.board.side);
+        let eval = self.acc_stack.evaluate(self.board.side);
 
         #[rustfmt::skip]
         let total_material =
@@ -164,7 +166,7 @@ impl Position {
         let runs = 100_000_000;
         let start = Instant::now();
         for _ in 0..runs {
-            black_box(black_box(&self.nnue_state).evaluate(black_box(Color::White)));
+            black_box(black_box(&self.acc_stack).evaluate(black_box(Color::White)));
         }
         let elapsed = start.elapsed();
         let nanos = elapsed.as_nanos();
@@ -262,7 +264,7 @@ impl Position {
     /// Accumulator is refreshed to avoid overflows
     pub fn push_move(&mut self, m: Move) {
         let new = self.board.make_move(m);
-        self.nnue_state.refresh(&new);
+        self.acc_stack.refresh(&new);
 
         let old = std::mem::replace(&mut self.board, new);
         self.history.push(old);
