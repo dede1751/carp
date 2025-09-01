@@ -6,6 +6,7 @@ pub type VecI16 = __m256i;
 pub type VecI32 = __m256i;
 
 pub const VEC_I16_SIZE: usize = size_of::<VecI16>() / size_of::<i16>();
+pub const UNROLL: usize = VEC_I16_SIZE;
 
 #[inline(always)]
 pub const fn mm_shuffle(z: i32, y: i32, x: i32, w: i32) -> i32 {

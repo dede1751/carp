@@ -1,6 +1,10 @@
-engine/src/syzygy/bindings.rs
+**/.DS_Store
 target
 tmp
 data
 checkpoints
-**/.DS_Store
+engine/src/syzygy/bindings.rs
+
+# Executables
+/Carp
+/carp-*

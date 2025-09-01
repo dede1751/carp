@@ -88,7 +88,7 @@ mod scalar_eval {
 #[cfg(not(simd_none))]
 mod simd_eval {
     use super::*;
-    use crate::nnue::simd::{self, VEC_I16_SIZE};
+    use crate::nnue::simd::{self, UNROLL};
 
     impl Accumulator {
         pub fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
@@ -147,7 +147,7 @@ mod simd_eval {
                 let w1_ptr = MODEL.output_weights.as_ptr();
                 let w2_ptr = w1_ptr.add(HIDDEN);
 
-                for i in (0..HIDDEN).step_by(VEC_I16_SIZE) {
+                for i in (0..HIDDEN).step_by(UNROLL) {
                     let x1 = simd::load_i16(x1_ptr.add(i));
                     let x2 = simd::load_i16(x2_ptr.add(i));
                     let w1 = simd::load_i16(w1_ptr.add(i));

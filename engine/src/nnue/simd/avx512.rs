@@ -6,6 +6,7 @@ pub type VecI16 = __m512i;
 pub type VecI32 = __m512i;
 
 pub const VEC_I16_SIZE: usize = size_of::<VecI16>() / size_of::<i16>();
+pub const UNROLL: usize = VEC_I16_SIZE;
 
 //////////////////////////////// i16 ////////////////////////////////
 #[inline(always)]
