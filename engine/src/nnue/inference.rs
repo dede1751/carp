@@ -1,6 +1,4 @@
-use crate::nnue::accumulator::NNUEState;
-
-use super::accumulator::{Accumulator, SideAccumulator};
+use super::accumulator::AccumulatorStack;
 use super::network::{CR_MAX, CR_MIN, HIDDEN, MODEL, QA, QAB, SCALE};
 use crate::search_params::Eval;
 use chess::piece::Color;
@@ -8,47 +6,6 @@ use chess::piece::Color;
 #[cfg(simd_none)]
 mod scalar_eval {
     use super::*;
-
-    impl Accumulator {
-        /// Updates weights for a single feature, either turning them on or off
-        pub fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
-            fn update<const ON: bool>(acc: &mut SideAccumulator, idx: usize) {
-                let zip = acc
-                    .iter_mut()
-                    .zip(&MODEL.feature_weights[idx..idx + HIDDEN]);
-
-                for (acc_val, &weight) in zip {
-                    if ON {
-                        *acc_val += weight;
-                    } else {
-                        *acc_val -= weight;
-                    }
-                }
-            }
-
-            update::<ON>(&mut self.white, idx.0);
-            update::<ON>(&mut self.black, idx.1);
-        }
-
-        /// Update accumulator for a quiet move.
-        /// Adds in features for the destination and removes the features of the source
-        pub fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
-            fn add_sub(acc: &mut SideAccumulator, from: usize, to: usize) {
-                let zip = acc.iter_mut().zip(
-                    MODEL.feature_weights[from..from + HIDDEN]
-                        .iter()
-                        .zip(&MODEL.feature_weights[to..to + HIDDEN]),
-                );
-
-                for (acc_val, (&remove_weight, &add_weight)) in zip {
-                    *acc_val += add_weight - remove_weight;
-                }
-            }
-
-            add_sub(&mut self.white, from.0, to.0);
-            add_sub(&mut self.black, from.1, to.1);
-        }
-    }
 
     /// Squared Clipped ReLu activation function using the lizard trick
     #[inline(always)]
@@ -58,7 +15,7 @@ mod scalar_eval {
         (v as i32) * (vw as i32)
     }
 
-    impl NNUEState {
+    impl AccumulatorStack {
         /// Evaluate the nn from the current accumulator
         /// Concatenates the accumulators based on the side to move, computes the activation function
         /// with Squared CReLu and multiplies activation by weight. The result is the sum of all these
@@ -90,47 +47,9 @@ mod simd_eval {
     use super::*;
     use crate::nnue::simd::{self, UNROLL};
 
-    impl Accumulator {
-        pub fn update_weights<const ON: bool>(&mut self, idx: (usize, usize)) {
-            fn update<const ON: bool>(acc: &mut SideAccumulator, idx: usize) {
-                let zip = acc
-                    .iter_mut()
-                    .zip(&MODEL.feature_weights[idx..idx + HIDDEN]);
-
-                for (acc_val, &weight) in zip {
-                    if ON {
-                        *acc_val += weight;
-                    } else {
-                        *acc_val -= weight;
-                    }
-                }
-            }
-
-            update::<ON>(&mut self.white, idx.0);
-            update::<ON>(&mut self.black, idx.1);
-        }
-
-        pub fn add_sub_weights(&mut self, from: (usize, usize), to: (usize, usize)) {
-            fn add_sub(acc: &mut SideAccumulator, from: usize, to: usize) {
-                let zip = acc.iter_mut().zip(
-                    MODEL.feature_weights[from..from + HIDDEN]
-                        .iter()
-                        .zip(&MODEL.feature_weights[to..to + HIDDEN]),
-                );
-
-                for (acc_val, (&remove_weight, &add_weight)) in zip {
-                    *acc_val += add_weight - remove_weight;
-                }
-            }
-
-            add_sub(&mut self.white, from.0, to.0);
-            add_sub(&mut self.black, from.1, to.1);
-        }
-    }
-
-    impl NNUEState {
+    impl AccumulatorStack {
         pub fn evaluate(&self, side: Color) -> Eval {
-            let acc = &self.accumulator_stack[self.current_acc];
+            let acc = &self.accs[self.top];
             let (us, them) = match side {
                 Color::White => (&acc.white, &acc.black),
                 Color::Black => (&acc.black, &acc.white),
