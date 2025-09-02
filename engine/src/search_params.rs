@@ -37,13 +37,17 @@ macro_rules! tunable_params {
             static PARAMS: P = P::new();
 
             pub struct P {
-                $(pub $name: AtomicI32,)*
+                $(
+                    pub $name: AtomicI32,
+                )*
             }
 
             impl P {
                 pub const fn new() -> Self {
                     Self {
-                        $($name: AtomicI32::new($val),)*
+                        $(
+                            $name: AtomicI32::new($val),
+                        )*
                     }
                 }
 
@@ -52,9 +56,22 @@ macro_rules! tunable_params {
                         println!(
                             "option name {} type spin default {} min {} max {}",
                             stringify!($name),
-                            $val,
+                            Self::$name(),
                             $min,
                             $max
+                        );
+                    )*
+                }
+
+                pub fn print_params_ob() {
+                    $(
+                        println!(
+                            "{}, int, {}.0, {}.0, {}.0, {}, 0.002",
+                            stringify!($name),
+                            Self::$name(),
+                            $min,
+                            $max,
+                            $step
                         );
                     )*
                 }
@@ -94,7 +111,11 @@ macro_rules! tunable_params {
             pub struct P;
 
             impl P {
-                pub const fn print_options() {}
+                pub fn print_options() {}
+
+                pub fn print_params_ob() {
+                    eprintln!("SPSA Tuning support not enabled!");
+                }
 
                 $(
                     #[inline(always)]

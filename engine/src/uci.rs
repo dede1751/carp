@@ -49,6 +49,7 @@ enum UCICommand {
     Print,
     Eval,
     NNUEBench,
+    PrintParams,
 }
 
 /// Parse string into uci command
@@ -74,6 +75,13 @@ impl FromStr for UCICommand {
 
                 Ok(Self::Option(opt_name, opt_value))
             }
+            Some("position") => Ok(Self::Position(Box::new(
+                tokens.collect::<Vec<&str>>().join(" ").parse()?,
+            ))),
+            Some("go") => Ok(Self::Go(tokens.collect::<Vec<&str>>().join(" ").parse()?)),
+            Some("quit") => Ok(Self::Quit),
+            Some("stop") => Ok(Self::Stop),
+
             Some("bperft") => match tokens.next().ok_or("No option value!")?.parse() {
                 Ok(d) if d > 0 => Ok(Self::BulkPerft(d)),
                 _ => Err("Could not parse depth!"),
@@ -85,12 +93,7 @@ impl FromStr for UCICommand {
             Some("print") => Ok(Self::Print),
             Some("eval") => Ok(Self::Eval),
             Some("nnuebench") => Ok(Self::NNUEBench),
-            Some("position") => Ok(Self::Position(Box::new(
-                tokens.collect::<Vec<&str>>().join(" ").parse()?,
-            ))),
-            Some("go") => Ok(Self::Go(tokens.collect::<Vec<&str>>().join(" ").parse()?)),
-            Some("stop") => Ok(Self::Stop),
-            Some("quit") => Ok(Self::Quit),
+            Some("params") => Ok(Self::PrintParams),
             _ => Err("Error parsing command!"),
         }
     }
@@ -200,6 +203,18 @@ impl UCIController {
                     }
                 },
 
+                UCICommand::Position(pos) => {
+                    position = *pos;
+                }
+
+                UCICommand::Go(tc) => {
+                    tt.increment_age();
+                    println!(
+                        "bestmove {}",
+                        thread_pool.deploy_search(&mut position, &tt, tb, tc),
+                    );
+                }
+
                 UCICommand::BulkPerft(d) => {
                     position.board.perft::<BULK>(d);
                 }
@@ -220,16 +235,8 @@ impl UCIController {
                     println!("Eval time: {:.3}ns", position.nnuebench());
                 }
 
-                UCICommand::Position(pos) => {
-                    position = *pos;
-                }
-
-                UCICommand::Go(tc) => {
-                    tt.increment_age();
-                    println!(
-                        "bestmove {}",
-                        thread_pool.deploy_search(&mut position, &tt, tb, tc),
-                    );
+                UCICommand::PrintParams => {
+                    P::print_params_ob();
                 }
 
                 _ => eprintln!("Unexpected UCI command!"),
