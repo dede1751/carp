@@ -6,7 +6,6 @@
 ///     MARGIN: multiplicative (usually depth) coefficient in a formula
 ///     FACTOR: dividing coefficient in a formula
 pub use chess::params::*;
-use std::mem::transmute;
 
 pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
@@ -22,9 +21,21 @@ pub const HISTORY_MAX: i32 = HIST_MAX + CONT_HIST_MAX * CONT_HIST_COUNT as i32;
 
 pub const BIG_DELTA: Eval = 1100;
 
-static LMR_TABLE: [[u64; 64]; 64] = unsafe { transmute(*include_bytes!("../../bins/lmr.bin")) };
+#[cfg(not(feature = "tune"))]
+static LMR_TABLE: [[u64; 64]; 64] =
+    unsafe { std::mem::transmute(*include_bytes!("../../bins/lmr.bin")) };
+
+#[cfg(not(feature = "tune"))]
 pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
     LMR_TABLE[depth.min(63)][move_count.min(63)] as usize
+}
+
+#[cfg(feature = "tune")]
+pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
+    let d = depth.min(63) as f32;
+    let m = move_count.min(63) as f32;
+
+    (P::lmr_base() + d.ln() * m.ln() / P::lmr_factor()) as usize
 }
 
 macro_rules! tunable_params {
@@ -32,23 +43,67 @@ macro_rules! tunable_params {
         #[cfg(feature = "tune")]
         mod params {
             use super::Eval;
-            use std::sync::atomic::{AtomicI32, Ordering};
+            use std::sync::atomic::{AtomicI16, AtomicI32, AtomicUsize, Ordering};
+
+            trait ParamStore: Sized {
+                type Raw: Copy;
+                type Atomic;
+                const TYPE_STRING: &'static str;
+                fn to_store(v: Self) -> Self::Raw;
+                fn from_store(x: Self::Raw) -> Self;
+            }
+
+            impl ParamStore for i32 {
+                type Raw = i32;
+                type Atomic = AtomicI32;
+                const TYPE_STRING: &'static str = "int";
+                #[inline] fn to_store(v: Self) -> Self::Raw { v }
+                #[inline] fn from_store(x: Self::Raw) -> Self { x }
+            }
+
+            impl ParamStore for i16 {
+                type Raw = i16;
+                type Atomic = AtomicI16;
+                const TYPE_STRING: &'static str = "int";
+                #[inline] fn to_store(v: Self) -> Self::Raw { v }
+                #[inline] fn from_store(x: Self::Raw) -> Self { x }
+            }
+
+            impl ParamStore for usize {
+                type Raw = usize;
+                type Atomic = AtomicUsize;
+                const TYPE_STRING: &'static str = "int";
+                #[inline] fn to_store(v: Self) -> Self::Raw { v }
+                #[inline] fn from_store(x: Self::Raw) -> Self { x }
+            }
+
+            impl ParamStore for f32 {
+                type Raw = i32;
+                type Atomic = AtomicI32;
+                const TYPE_STRING: &'static str = "float";
+                #[inline] fn to_store(v: Self) -> Self::Raw { v.to_bits() as i32 }
+                #[inline] fn from_store(x: Self::Raw) -> Self { f32::from_bits(x as u32) }
+            }
 
             static PARAMS: P = P::new();
 
             pub struct P {
                 $(
-                    pub $name: AtomicI32,
+                    $name: <$ty as ParamStore>::Atomic,
                 )*
             }
 
             impl P {
                 pub const fn new() -> Self {
-                    Self {
-                        $(
-                            $name: AtomicI32::new($val),
-                        )*
-                    }
+                    Self {$(
+                        $name: <$ty as ParamStore>::Atomic::new(0),
+                    )*}
+                }
+
+                pub fn init() {
+                    $(
+                        P::set_param(stringify!($name).to_string(), $val.to_string());
+                    )*
                 }
 
                 pub fn print_options() {
@@ -66,12 +121,13 @@ macro_rules! tunable_params {
                 pub fn print_params_ob() {
                     $(
                         println!(
-                            "{}, int, {}.0, {}.0, {}.0, {}, 0.002",
+                            "{}, {}, {:?}, {:?}, {:?}, {:?}, 0.002", // :? also prints .0 for ints!
                             stringify!($name),
-                            Self::$name(),
-                            $min,
-                            $max,
-                            $step
+                            <$ty as ParamStore>::TYPE_STRING,
+                            Self::$name() as f32,
+                            $min as f32,
+                            $max as f32,
+                            $step as f32
                         );
                     )*
                 }
@@ -81,15 +137,13 @@ macro_rules! tunable_params {
                     // trick from akimbo since idents can't go in function names...
                     match name.as_str() {
                         $(
-                            stringify!($name) => {
-                                match val.parse::<$ty>() {
+                            stringify!($name) => match val.parse::<$ty>() {
                                     Ok(v) => PARAMS.$name.store(
-                                        i32::try_from(v).unwrap(),
+                                        <$ty as ParamStore>::to_store(v),
                                         Ordering::Relaxed
                                     ),
                                     _ => eprintln!("Could not parse option value!"),
-                                };
-                            }
+                            },
                         )*
                         _ => eprintln!("Unsupported option command!"),
                     }
@@ -98,7 +152,8 @@ macro_rules! tunable_params {
                 $(
                     #[inline(always)]
                     pub fn $name() -> $ty {
-                        <$ty>::try_from(PARAMS.$name.load(Ordering::Relaxed)).unwrap()
+                        let v = PARAMS.$name.load(Ordering::Relaxed);
+                        <$ty as ParamStore>::from_store(v)
                     }
                 )*
             }
@@ -111,11 +166,9 @@ macro_rules! tunable_params {
             pub struct P;
 
             impl P {
+                pub fn init() {}
                 pub fn print_options() {}
-
-                pub fn print_params_ob() {
-                    eprintln!("SPSA Tuning support not enabled!");
-                }
+                pub fn print_params_ob() { eprintln!("SPSA Tuning support not enabled!"); }
 
                 $(
                     #[inline(always)]
@@ -159,4 +212,6 @@ tunable_params![
     see_pruning_threshold: usize = {val=9, min=6, max=14, step=1},
     see_capture_margin: Eval = {val=-20, min=-50, max=0, step=5},
     see_quiet_margin: Eval = {val=-65, min=-120, max=0, step=10},
+    lmr_base: f32 = {val=0.75, min=0.5, max=1.5, step=0.05},
+    lmr_factor: f32 = {val=2.0, min=1.0, max=4.0, step=0.1},
 ];
