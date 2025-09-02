@@ -57,7 +57,7 @@ fn setup_simd_flags() {
     let has = |name: &str| features.split(',').any(|f| f == name);
     supported_simd
         .get(arch.as_str())
-        .and_then(|simd_list| simd_list.iter().find(|&&simd| has(simd)))
+        .and_then(|simd_list| simd_list.iter().find(|&simd| has(simd)))
         .map(|&simd| println!("cargo:rustc-cfg=simd_{}", simd))
         .unwrap_or_else(|| println!("cargo:rustc-cfg=simd_none"));
 }

@@ -7,57 +7,82 @@ TMP := $(_THIS)/tmp
 ifeq ($(OS),Windows_NT)
 	EXT := .exe
 	VER := win
+
 	PROF := llvm-profdata
+    RMDIR := rmdir /s /q
+	RMFILE := del
 else ifeq ($(shell uname -s), Darwin)
 	EXT :=
 	VER := darwin
+
 	PROF := xcrun llvm-profdata
+	MKDIR := mkdir -p
+    RMDIR := rm -rf
+	RMFILE := rm -f
 else
 	EXT :=
 	VER := linux
+
 	PROF := llvm-profdata
+	MKDIR := mkdir -p
+    RMDIR := rm -rf
+	RMFILE := rm -f
 endif
 NAME := $(EXE)$(EXT)
 
-.PHONY: rule tmp-dir release syzygy datagen
 
-rule:
-	cargo rustc -r -p engine --bins -- -C target-cpu=native --emit link=$(NAME)
-
-# $(call DO_PGO, pkg, features, target_cpu, outname, run_cmd)
+# $(call DO_PGO, crate, features, target_cpu, target_features, outname, run_cmd)
 define DO_PGO
-	cargo rustc -r -p $(1) \
-		$(if $(2),--features $(2),) -- \
-		-C target-feature=+crt-static -C target-cpu=$(3) \
-		-C profile-generate=$(TMP) \
-		--emit link=pgo
-	$(5)
+	RUSTFLAGS="-C target-cpu=$(3)" cargo rustc -r -p $(1) $(if $(2),--features $(2),) -- $(if $(4),-C target-feature=$(4)) -C profile-generate=$(TMP) --emit link=pgo
+	$(6)
 	${PROF} merge -o $(TMP)/merged.profdata $(TMP)
-	cargo rustc -r -p $(1) \
-		$(if $(2),--features $(2),) -- \
-		-C target-feature=+crt-static -C target-cpu=$(3) \
-		-C profile-use=$(TMP)/merged.profdata \
-		--emit link=$(4)
+	RUSTFLAGS="-C target-cpu=$(3)" cargo rustc -r -p $(1) $(if $(2),--features $(2),) -- $(if $(4),-C target-feature=$(4)) -C profile-use=$(TMP)/merged.profdata --emit link=$(5)
 
-	rm -rf $(TMP)/*
-	rm -f *.pdb
-	rm pgo
+	$(RMDIR) $(TMP)/*
+	$(RMFILE) *.pdb
+	$(RMFILE) pgo
 endef
 
-tmp-dir:
-	mkdir -p $(TMP)
+###################################### OPENBENCH ##################################################
 
-x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4 apple-m1 apple-m2 apple-m3 apple-m4 generic native: tmp-dir
-	$(call DO_PGO,engine --bins,,${@},$(LXE)-$(VER)-$@$(EXT),./pgo bench 16)
+rule:
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p engine --bins -- --emit link=$(NAME)$(EXT)
 
-syzygy: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,native,$(LXE)-$(VER)-syzygy$(EXT),./pgo bench 16)
+################################### RELEASE BUILDS ################################################
 
-datagen: tmp-dir
-	$(call DO_PGO,tools,,native,datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000 ; ./pgo datagen -g 256 -t 32 -d 8)
-	rm -rf $(_THIS)/data
+x86-64-v1 apple-m1 apple-m2 apple-m3 apple-m4: tmp-dir
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(LXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
-trainer:
-	cargo rustc -r -p tools --features train -- -C target-cpu=native --emit link=trainer${EXT}
+x86-64-v2 x86-64-v3: tmp-dir
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(LXE)-$(VER)-$@$(EXT),./pgo bench 16)
+
+x86-64-v4: tmp-dir
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(LXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
 release-x86: x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4
+
+##################################### DEV BUILDS ##################################################
+
+bench:
+	RUSTFLAGS="-C target-cpu=native" cargo r -r -p engine -- bench
+
+native: tmp-dir
+	$(call DO_PGO,engine --bins,,native,,$(LXE)-$(VER)-native$(EXT),./pgo bench 16)
+
+syzygy: tmp-dir
+	$(call DO_PGO,engine --bins,syzygy,native,,$(LXE)-$(VER)-syzygy$(EXT),./pgo bench 16)
+
+datagen: tmp-dir
+	$(call DO_PGO,tools,,native,,datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000)
+	$(RMDIR) $(_THIS)/data
+
+trainer:
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=trainer$(EXT)
+
+###################################################################################################
+
+.PHONY: rule x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4 apple-m1 apple-m2 apple-m3 apple-m4 \
+	release-x86 native syzygy datagen trainer tmp-dir
+
+tmp-dir:
+	$(MKDIR) -p $(TMP)

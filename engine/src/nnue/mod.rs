@@ -10,7 +10,7 @@ mod inference;
 mod network;
 mod simd;
 
-pub use accumulator::{AccumulatorStack, NNUEState};
+pub use accumulator::AccumulatorStack;
 
 use std::ops::{Deref, DerefMut};
 

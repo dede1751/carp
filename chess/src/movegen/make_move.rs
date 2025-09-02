@@ -7,14 +7,13 @@ use crate::{
     square::Square,
 };
 
-pub const OFF: bool = false;
-pub const ON: bool = true;
+pub type Feature = (Piece, Square);
 
-pub trait AccumulatorStack {
-    fn push(&mut self);
-    fn pop(&mut self);
-    fn manual_update<const ON: bool>(&mut self, piece: Piece, square: Square);
-    fn move_update(&mut self, piece: Piece, from: Square, to: Square);
+pub const ON: bool = true;
+pub const OFF: bool = false;
+pub trait FeatureUpdate {
+    fn update_weights<const ON: bool>(&mut self, feat: Feature);
+    fn add_sub_weights(&mut self, add: Feature, sub: Feature);
 }
 
 impl Board {
@@ -82,15 +81,12 @@ impl Board {
     }
 
     /// Make move with NNUE accumulator increments.
-    pub fn make_move_nnue<T: AccumulatorStack>(&self, m: Move, stack: &mut Box<T>) -> Board {
+    pub fn make_move_nnue<T: FeatureUpdate>(&self, m: Move, acc: &mut T) -> Board {
         let mut new = self.clone();
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = self.piece_at(src);
         let move_type = m.get_type();
         let capture = move_type.is_capture();
-
-        // add new accumulator
-        stack.push();
 
         new.remove_piece(src);
         if capture || piece.is_pawn() {
@@ -103,29 +99,26 @@ impl Board {
             let ep_target = tgt.forward(!self.side);
 
             new.remove_piece(ep_target);
-            stack.manual_update::<OFF>((!self.side).pawn(), ep_target);
+            acc.update_weights::<OFF>(((!self.side).pawn(), ep_target));
         } else if capture {
             new.remove_piece(tgt);
-            stack.manual_update::<OFF>(self.piece_at(tgt), tgt);
+            acc.update_weights::<OFF>((self.piece_at(tgt), tgt));
         } else if move_type == MoveType::Castle {
             let rook = self.side.rook();
             let (rook_src, rook_tgt) = rook_castling_move(tgt);
 
             new.remove_piece(rook_src);
             new.set_piece(rook, rook_tgt);
-            stack.move_update(rook, rook_src, rook_tgt);
+            acc.add_sub_weights((rook, rook_tgt), (rook, rook_src));
         }
 
-        if move_type.is_promotion() {
-            let promotion = move_type.get_promotion(self.side);
-
-            new.set_piece(promotion, tgt);
-            stack.manual_update::<OFF>(piece, src);
-            stack.manual_update::<ON>(promotion, tgt);
+        let new_piece = if move_type.is_promotion() {
+            move_type.get_promotion(self.side)
         } else {
-            new.set_piece(piece, tgt);
-            stack.move_update(piece, src, tgt);
-        }
+            piece
+        };
+        new.set_piece(new_piece, tgt);
+        acc.add_sub_weights((new_piece, tgt), (piece, src));
 
         if let Some(square) = self.en_passant {
             new.en_passant = None;
