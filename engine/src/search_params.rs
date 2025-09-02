@@ -20,47 +20,122 @@ pub const CAP_HIST_MAX: i32 = 16384;
 pub const CONT_HIST_COUNT: usize = 2;
 pub const HISTORY_MAX: i32 = HIST_MAX + CONT_HIST_MAX * CONT_HIST_COUNT as i32;
 
-pub const HISTORY_MAX_BONUS: i16 = 1600;
-pub const HISTORY_FACTOR: i16 = 350;
-pub const HISTORY_OFFSET: i16 = 350;
-
-pub const TT_REPLACE_OFFSET: usize = 4;
-
-pub const ASPIRATION_LOWER_LIMIT: usize = 5;
-pub const ASPIRATION_WINDOW: Eval = 25;
 pub const BIG_DELTA: Eval = 1100;
 
-pub const LMR_THRESHOLD: usize = 2;
-pub const LMR_LOWER_LIMIT: usize = 2;
 static LMR_TABLE: [[u64; 64]; 64] = unsafe { transmute(*include_bytes!("../../bins/lmr.bin")) };
-
 pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
     LMR_TABLE[depth.min(63)][move_count.min(63)] as usize
 }
 
-pub const SE_LOWER_LIMIT: usize = 8;
+macro_rules! tunable_params {
+    ($($name:ident : $ty:ty = {val=$val:expr, min=$min:expr, max=$max:expr, step=$step:expr},)*) => {
+        #[cfg(feature = "tune")]
+        mod params {
+            use super::Eval;
+            use std::sync::atomic::{AtomicI32, Ordering};
 
-pub const RFP_THRESHOLD: usize = 8;
-pub const RFP_MARGIN: Eval = 80;
-pub const RFP_IMPROVING_MARGIN: Eval = 55;
+            static PARAMS: P = P::new();
 
-pub const NMP_LOWER_LIMIT: usize = 3;
-pub const NMP_IMPROVING_MARGIN: Eval = 70;
-pub const NMP_BASE: usize = 4;
-pub const NMP_FACTOR: usize = 4;
+            pub struct P {
+                $(pub $name: AtomicI32,)*
+            }
 
-pub const IIR_LOWER_LIMIT: usize = 4;
+            impl P {
+                pub const fn new() -> Self {
+                    Self {
+                        $($name: AtomicI32::new($val),)*
+                    }
+                }
 
-pub const HLP_THRESHOLD: usize = 2;
-pub const HLP_BASE: i32 = -5000;
+                pub fn print_options() {
+                    $(
+                        println!(
+                            "option name {} type spin default {} min {} max {}",
+                            stringify!($name),
+                            $val,
+                            $min,
+                            $max
+                        );
+                    )*
+                }
 
-pub const EFP_THRESHOLD: usize = 5;
-pub const EFP_BASE: Eval = 80;
-pub const EFP_MARGIN: Eval = 90;
+                #[inline(always)]
+                pub fn set_param(name: String, val: String) {
+                    // trick from akimbo since idents can't go in function names...
+                    match name.as_str() {
+                        $(
+                            stringify!($name) => {
+                                match val.parse::<$ty>() {
+                                    Ok(v) => PARAMS.$name.store(
+                                        i32::try_from(v).unwrap(),
+                                        Ordering::Relaxed
+                                    ),
+                                    _ => eprintln!("Could not parse option value!"),
+                                };
+                            }
+                        )*
+                        _ => eprintln!("Unsupported option command!"),
+                    }
+                }
 
-pub const LMP_THRESHOLD: usize = 8;
-pub const LMP_BASE: usize = 4;
+                $(
+                    #[inline(always)]
+                    pub fn $name() -> $ty {
+                        <$ty>::try_from(PARAMS.$name.load(Ordering::Relaxed)).unwrap()
+                    }
+                )*
+            }
+        }
 
-pub const SEE_PRUNING_THRESHOLD: usize = 9;
-pub const SEE_CAPTURE_MARGIN: Eval = -20;
-pub const SEE_QUIET_MARGIN: Eval = -65;
+        #[cfg(not(feature = "tune"))]
+        mod params {
+            use super::Eval;
+
+            pub struct P;
+
+            impl P {
+                pub const fn print_options() {}
+
+                $(
+                    #[inline(always)]
+                    pub const fn $name() -> $ty {
+                        $val
+                    }
+                )*
+            }
+        }
+
+        pub use params::P;
+    };
+}
+
+tunable_params![
+    history_max_bonus: i16 = {val=1600, min=800, max=4000, step=200},
+    history_factor: i16 = {val=350, min=100, max=500, step=10},
+    history_offset: i16 = {val=350, min=0, max=1000, step=10},
+    tt_replace_offset: usize = {val=4, min=1, max=8, step=1},
+    tt_pv_scale: usize = {val=2, min=0, max=4, step=1},
+    aspiration_lower_limit: usize = {val=5, min=3, max=8, step=1},
+    aspiration_window: Eval = {val=25, min=1, max=50, step=3},
+    lmr_threshold: usize = {val=2, min=1, max=4, step=1},
+    lmr_lower_limit: usize = {val=2, min=1, max=4, step=1},
+    se_lower_limit: usize = {val=8, min=6, max=12, step=1},
+    rfp_threshold: usize = {val=8, min=6, max=10, step=1},
+    rfp_margin: Eval = {val=80, min=20, max=160, step=5},
+    rfp_improving_margin: Eval = {val=55, min=0, max=120, step=5},
+    nmp_lower_limit: usize = {val=3, min=2, max=5, step=1},
+    nmp_improving_margin: Eval = {val=70, min=0, max=100, step=10},
+    nmp_base: usize = {val=4, min=2, max=6, step=1},
+    nmp_factor: usize = {val=4, min=1, max=6, step=1},
+    iir_lower_limit: usize = {val=4, min=3, max=8, step=1},
+    hlp_threshold: usize = {val=2, min=1, max=4, step=1},
+    hlp_base: i32 = {val=-5000, min=-8000, max=0, step=200},
+    efp_threshold: usize = {val=5, min=3, max=8, step=1},
+    efp_base: Eval = {val=80, min=40, max=140, step=5},
+    efp_margin: Eval = {val=90, min=50, max=160, step=10},
+    lmp_threshold: usize = {val=8, min=4, max=12, step=1},
+    lmp_base: usize = {val=4, min=3, max=12, step=1},
+    see_pruning_threshold: usize = {val=9, min=6, max=14, step=1},
+    see_capture_margin: Eval = {val=-20, min=-50, max=0, step=5},
+    see_quiet_margin: Eval = {val=-65, min=-120, max=0, step=10},
+];

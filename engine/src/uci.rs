@@ -10,7 +10,8 @@ use std::{
 };
 
 use crate::{
-    clock::TimeControl, position::Position, syzygy::probe::TB, thread::ThreadPool, tt::TT,
+    clock::TimeControl, position::Position, search_params::P, syzygy::probe::TB,
+    thread::ThreadPool, tt::TT,
 };
 use chess::board::{BULK, NO_BULK};
 
@@ -135,6 +136,7 @@ impl UCIReader {
                             println!("id author {AUTHOR}");
                             print!("{BASE_OPTIONS}");
                             println!("{SYZYGY_OPTIONS}");
+                            P::print_options();
                             println!("uciok");
                         }
                         UCICommand::IsReady => {
@@ -189,7 +191,13 @@ impl UCIController {
                         }
                         _ => eprintln!("Could not parse syzygy probe limit option value!"),
                     },
-                    _ => eprintln!("Unsupported option command!"),
+                    _ => {
+                        #[cfg(feature = "tune")]
+                        P::set_param(name, value);
+
+                        #[cfg(not(feature = "tune"))]
+                        eprintln!("Unsupported option command!");
+                    }
                 },
 
                 UCICommand::BulkPerft(d) => {

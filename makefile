@@ -46,7 +46,7 @@ endef
 ###################################### OPENBENCH ##################################################
 
 rule:
-	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p engine --bins -- --emit link=$(NAME)$(EXT)
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p engine --bins --features tune -- --emit link=$(NAME)$(EXT)
 
 ################################### RELEASE BUILDS ################################################
 

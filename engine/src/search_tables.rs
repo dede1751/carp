@@ -53,7 +53,7 @@ type CaptureHistory = [[[i16; Piece::COUNT - 1]; Square::COUNT]; Piece::TOTAL];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
-    HISTORY_MAX_BONUS.min(HISTORY_FACTOR * depth as i16 - HISTORY_OFFSET)
+    P::history_max_bonus().min(P::history_factor() * depth as i16 - P::history_offset())
 }
 
 /// Taper history so that it's bounded to +-MAX

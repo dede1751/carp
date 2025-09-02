@@ -278,7 +278,7 @@ impl TT {
         if  self.age != old.age // always replace entries with a different age
             || !same_position
             || flag == TTFlag::Exact
-            || depth + TT_REPLACE_OFFSET + 2 * usize::from(pv) > old.depth as usize
+            || depth + P::tt_replace_offset() + P::tt_pv_scale() * usize::from(pv) > old.depth as usize
         {
             // Don't overwrite best moves with null moves
             if best_move == Move::NULL && same_position {

@@ -148,8 +148,8 @@ impl AccumulatorStack {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess::square::Square;
     use chess::movegen::make_move::OFF;
+    use chess::square::Square;
 
     #[test]
     fn test_nnue_stack() {

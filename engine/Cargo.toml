@@ -17,6 +17,7 @@ doctest = false
 chess = { path = "../chess" }
 
 [features]
+tune = []
 datagen = []
 syzygy = ["dep:cc", "dep:bindgen"]
 

@@ -55,10 +55,10 @@ impl Position {
         let mut new_depth = t.depth + 1;
         let mut alpha = -INFINITY;
         let mut beta = INFINITY;
-        let mut delta = ASPIRATION_WINDOW;
+        let mut delta = P::aspiration_window();
 
         // Setup aspiration windows when searching a sufficient depth
-        if new_depth >= ASPIRATION_LOWER_LIMIT {
+        if new_depth >= P::aspiration_lower_limit() {
             alpha = (-INFINITY).max(t.eval - delta);
             beta = (INFINITY).min(t.eval + delta);
         }
@@ -200,7 +200,7 @@ impl Position {
 
                 tt_move = entry.get_move();
                 possible_singularity = !ROOT
-                    && depth >= SE_LOWER_LIMIT
+                    && depth >= P::se_lower_limit()
                     && tt_value.abs() < LONGEST_TB_MATE
                     && (tt_flag == TTFlag::Lower || tt_flag == TTFlag::Exact)
                     && tt_depth >= depth - 3;
@@ -301,20 +301,20 @@ impl Position {
             // If the static eval is above beta by a certain margin at shallow depth, we can prune
             // assuming a beta cutoff. If the static eval is improving, we reduce the margin.
             let rfp_margin =
-                RFP_MARGIN * (depth as Eval) - RFP_IMPROVING_MARGIN * (improving as Eval);
-            if depth <= RFP_THRESHOLD && eval - rfp_margin >= beta {
+                P::rfp_margin() * (depth as Eval) - P::rfp_improving_margin() * (improving as Eval);
+            if depth <= P::rfp_threshold() && eval - rfp_margin >= beta {
                 return beta;
             }
 
             // Null Move Pruning (reduction value from CounterGO)
             // Give the opponent a "free shot" and see if that improves beta.
-            if depth > NMP_LOWER_LIMIT
+            if depth > P::nmp_lower_limit()
                 && t.ply_from_null > 0
                 && eval >= t.ss[t.ply].eval
-                && eval + NMP_IMPROVING_MARGIN * (improving as Eval) >= beta
+                && eval + P::nmp_improving_margin() * (improving as Eval) >= beta
                 && !self.only_king_pawns_left()
             {
-                let r = (NMP_BASE + depth / NMP_FACTOR).min(depth);
+                let r = (P::nmp_base() + depth / P::nmp_factor()).min(depth);
 
                 self.make_null(t);
                 let value = -self.zw_search(t, tt, tb, opv, -(beta - 1), depth - r, !cutnode);
@@ -330,7 +330,7 @@ impl Position {
         // Internal Iterative Reduction
         // Without a TT hit, it's better to do a reduced search to then setup the TT entry for the next
         // IID iteration.
-        if !ROOT && depth >= IIR_LOWER_LIMIT && !in_singular_search && tt_entry.is_none() {
+        if !ROOT && depth >= P::iir_lower_limit() && !in_singular_search && tt_entry.is_none() {
             depth -= 1;
         }
 
@@ -353,12 +353,12 @@ impl Position {
         let mut move_count = 0;
 
         #[cfg(not(feature = "datagen"))]
-        let lmp_count = LMP_BASE + (depth * depth);
+        let lmp_count = P::lmp_base() + (depth * depth);
 
         #[cfg(not(feature = "datagen"))]
         let see_margins = [
-            SEE_CAPTURE_MARGIN * (depth * depth) as Eval,
-            SEE_QUIET_MARGIN * depth as Eval,
+            P::see_capture_margin() * (depth * depth) as Eval,
+            P::see_quiet_margin() * depth as Eval,
         ];
 
         while let Some((m, s)) = picker.next(&self.board, t) {
@@ -376,7 +376,7 @@ impl Position {
             if !pv_node && !in_check && !picker.skip_quiets && best_value > -LONGEST_TB_MATE {
                 // History leaf pruning
                 // Below a certain depth, prune negative history moves in non-pv nodes
-                if is_quiet && depth <= HLP_THRESHOLD && s < HLP_BASE {
+                if is_quiet && depth <= P::hlp_threshold() && s < P::hlp_base() {
                     picker.skip_quiets = true;
                 }
 
@@ -384,13 +384,13 @@ impl Position {
 
                 // Extended Futility pruning
                 // Below a certain depth, prune moves which will most likely not improve alpha
-                let efp_margin = EFP_BASE + EFP_MARGIN * (lmr_depth as Eval);
-                if lmr_depth <= EFP_THRESHOLD && eval + efp_margin < alpha {
+                let efp_margin = P::efp_base() + P::efp_margin() * (lmr_depth as Eval);
+                if lmr_depth <= P::efp_threshold() && eval + efp_margin < alpha {
                     picker.skip_quiets = true;
                 }
 
                 // Late move pruning
-                if depth <= LMP_THRESHOLD && move_count >= lmp_count {
+                if depth <= P::lmp_threshold() && move_count >= lmp_count {
                     picker.skip_quiets = true;
                 }
             }
@@ -398,7 +398,7 @@ impl Position {
             // SEE pruning for captures and quiets
             #[cfg(not(feature = "datagen"))]
             if best_value > -LONGEST_TB_MATE
-                && depth <= SEE_PRUNING_THRESHOLD
+                && depth <= P::see_pruning_threshold()
                 && picker.stage > Stage::GoodTacticals
                 && !self.board.see(m, see_margins[is_quiet as usize])
             {
@@ -432,37 +432,38 @@ impl Position {
             // fails high on alpha. If it doesn't, it's likely a cutnode.
             // We reduce the depth of these searches the further in the move list we go.
             let mut value = -INFINITY;
-            let full_depth_search =
-                if depth >= LMR_LOWER_LIMIT && move_count >= LMR_THRESHOLD + pv_node as usize {
-                    let r = if is_quiet {
-                        let mut r = lmr_reduction(depth, move_count) as i32;
-                        let is_check = self.king_in_check();
+            let full_depth_search = if depth >= P::lmr_lower_limit()
+                && move_count >= P::lmr_threshold() + pv_node as usize
+            {
+                let r = if is_quiet {
+                    let mut r = lmr_reduction(depth, move_count) as i32;
+                    let is_check = self.king_in_check();
 
-                        r += !pv_node as i32; // reduce more in non-pv nodes
-                        r += cutnode as i32; // reduce more for cutnodes
+                    r += !pv_node as i32; // reduce more in non-pv nodes
+                    r += cutnode as i32; // reduce more for cutnodes
 
-                        r -= in_check as i32; // reduce less when in check
-                        r -= is_check as i32; // reduce less when giving check
+                    r -= in_check as i32; // reduce less when in check
+                    r -= is_check as i32; // reduce less when giving check
 
-                        // flat reduction/extension based on history
-                        if s > HISTORY_MAX / 2 {
-                            r -= 1;
-                        } else if s < -HISTORY_MAX / 2 {
-                            r += 1;
-                        }
+                    // flat reduction/extension based on history
+                    if s > HISTORY_MAX / 2 {
+                        r -= 1;
+                    } else if s < -HISTORY_MAX / 2 {
+                        r += 1;
+                    }
 
-                        r.clamp(1, (depth - 1) as i32) as usize
-                    } else {
-                        1
-                    };
-
-                    // Reduced depth null window search
-                    // Since we are speculating being an allnode, expect the child to be a cutnode
-                    value = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - r, true);
-                    value > alpha && r > 1
+                    r.clamp(1, (depth - 1) as i32) as usize
                 } else {
-                    !pv_node || move_count > 0
+                    1
                 };
+
+                // Reduced depth null window search
+                // Since we are speculating being an allnode, expect the child to be a cutnode
+                value = -self.zw_search(t, tt, tb, opv, -alpha, ext_depth - r, true);
+                value > alpha && r > 1
+            } else {
+                !pv_node || move_count > 0
+            };
 
             // Full depth null window search when lmr fails or when using pvs
             // Allnodes/Cutnodes alternate
