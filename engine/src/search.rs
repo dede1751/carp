@@ -3,7 +3,7 @@
 use std::sync::atomic::Ordering;
 
 #[cfg(not(feature = "datagen"))]
-use crate::syzygy::probe::TB_HITS;
+use crate::{move_picker::see, syzygy::probe::TB_HITS};
 
 use crate::{
     move_picker::{Stage, TT_SCORE},
@@ -90,7 +90,7 @@ impl Position {
 
             // Widen window, fully reopen when it's too wide
             delta += delta / 2;
-            if delta >= BIG_DELTA {
+            if delta >= P::big_delta() {
                 alpha = -INFINITY;
                 beta = INFINITY;
             }
@@ -400,7 +400,7 @@ impl Position {
             if best_value > -LONGEST_TB_MATE
                 && depth <= P::see_pruning_threshold()
                 && picker.stage > Stage::GoodTacticals
-                && !self.board.see(m, see_margins[is_quiet as usize])
+                && !see(&self.board, m, see_margins[is_quiet as usize])
             {
                 move_count += 1;
                 continue;

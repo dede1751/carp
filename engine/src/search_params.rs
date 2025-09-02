@@ -5,7 +5,8 @@
 ///     BASE: flat bonus in a formula
 ///     MARGIN: multiplicative (usually depth) coefficient in a formula
 ///     FACTOR: dividing coefficient in a formula
-pub use chess::params::*;
+pub type Eval = i32;
+pub const MAX_DEPTH: usize = 127;
 
 pub const INFINITY: Eval = 32001; // score upper bound
 pub const MATE: Eval = 32000; // mate in 0 moves
@@ -13,30 +14,63 @@ pub const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
 pub const TB_MATE: Eval = 30000; // tb win in 0 moves
 pub const LONGEST_TB_MATE: Eval = TB_MATE - MAX_DEPTH as Eval; // tb win in x moves
 
+// History table sizing. We avoid tuning this.
 pub const HIST_MAX: i32 = 8192;
 pub const CONT_HIST_MAX: i32 = 16384;
 pub const CAP_HIST_MAX: i32 = 16384;
 pub const CONT_HIST_COUNT: usize = 2;
 pub const HISTORY_MAX: i32 = HIST_MAX + CONT_HIST_MAX * CONT_HIST_COUNT as i32;
 
-pub const BIG_DELTA: Eval = 1100;
-
 #[cfg(not(feature = "tune"))]
-static LMR_TABLE: [[u64; 64]; 64] =
-    unsafe { std::mem::transmute(*include_bytes!("../../bins/lmr.bin")) };
+mod lookups {
+    use super::*;
+    use chess::piece::Piece;
 
-#[cfg(not(feature = "tune"))]
-pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
-    LMR_TABLE[depth.min(63)][move_count.min(63)] as usize
+    #[rustfmt::skip]
+    const PIECE_VALUES: [Eval; Piece::COUNT] = [
+        P::pawn(), P::knight(), P::bishop(), P::rook(), P::queen(), 0,
+    ];
+
+    static LMR_TABLE: [[u64; 64]; 64] =
+        unsafe { std::mem::transmute(*include_bytes!("../../bins/lmr.bin")) };
+
+    #[inline(always)]
+    pub const fn piece_value(piece: Piece) -> Eval {
+        PIECE_VALUES[piece.index()]
+    }
+
+    #[inline(always)]
+    pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
+        LMR_TABLE[depth.min(63)][move_count.min(63)] as usize
+    }
 }
 
 #[cfg(feature = "tune")]
-pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
-    let d = depth.min(63) as f32;
-    let m = move_count.min(63) as f32;
+mod lookups {
+    use super::*;
+    use chess::piece::Piece;
 
-    (P::lmr_base() + d.ln() * m.ln() / P::lmr_factor()) as usize
+    #[inline(always)]
+    pub fn piece_value(piece: Piece) -> Eval {
+        match piece.index() {
+            Piece::P => P::pawn(),
+            Piece::N => P::knight(),
+            Piece::B => P::bishop(),
+            Piece::R => P::rook(),
+            Piece::Q => P::queen(),
+            Piece::K => 0,
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn lmr_reduction(depth: usize, move_count: usize) -> usize {
+        let d = depth.min(63) as f32;
+        let m = move_count.min(63) as f32;
+        (P::lmr_base() + d.ln() * m.ln() / P::lmr_factor()) as usize
+    }
 }
+pub use lookups::*;
 
 macro_rules! tunable_params {
     ($($name:ident : $ty:ty = {val=$val:expr, min=$min:expr, max=$max:expr, step=$step:expr},)*) => {
@@ -191,6 +225,7 @@ tunable_params![
     tt_pv_scale: usize = {val=2, min=1, max=4, step=1},
     aspiration_lower_limit: usize = {val=5, min=3, max=8, step=1},
     aspiration_window: Eval = {val=25, min=1, max=50, step=3},
+    big_delta: Eval = {val=1100, min=800, max=2000, step=100},
     lmr_threshold: usize = {val=2, min=1, max=4, step=1},
     lmr_lower_limit: usize = {val=2, min=2, max=4, step=1},
     se_lower_limit: usize = {val=8, min=6, max=12, step=1},
@@ -214,4 +249,9 @@ tunable_params![
     see_quiet_margin: Eval = {val=-65, min=-120, max=0, step=10},
     lmr_base: f32 = {val=0.75, min=0.5, max=1.5, step=0.05},
     lmr_factor: f32 = {val=2.0, min=1.0, max=4.0, step=0.1},
+    pawn: Eval = {val=161, min=80, max=250, step=10},
+    knight: Eval = {val=446, min=300, max=600, step=15},
+    bishop: Eval = {val=464, min=300, max=600, step=15},
+    rook: Eval = {val=705, min=500, max=900, step=20},
+    queen: Eval = {val=1322, min=900, max=2000, step=50},
 ];

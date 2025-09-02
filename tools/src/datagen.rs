@@ -14,6 +14,7 @@ use chess::moves::Move;
 use clap::Args;
 use engine::{
     clock::{Clock, TimeControl},
+    move_picker::see,
     position::{GameResult, Position, ADJ, NO_ADJ},
     search_params::*,
     syzygy::probe::TB,
@@ -107,7 +108,7 @@ fn gen_random_move(pos: &Position, rng: &fastrand::Rng) -> Option<Move> {
     let mut m = Move::NULL;
     for _ in 0..8 {
         m = move_list.moves[rng.usize(..move_list.len())];
-        if pos.board.see(m, 0) {
+        if see(&pos.board, m, 0) {
             return Some(m);
         }
     }
