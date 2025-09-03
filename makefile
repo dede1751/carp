@@ -1,5 +1,5 @@
 # Build executables for Carp releases. Base rule is reserved for OpenBench
-NAME := carp
+EXE := carp # This may be overwritten by OpenBench
 _THIS := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 TMP := $(_THIS)/tmp
 
@@ -44,18 +44,18 @@ endef
 ###################################### OPENBENCH ##################################################
 
 rule:
-	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p engine --bins -- --emit link=Carp$(EXT)
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p engine --bins -- --emit link=$(EXE)$(EXT)
 
 ################################### RELEASE BUILDS ################################################
 
 x86-64-v1 apple-m1 apple-m2 apple-m3 apple-m4: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(NAME)-$(VER)-$@$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(EXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
 x86-64-v2 x86-64-v3: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(NAME)-$(VER)-$@$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(EXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
 x86-64-v4: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(NAME)-$(VER)-$@$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(EXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
 release-x86: x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4
 
@@ -65,14 +65,14 @@ bench:
 	RUSTFLAGS="-C target-cpu=native" cargo r -r -p engine -- bench
 
 native: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,native,,$(NAME)-$(VER)-native$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,native,,$(EXE)-$(VER)-native$(EXT),./pgo bench 16)
 
 datagen: tmp-dir
-	$(call DO_PGO,tools,,native,,$(NAME)-datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000)
+	$(call DO_PGO,tools,,native,,$(EXE)-datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000)
 	$(RMDIR) $(_THIS)/data
 
 trainer:
-	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=$(NAME)-train$(EXT)
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=$(EXE)-train$(EXT)
 
 ###################################################################################################
 

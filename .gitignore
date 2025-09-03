@@ -5,5 +5,4 @@ data
 checkpoints
 
 # Executables
-/Carp
-/carp-*
+/carp*
