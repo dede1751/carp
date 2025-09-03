@@ -14,12 +14,12 @@ use crate::{
 
 /// Bitboard of squares between two squares, excluding the squares themselves
 static BETWEEN: [BB64; Square::COUNT] =
-    unsafe { transmute(*include_bytes!("../../../bins/between.bin")) };
+    unsafe { transmute(*include_bytes!("../../../../bins/between.bin")) };
 
 /// Attacks for the hopping pieces are just precalculated bitboards.
-const KING_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../bins/king.bin")) };
-const KNIGHT_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../bins/knight.bin")) };
-const PAWN_ATTACKS: [BB64; 2] = unsafe { transmute(*include_bytes!("../../../bins/pawn.bin")) };
+const KING_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../../bins/king.bin")) };
+const KNIGHT_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../../bins/knight.bin")) };
+const PAWN_ATTACKS: [BB64; 2] = unsafe { transmute(*include_bytes!("../../../../bins/pawn.bin")) };
 
 /// Gets pawn attacks from tables
 /// SAFETY: Square and Color only allow valid indices

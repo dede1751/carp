@@ -7,7 +7,7 @@ use crate::{
 
 const ATTACK_COUNT: usize = 87988;
 static ATTACKS: [BitBoard; ATTACK_COUNT] =
-    unsafe { transmute(*include_bytes!("../../../bins/sliders.bin")) };
+    unsafe { transmute(*include_bytes!("../../../../bins/sliders.bin")) };
 
 /// Black magics, contain the magic number and attack table index
 #[repr(C)]
@@ -33,8 +33,9 @@ pub struct Magics {
 
 impl Magics {
     pub const BISHOP: Self =
-        unsafe { transmute(*include_bytes!("../../../bins/bishop_magics.bin")) };
-    pub const ROOK: Self = unsafe { transmute(*include_bytes!("../../../bins/rook_magics.bin")) };
+        unsafe { transmute(*include_bytes!("../../../../bins/bishop_magics.bin")) };
+    pub const ROOK: Self =
+        unsafe { transmute(*include_bytes!("../../../../bins/rook_magics.bin")) };
 
     /// Get magic index for the tables given the blocker board and source square
     const fn magic_map(&self, square: Square, blockers: BitBoard) -> usize {

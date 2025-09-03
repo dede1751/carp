@@ -32,7 +32,7 @@ mod lookups {
     ];
 
     static LMR_TABLE: [[u64; 64]; 64] =
-        unsafe { std::mem::transmute(*include_bytes!("../../bins/lmr.bin")) };
+        unsafe { std::mem::transmute(*include_bytes!("../../../bins/lmr.bin")) };
 
     #[inline(always)]
     pub const fn piece_value(piece: Piece) -> Eval {

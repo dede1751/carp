@@ -12,7 +12,7 @@ use build_deps::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let out_dir = PathBuf::new().join("..").join("bins");
+    let out_dir = PathBuf::new().join("..").join("..").join("bins");
 
     // Build attack lookup tables
     let mut attacks = [BitBoard::EMPTY; ATTACK_COUNT];

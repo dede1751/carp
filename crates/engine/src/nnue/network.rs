@@ -27,4 +27,4 @@ pub struct NNUEParams {
 }
 
 /// NNUE model is initialized from binary values (Viridithas format)
-pub static MODEL: NNUEParams = unsafe { transmute(*include_bytes!("../../../bins/net.bin")) };
+pub static MODEL: NNUEParams = unsafe { transmute(*include_bytes!("../../../../bins/net.bin")) };

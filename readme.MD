@@ -1,4 +1,5 @@
 <div align="center">
+
   ![logo](logo.png)
 </div>
 
@@ -34,25 +35,25 @@ Carp is rigorously tested with SPRT, and is part of the [SWEHosting OB instance]
 
 ## Project Structure & Building Carp
 
-The workspace is structured in 4 main crates: **Chess** is the game backend used by the engine,
-**Engine** is the UCI engine, **Tools** is an executable with developer tools for training and datagen,
-**Wasm** is a WebAssembly shim to the engine (checkout its README for instructions).
+The workspace is structured in 4 main crates: **chess** is the game backend used by the engine,
+**engine** is the UCI engine, **tools** is an executable with developer tools for training and datagen,
+**wasm** is a WebAssembly shim to the engine (checkout its README for instructions).
 The first two crates are designed to be dependency-less, although Syzygy Tablebase support requires
 interfacing with [Fathom][fathom-link]. This is not compiled by default: make rules that enable it are
 marked as **Syzygy**.
 
 Building the base version of Carp only requires [Cargo][cargo-link]. Carp is currently tested on
-*Rust Stable v1.87*, so that is the recommended version, although it could possibly work (without guarantees)
-on earlier releases. Carp is guaranteed to work out-of-the-box on x86 Linux/Windows, aarch64 MacOS,
-and `wasm32-unknown` targets (the latter via the specific `wasm` crate).
+Rust Stable **v1.87**, so that is the recommended version, although it could possibly work
+(without guarantees) on earlier releases.\
+Carp should work out-of-the-box on x86 Linux/Windows, aarch64 MacOS, and wasm32 targets.
 
-For development, Carp can be ran through Cargo with ```cargo run --release --package engine```.
+For development, Carp can be ran through Cargo with ```cargo run --release --package engine```.\
 Alternatively, a makefile is provided for ease of use, with the following rules:
 * `make`: the default build, used by OpenBench.
 * `make native` **[PGO,Syzygy]**: build an executable native to your machine.
 * `make release-x86` **[PGO,Syzygy]**: build OS-specific  executables for all x86 [microarchitecture levels][arch-link].
-* `make datagen` **[PGO,Syzygy]**: build the **Tools** crate with data generation support.
-* `make trainer`: build the **Tools** crate with training support. Requires CUDA or HIP.
+* `make datagen` **[PGO,Syzygy]**: build the **tools** crate with data generation support.
+* `make trainer`: build the **tools** crate with training support. Requires CUDA or HIP.
 
 >**NOTE**: the builds marked with **PGO** require having *llvm-profdata*, which should be included with LLVM or CLANG.
 
@@ -60,8 +61,8 @@ Alternatively, a makefile is provided for ease of use, with the following rules:
 
 Carp uses a (768->1024)x2->1 perspective net trained with Bullet.
 It fully relies on its own self-play data for training the network. Viriformat data can be generated
-with the utilities provided in the **Tools** crate, processed via `bullet-utils` into bulletformat,
-and used for training the network, again through **Tools**.
+with the utilities provided in the **tools** crate, processed via `bullet-utils` into bulletformat,
+and used for training the network, again through **tools**.
 
 As of Carp 2.0, NNUE has completely replaced the old HCE.
 
