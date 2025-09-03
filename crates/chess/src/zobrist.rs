@@ -95,7 +95,11 @@ impl ZHash {
 
     /// Toggles out old castle rights and toggles in new
     #[inline(always)]
-    pub(crate) const fn swap_castle(&mut self, old_castle: CastlingRights, new_castle: CastlingRights) {
+    pub(crate) const fn swap_castle(
+        &mut self,
+        old_castle: CastlingRights,
+        new_castle: CastlingRights,
+    ) {
         self.0 ^= CASTLE_KEYS[old_castle.index()];
         self.0 ^= CASTLE_KEYS[new_castle.index()];
     }
@@ -119,7 +123,10 @@ mod tests {
             .parse()
             .unwrap();
 
-        assert_eq!(ZHash::from_board(&b1), ZHash::from_raw(11231077536533049824)); // correct start hash
+        assert_eq!(
+            ZHash::from_board(&b1),
+            ZHash::from_raw(11231077536533049824)
+        ); // correct start hash
         assert_eq!(ZHash::from_board(&b2), b2.hash); // try_from() builds hash correctly
     }
 

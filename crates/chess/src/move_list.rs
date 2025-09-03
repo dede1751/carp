@@ -30,19 +30,19 @@ impl MoveList {
 
     /// Returns move list length
     #[inline(always)]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Returns true if the movelist is empty
     #[inline(always)]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Push move to the back of the movelist
     #[inline(always)]
-    pub fn push(&mut self, m: Move) {
+    pub const fn push(&mut self, m: Move) {
         self.moves[self.len] = m;
         self.len += 1;
     }

@@ -108,6 +108,18 @@ impl BitBoard {
         self.0
     }
 
+    /// Bitwise OR operation (for consteval)
+    #[inline(always)]
+    pub const fn or(a: Self, b: Self) -> Self {
+        Self(a.0 | b.0)
+    }
+
+    /// Bitwise AND operation (for consteval)
+    #[inline(always)]
+    pub const fn and(a: Self, b: Self) -> Self {
+        Self(a.0 & b.0)
+    }
+
     /// Check whether given square is set on the board
     #[inline(always)]
     pub const fn get_bit(self, square: Square) -> bool {

@@ -332,10 +332,12 @@ mod tests {
         let mut tt = TT::default();
         tt.resize(1);
 
-        tt.insert(ZHash::from_raw(0), TTFlag::Exact, Move::NULL, 100, 100, 1, 0, false); // insert field 1
-        tt.insert(ZHash::from_raw(1), TTFlag::Exact, Move::NULL, 100, 100, 2, 0, false); // insert field 2 in same slot as field 1, replacing it
+        let z1 = ZHash::from_raw(0); // will map to slot 0
+        let z2 = ZHash::from_raw(1); // will also map to slot 0
+        tt.insert(z1, TTFlag::Exact, Move::NULL, 100, 100, 1, 0, false);
+        tt.insert(z2, TTFlag::Exact, Move::NULL, 100, 100, 2, 0, false);
 
-        let new = tt.probe(ZHash::from_raw(0)); // check no match on first hash
+        let new = tt.probe(z1); // check no match on first hash
         assert!(new.is_none());
     }
 }

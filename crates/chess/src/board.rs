@@ -216,10 +216,10 @@ macro_rules! impl_piece_lookups {
     ($($piece:expr, $own:ident, $opp:ident, $tot:ident),*) => {
         $(impl Board {
             pub const fn $own(&self) -> BitBoard {
-                BitBoard(self.piece_bb[$piece].inner() & self.side_bb[self.side.index()].inner())
+                BitBoard::and(self.piece_bb[$piece], self.own_occupancy())
             }
             pub const fn $opp(&self) -> BitBoard {
-                BitBoard(self.piece_bb[$piece].inner() & self.side_bb[self.side.index() ^ 1].inner())
+                BitBoard::and(self.piece_bb[$piece], self.opp_occupancy())
             }
             pub const fn $tot(&self) -> BitBoard {
                 self.piece_bb[$piece]
@@ -253,7 +253,7 @@ impl Board {
     /// Get the combined occupancy bitboard
     #[inline(always)]
     pub const fn occupancy(&self) -> BitBoard {
-        BitBoard(self.white().inner() | self.black().inner())
+        BitBoard::or(self.white(), self.black())
     }
 
     /// Get occupancy bitboard for the given side
@@ -271,7 +271,10 @@ impl Board {
     /// Get the occupancy bitboard for the given piece (includes color information)
     #[inline(always)]
     pub const fn piece_occupancy(&self, piece: Piece) -> BitBoard {
-        BitBoard(self.piece_type_occupancy(piece).inner() & self.side_occupancy(piece.color()).inner())
+        BitBoard::and(
+            self.piece_type_occupancy(piece),
+            self.side_occupancy(piece.color()),
+        )
     }
 
     /// Get the occupancy bitboard for the current side-to-move
@@ -288,12 +291,12 @@ impl Board {
 
     #[inline(always)]
     pub(crate) const fn opp_queen_bishop(&self) -> BitBoard {
-        BitBoard(self.opp_queens().inner() | self.opp_bishops().inner())
+        BitBoard::or(self.opp_queens(), self.opp_bishops())
     }
 
     #[inline(always)]
     pub(crate) const fn opp_queen_rook(&self) -> BitBoard {
-        BitBoard(self.opp_queens().inner() | self.opp_rooks().inner())
+        BitBoard::or(self.opp_queens(), self.opp_rooks())
     }
 
     /// Mask all opponent attackers of a certain square, given the blocker bitboard.
@@ -380,7 +383,7 @@ impl Board {
     /// Looks for which piece is on the given Square
     /// Panics if no piece is on that square
     #[inline(always)]
-    pub fn piece_at(&self, square: Square) -> Piece {
+    pub const fn piece_at(&self, square: Square) -> Piece {
         self.piece[square.index()].unwrap()
     }
 

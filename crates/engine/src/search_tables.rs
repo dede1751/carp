@@ -150,7 +150,12 @@ impl<const MAX: i32> Default for ContinuationHistoryTable<MAX> {
 impl<const MAX: i32> ContinuationHistoryTable<MAX> {
     /// Get an index for the given move.
     const fn index(m: Move, prev_piece: Piece, prev_tgt: Square) -> (usize, usize, usize, usize) {
-        (prev_piece.index(), prev_tgt.index(), m.get_src().index(), m.get_tgt().index())
+        (
+            prev_piece.index(),
+            prev_tgt.index(),
+            m.get_src().index(),
+            m.get_tgt().index(),
+        )
     }
 
     /// Add a history bonus value to the given move.

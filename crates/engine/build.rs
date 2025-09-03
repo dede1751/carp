@@ -1,5 +1,12 @@
 /// Setup LMR tables which need float math.
-use std::{collections::HashMap, env, error::Error, fs::File, io::Write, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    env,
+    error::Error,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 fn setup_simd_flags() {
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ARCH");
@@ -58,7 +65,7 @@ fn build_lmr(bin_path: &Path) -> std::io::Result<()> {
             64 * 64 * std::mem::size_of::<usize>(),
         )
     };
-    
+
     File::create(bin_path.join("lmr.bin"))?.write_all(lmr)
 }
 
