@@ -55,7 +55,7 @@ Alternatively, a makefile is provided for ease of use, with the following rules:
 * `make datagen` **[PGO,Syzygy]**: build the **tools** crate with data generation support.
 * `make trainer`: build the **tools** crate with training support. Requires CUDA or HIP.
 
->**NOTE**: the builds marked with **PGO** require having *llvm-profdata*, which should be included with LLVM or CLANG.
+>**NOTE**: the builds marked as **PGO** require *llvm-profdata*, which should be included with LLVM or CLANG.
 
 ## NNUE
 
