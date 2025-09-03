@@ -125,7 +125,7 @@ impl From<TTEntry> for (u64, u64) {
         let data: u64 = field.age as u64
             | (field.depth as u64) << DEPTH_OFFSET
             | (field.flag as u64) << FLAG_OFFSET
-            | (field.best_move.0 as u64) << MOVE_OFFSET
+            | (field.best_move.inner() as u64) << MOVE_OFFSET
             | (field.eval as u16 as u64) << EVAL_OFFSET
             | (field.value as u16 as u64) << VALUE_OFFSET;
 
@@ -141,7 +141,7 @@ impl From<(u64, u64)> for TTEntry {
             age: (data & AGE_MASK) as u8,
             depth: ((data & DEPTH_MASK) >> DEPTH_OFFSET) as u8,
             flag: unsafe { transmute::<u8, TTFlag>(((data & FLAG_MASK) >> FLAG_OFFSET) as u8) },
-            best_move: Move(((data & MOVE_MASK) >> MOVE_OFFSET) as u16),
+            best_move: Move::from_raw(((data & MOVE_MASK) >> MOVE_OFFSET) as u16),
             eval: ((data & EVAL_MASK) >> EVAL_OFFSET) as i16,
             value: (data >> VALUE_OFFSET) as i16,
         }
@@ -151,7 +151,7 @@ impl From<(u64, u64)> for TTEntry {
 impl AtomicField {
     /// Atomic read checking that the field contents match the checksum
     fn read(&self, hash: ZHash) -> Option<TTEntry> {
-        let checksum = hash.0;
+        let checksum = hash.inner();
         let key = self.key.load(Ordering::SeqCst);
         let data = self.data.load(Ordering::SeqCst);
 
@@ -204,7 +204,7 @@ impl TT {
     /// Get a key that wraps around the table size, avoiding using Modulo.
     /// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
     fn get_key(&self, hash: ZHash) -> usize {
-        let key = hash.0 as u128;
+        let key = hash.inner() as u128;
         let len = self.table.len() as u128;
 
         ((key * len) >> 64) as usize
@@ -273,7 +273,7 @@ impl TT {
     ) {
         let old_slot = unsafe { self.table.get_unchecked(self.get_key(hash)) };
         let old  = old_slot.read_unchecked();
-        let same_position = hash.0 == old.key;
+        let same_position = hash.inner() == old.key;
 
         if  self.age != old.age // always replace entries with a different age
             || !same_position
@@ -286,7 +286,7 @@ impl TT {
             }
 
             old_slot.write(TTEntry {
-                key: hash.0,
+                key: hash.inner(),
                 age: self.age,
                 depth: depth as u8,
                 flag,
@@ -314,14 +314,14 @@ mod tests {
     #[test]
     fn test_tt_insert() {
         let tt = TT::default();
-        let z = ZHash(0);
+        let z = ZHash::NULL;
 
-        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 1, 0, false); // insert in empty field
-        tt.insert(z, TTFlag::Exact, Move(1), 100, 100, 12, 0, false); // replace
-        tt.insert(z, TTFlag::Upper, Move(1), 100, 100, 1, 0, false); // do not replace
+        tt.insert(z, TTFlag::Exact, Move::from_raw(1), 100, 100, 1, 0, false); // insert in empty field
+        tt.insert(z, TTFlag::Exact, Move::from_raw(1), 100, 100, 12, 0, false); // replace
+        tt.insert(z, TTFlag::Upper, Move::from_raw(1), 100, 100, 1, 0, false); // do not replace
 
         let target1 = tt.probe(z).unwrap();
-        let target2 = tt.probe(ZHash(8));
+        let target2 = tt.probe(ZHash::from_raw(8));
 
         assert_eq!(12, target1.get_depth());
         assert!(target2.is_none());
@@ -332,10 +332,10 @@ mod tests {
         let mut tt = TT::default();
         tt.resize(1);
 
-        tt.insert(ZHash(0), TTFlag::Exact, Move::NULL, 100, 100, 1, 0, false); // insert field 1
-        tt.insert(ZHash(1), TTFlag::Exact, Move::NULL, 100, 100, 2, 0, false); // insert field 2 in same slot as field 1, replacing it
+        tt.insert(ZHash::from_raw(0), TTFlag::Exact, Move::NULL, 100, 100, 1, 0, false); // insert field 1
+        tt.insert(ZHash::from_raw(1), TTFlag::Exact, Move::NULL, 100, 100, 2, 0, false); // insert field 2 in same slot as field 1, replacing it
 
-        let new = tt.probe(ZHash(0)); // check no match on first hash
+        let new = tt.probe(ZHash::from_raw(0)); // check no match on first hash
         assert!(new.is_none());
     }
 }

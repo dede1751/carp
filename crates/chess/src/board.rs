@@ -29,9 +29,7 @@ pub struct Board {
     pub en_passant: Option<Square>,
     pub halfmoves: usize,
     pub hash: ZHash,
-
-    // Checkers kept for in_check() within search
-    pub checkers: BitBoard,
+    pub(crate) checkers: BitBoard,
 }
 
 /// Pretty print board state
@@ -43,12 +41,12 @@ impl fmt::Display for Board {
         );
 
         for rank in Rank::ALL {
-            board_str.push_str(format!("\n      {} ┃ ", 8 - rank as usize).as_str());
+            board_str.push_str(format!("\n      {} ┃ ", 8 - rank.index()).as_str());
 
             for file in File::ALL {
                 let square = Square::from_coords(file, rank);
                 let piece_str =
-                    self.piece[square as usize].map_or(String::from(" "), |p| p.to_string());
+                    self.piece[square.index()].map_or(String::from(" "), |p| p.to_string());
 
                 board_str.push_str(&piece_str);
                 board_str.push_str(" ┃ ");
@@ -166,7 +164,7 @@ impl Board {
             for file in File::ALL {
                 let square = Square::from_coords(file, rank);
 
-                if let Some(p) = self.piece[square as usize] {
+                if let Some(p) = self.piece[square.index()] {
                     if empty > 0 {
                         fen.push_str(&empty.to_string());
                         empty = 0;
@@ -218,10 +216,10 @@ macro_rules! impl_piece_lookups {
     ($($piece:expr, $own:ident, $opp:ident, $tot:ident),*) => {
         $(impl Board {
             pub const fn $own(&self) -> BitBoard {
-                BitBoard(self.piece_bb[$piece].0 & self.side_bb[self.side as usize].0)
+                BitBoard(self.piece_bb[$piece].inner() & self.side_bb[self.side.index()].inner())
             }
             pub const fn $opp(&self) -> BitBoard {
-                BitBoard(self.piece_bb[$piece].0 & self.side_bb[self.side as usize ^ 1].0)
+                BitBoard(self.piece_bb[$piece].inner() & self.side_bb[self.side.index() ^ 1].inner())
             }
             pub const fn $tot(&self) -> BitBoard {
                 self.piece_bb[$piece]
@@ -240,35 +238,96 @@ impl_piece_lookups! {
 
 /// Implement side occupancy and diagonal/hv slider lookups
 impl Board {
+    /// Get the white pieces bitboard
+    #[inline(always)]
     pub const fn white(&self) -> BitBoard {
-        self.side_bb[Color::White as usize]
+        self.side_bb[Color::White.index()]
     }
+
+    /// Get the black pieces bitboard
+    #[inline(always)]
     pub const fn black(&self) -> BitBoard {
-        self.side_bb[Color::Black as usize]
+        self.side_bb[Color::Black.index()]
     }
+
+    /// Get the combined occupancy bitboard
+    #[inline(always)]
     pub const fn occupancy(&self) -> BitBoard {
-        BitBoard(self.white().0 | self.black().0)
+        BitBoard(self.white().inner() | self.black().inner())
     }
+
+    /// Get occupancy bitboard for the given side
+    #[inline(always)]
     pub const fn side_occupancy(&self, side: Color) -> BitBoard {
-        self.side_bb[side as usize]
+        self.side_bb[side.index()]
     }
-    pub const fn piece_occupancy(&self, piece: Piece) -> BitBoard {
-        BitBoard(self.piece_bb[piece.index()].0 & self.side_bb[piece.color() as usize].0)
-    }
+
+    /// Get the occupancy bitboard for the given piece type
+    #[inline(always)]
     pub const fn piece_type_occupancy(&self, piece: Piece) -> BitBoard {
-        self.piece_bb[piece.index()]
+        self.piece_bb[piece.type_index()]
     }
+
+    /// Get the occupancy bitboard for the given piece (includes color information)
+    #[inline(always)]
+    pub const fn piece_occupancy(&self, piece: Piece) -> BitBoard {
+        BitBoard(self.piece_type_occupancy(piece).inner() & self.side_occupancy(piece.color()).inner())
+    }
+
+    /// Get the occupancy bitboard for the current side-to-move
+    #[inline(always)]
     pub const fn own_occupancy(&self) -> BitBoard {
-        self.side_bb[self.side as usize]
+        self.side_bb[self.side.index()]
     }
+
+    /// Get the occupancy bitboard for the opponent pieces
+    #[inline(always)]
     pub const fn opp_occupancy(&self) -> BitBoard {
-        self.side_bb[self.side as usize ^ 1]
+        self.side_bb[self.side.index() ^ 1]
     }
-    pub const fn opp_queen_bishop(&self) -> BitBoard {
-        BitBoard(self.opp_queens().0 | self.opp_bishops().0)
+
+    #[inline(always)]
+    pub(crate) const fn opp_queen_bishop(&self) -> BitBoard {
+        BitBoard(self.opp_queens().inner() | self.opp_bishops().inner())
     }
-    pub const fn opp_queen_rook(&self) -> BitBoard {
-        BitBoard(self.opp_queens().0 | self.opp_rooks().0)
+
+    #[inline(always)]
+    pub(crate) const fn opp_queen_rook(&self) -> BitBoard {
+        BitBoard(self.opp_queens().inner() | self.opp_rooks().inner())
+    }
+
+    /// Mask all opponent attackers of a certain square, given the blocker bitboard.
+    #[inline(always)]
+    fn opp_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
+        self.opp_occupancy()
+            & (self.knights() & knight_attacks(square)
+                | self.kings() & king_attacks(square)
+                | self.pawns() & pawn_attacks(square, self.side)
+                | (self.queens() | self.rooks()) & rook_attacks(square, blockers)
+                | (self.queens() | self.bishops()) & bishop_attacks(square, blockers))
+    }
+
+    /// Mask all (opponent and friendly) attackers of a certain square, given the blocker bitboard.
+    #[inline(always)]
+    pub fn all_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
+        self.pawns() & self.white() & pawn_attacks(square, Color::Black)
+            | self.pawns() & self.black() & pawn_attacks(square, Color::White)
+            | self.knights() & knight_attacks(square)
+            | (self.bishops() | self.queens()) & bishop_attacks(square, blockers)
+            | (self.rooks() | self.queens()) & rook_attacks(square, blockers)
+            | self.kings() & king_attacks(square)
+    }
+
+    /// Mask all checking pieces
+    #[inline(always)]
+    pub(crate) fn checkers(&self) -> BitBoard {
+        self.opp_attackers(self.own_king().lsb(), self.occupancy())
+    }
+
+    /// Returns true if the king is in check
+    #[inline(always)]
+    pub fn king_in_check(&self) -> bool {
+        self.checkers != BitBoard::EMPTY
     }
 }
 
@@ -293,37 +352,41 @@ impl Board {
     }
 
     /// Set the piece on the board at the given square (remove first, set later)
+    #[inline(always)]
     pub(crate) fn set_piece(&mut self, piece: Piece, square: Square) {
-        let p = piece.index();
-        let c = piece.color() as usize;
+        let p = piece.type_index();
+        let c = piece.color().index();
 
         self.piece_bb[p] = self.piece_bb[p].set_bit(square);
         self.side_bb[c] = self.side_bb[c].set_bit(square);
-        self.piece[square as usize] = Some(piece);
+        self.piece[square.index()] = Some(piece);
         self.hash.toggle_piece(piece, square);
     }
 
     /// Remove the piece at the given square on the board (set first, remove later)
     /// The piece must exist at the given square
+    #[inline(always)]
     pub(crate) fn remove_piece(&mut self, square: Square) {
         let piece = self.piece_at(square);
-        let p = piece.index();
-        let c = piece.color() as usize;
+        let p = piece.type_index();
+        let c = piece.color().index();
 
         self.piece_bb[p] = self.piece_bb[p].pop_bit(square);
         self.side_bb[c] = self.side_bb[c].pop_bit(square);
-        self.piece[square as usize] = None;
+        self.piece[square.index()] = None;
         self.hash.toggle_piece(piece, square);
     }
 
     /// Looks for which piece is on the given Square
     /// Panics if no piece is on that square
+    #[inline(always)]
     pub fn piece_at(&self, square: Square) -> Piece {
-        self.piece[square as usize].unwrap()
+        self.piece[square.index()].unwrap()
     }
 
     /// Returns the piece being captured by the move.
-    pub fn get_capture(&self, m: Move) -> Piece {
+    #[inline(always)]
+    pub fn get_captured_piece(&self, m: Move) -> Piece {
         if m.get_type() == MoveType::EnPassant {
             (!self.side).pawn()
         } else {
@@ -331,32 +394,8 @@ impl Board {
         }
     }
 
-    /// Mask all opponent attackers of a certain square, given the blocker bitboard.
-    fn opp_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        self.opp_occupancy()
-            & (self.knights() & knight_attacks(square)
-                | self.kings() & king_attacks(square)
-                | self.pawns() & pawn_attacks(square, self.side)
-                | (self.queens() | self.rooks()) & rook_attacks(square, blockers)
-                | (self.queens() | self.bishops()) & bishop_attacks(square, blockers))
-    }
-
-    /// Mask all (opponent and friendly) attackers of a certain square, given the blocker bitboard.
-    pub fn all_attackers(&self, square: Square, blockers: BitBoard) -> BitBoard {
-        self.pawns() & self.white() & pawn_attacks(square, Color::Black)
-            | self.pawns() & self.black() & pawn_attacks(square, Color::White)
-            | self.knights() & knight_attacks(square)
-            | (self.bishops() | self.queens()) & bishop_attacks(square, blockers)
-            | (self.rooks() | self.queens()) & rook_attacks(square, blockers)
-            | self.kings() & king_attacks(square)
-    }
-
-    /// Mask all checking pieces
-    pub(crate) fn checkers(&self) -> BitBoard {
-        self.opp_attackers(self.own_king().lsb(), self.occupancy())
-    }
-
     /// Returns true if the square is attacked by at least one enemy piece
+    #[inline(always)]
     pub(crate) fn square_attacked(&self, square: Square, blockers: BitBoard) -> bool {
         self.opp_attackers(square, blockers) != BitBoard::EMPTY
     }

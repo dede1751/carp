@@ -36,7 +36,7 @@ mod lookups {
 
     #[inline(always)]
     pub const fn piece_value(piece: Piece) -> Eval {
-        PIECE_VALUES[piece.index()]
+        PIECE_VALUES[piece.type_index()]
     }
 
     #[inline(always)]

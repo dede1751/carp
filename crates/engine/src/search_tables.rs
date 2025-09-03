@@ -86,7 +86,7 @@ impl<const MAX: i32> Default for HistoryTable<MAX> {
 impl<const MAX: i32> HistoryTable<MAX> {
     /// Get an index for the given move.
     const fn index(m: Move, side: Color) -> (usize, usize, usize) {
-        (side as usize, m.get_src() as usize, m.get_tgt() as usize)
+        (side.index(), m.get_src().index(), m.get_tgt().index())
     }
 
     /// Add a history bonus value to the given move.
@@ -150,12 +150,7 @@ impl<const MAX: i32> Default for ContinuationHistoryTable<MAX> {
 impl<const MAX: i32> ContinuationHistoryTable<MAX> {
     /// Get an index for the given move.
     const fn index(m: Move, prev_piece: Piece, prev_tgt: Square) -> (usize, usize, usize, usize) {
-        (
-            prev_piece as usize,
-            prev_tgt as usize,
-            m.get_src() as usize,
-            m.get_tgt() as usize,
-        )
+        (prev_piece.index(), prev_tgt.index(), m.get_src().index(), m.get_tgt().index())
     }
 
     /// Add a history bonus value to the given move.
@@ -202,9 +197,9 @@ impl<const MAX: i32> CaptureHistoryTable<MAX> {
     /// Get an index for the given move.
     fn index(m: Move, board: &Board) -> (usize, usize, usize) {
         (
-            board.piece_at(m.get_src()) as usize,
-            m.get_tgt() as usize,
-            board.get_capture(m).index(),
+            board.piece_at(m.get_src()).index(),
+            m.get_tgt().index(),
+            board.get_captured_piece(m).type_index(),
         )
     }
 

@@ -12,7 +12,7 @@ use crate::{
 ///     0000 1111 1100 0000    target       0x0FC0     6
 ///     1111 0000 0000 0000    move type    0x7000    12
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Default, Hash)]
-pub struct Move(pub u16);
+pub struct Move(u16);
 
 /// Flag for the type of move, fits in 4b
 #[repr(u8)]
@@ -40,26 +40,31 @@ pub enum MoveType {
 
 impl MoveType {
     /// Returns true if the move is a promotion
+    #[inline(always)]
     pub const fn is_promotion(self) -> bool {
         self as usize & 0b0100 != 0
     }
 
     /// Returns true if the move is an underpromotion.
+    #[inline(always)]
     pub const fn is_underpromotion(self) -> bool {
         self.is_promotion() && self as usize & 0b0111 != 0b0111
     }
 
     /// Returns true if the move is a capture (include enpassant)
+    #[inline(always)]
     pub const fn is_capture(self) -> bool {
         self as usize & 0b1000 != 0
     }
 
     /// Returns true if the move is not a capture or promotion
+    #[inline(always)]
     pub const fn is_quiet(self) -> bool {
         self as usize & 0b1100 == 0
     }
 
     /// Returns the promotion piece of the given color. MoveType must be a promotion.
+    #[inline(always)]
     pub const fn get_promotion(self, side: Color) -> Piece {
         const PROMO_MASK: usize = 0b0011;
         const PROMO_PIECES: [[Piece; 4]; 2] = [
@@ -67,7 +72,7 @@ impl MoveType {
             [Piece::BN, Piece::BB, Piece::BR, Piece::BQ],
         ];
 
-        PROMO_PIECES[side as usize][self as usize & PROMO_MASK]
+        PROMO_PIECES[side.index()][self as usize & PROMO_MASK]
     }
 }
 
@@ -99,26 +104,37 @@ impl Move {
     pub const NULL: Self = Self(0);
 
     /// Init move through bitwise or of the various values shifted to correct place
+    #[inline(always)]
     pub const fn new(src: Square, tgt: Square, move_type: MoveType) -> Self {
         Self((src as u16) | (tgt as u16) << 6 | (move_type as u16) << 12)
     }
 
+    /// Init move from raw u16 value
+    #[inline(always)]
+    pub const fn from_raw(raw: u16) -> Self {
+        Self(raw)
+    }
+
     /// Returns the underlying u16 representation
+    #[inline(always)]
     pub const fn inner(self) -> u16 {
         self.0
     }
 
     /// Returns the move source square
+    #[inline(always)]
     pub const fn get_src(self) -> Square {
         transmute_enum!((self.0 & SRC) as u8, 63)
     }
 
     /// Returns the move target square
+    #[inline(always)]
     pub const fn get_tgt(self) -> Square {
         transmute_enum!(((self.0 & TGT) >> 6) as u8, 63)
     }
 
     /// Returns the move type flag
+    #[inline(always)]
     pub const fn get_type(self) -> MoveType {
         transmute_enum!(((self.0 & TYPE) >> 12) as u8, 15)
     }

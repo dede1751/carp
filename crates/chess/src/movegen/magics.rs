@@ -38,8 +38,9 @@ impl Magics {
         unsafe { transmute(*include_bytes!("../../../../bins/rook_magics.bin")) };
 
     /// Get magic index for the tables given the blocker board and source square
+    #[inline(always)]
     const fn magic_map(&self, square: Square, blockers: BitBoard) -> usize {
-        let sq = square as usize;
+        let sq = square.index();
         let bm = self.magics[sq];
 
         let mut relevant_occs = blockers.0 | self.notmasks[sq].0;
@@ -52,6 +53,7 @@ impl Magics {
     /// Get slider attack from square with given blockers
     /// SAFETY: Magic_map is guaranteed to fall within ATTACKS bounds because of the way
     ///         magics are initialized.
+    #[inline(always)]
     pub fn attacks(&self, square: Square, blockers: BitBoard) -> BitBoard {
         unsafe { *ATTACKS.get_unchecked(self.magic_map(square, blockers)) }
     }

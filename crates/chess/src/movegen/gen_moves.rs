@@ -23,32 +23,37 @@ const PAWN_ATTACKS: [BB64; 2] = unsafe { transmute(*include_bytes!("../../../../
 
 /// Gets pawn attacks from tables
 /// SAFETY: Square and Color only allow valid indices
+#[inline(always)]
 pub fn pawn_attacks(square: Square, side: Color) -> BitBoard {
     unsafe {
         *PAWN_ATTACKS
-            .get_unchecked(side as usize)
-            .get_unchecked(square as usize)
+            .get_unchecked(side.index())
+            .get_unchecked(square.index())
     }
 }
 
 /// Gets knight attacks from tables
 /// SAFETY: Square only allows valid indices
+#[inline(always)]
 pub fn knight_attacks(square: Square) -> BitBoard {
-    unsafe { *KNIGHT_ATTACKS.get_unchecked(square as usize) }
+    unsafe { *KNIGHT_ATTACKS.get_unchecked(square.index()) }
 }
 
 /// Gets king attacks from tables
 /// SAFETY: Square only allows valid indices
+#[inline(always)]
 pub fn king_attacks(square: Square) -> BitBoard {
-    unsafe { *KING_ATTACKS.get_unchecked(square as usize) }
+    unsafe { *KING_ATTACKS.get_unchecked(square.index()) }
 }
 
 /// Gets bishop attacks based on the blocker bitboard
+#[inline(always)]
 pub fn bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     Magics::BISHOP.attacks(square, blockers)
 }
 
 /// Gets rook attacks based on the blocker bitboard
+#[inline(always)]
 pub fn rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
     Magics::ROOK.attacks(square, blockers)
 }
@@ -89,7 +94,7 @@ impl Board {
             [BitBoard(0x6000000000000000), BitBoard(0x0000000000000060)],
             [BitBoard(0x0E00000000000000), BitBoard(0x000000000000000E)],
         ];
-        let side = self.side as usize;
+        let side = self.side.index();
 
         if self.occupancy() & OCCS[KS][side] == BitBoard::EMPTY
             && !self.square_attacked(MID[KS][side], self.occupancy())
@@ -113,7 +118,7 @@ impl Board {
         let single_pushes = pawns & possible_targets.forward(!self.side);
 
         // Handle promotions
-        for src in single_pushes & BitBoard::PROMO_RANKS[self.side as usize] {
+        for src in single_pushes & BitBoard::PROMO_RANKS[self.side.index()] {
             let tgt = src.forward(self.side);
             if !hv_pins.get_bit(src) || hv_pins.get_bit(tgt) {
                 move_list.push(Move::new(src, tgt, MoveType::QueenPromotion));
@@ -132,7 +137,7 @@ impl Board {
         }
 
         // Handle single pushes
-        for src in single_pushes & !BitBoard::PROMO_RANKS[self.side as usize] {
+        for src in single_pushes & !BitBoard::PROMO_RANKS[self.side.index()] {
             let tgt = src.forward(self.side);
             if !hv_pins.get_bit(src) || hv_pins.get_bit(tgt) {
                 move_list.push(Move::new(src, tgt, MoveType::Quiet));
@@ -142,7 +147,7 @@ impl Board {
         // Handle double pushes
         let double_pushes = pawns
             & (empty & possible_targets.forward(!self.side)).forward(!self.side)
-            & BitBoard::START_RANKS[self.side as usize];
+            & BitBoard::START_RANKS[self.side.index()];
 
         for src in double_pushes {
             let tgt = src.forward(self.side).forward(self.side);
@@ -164,7 +169,7 @@ impl Board {
         let possible_targets = self.opp_occupancy() & check_mask;
 
         // Capture promotions
-        for src in pawns & BitBoard::PROMO_RANKS[self.side as usize] {
+        for src in pawns & BitBoard::PROMO_RANKS[self.side.index()] {
             let mut attacks = pawn_attacks(src, self.side);
 
             if diag_pins.get_bit(src) {
@@ -191,7 +196,7 @@ impl Board {
                     }
 
                     // En Passant discovered check!
-                    let ep_rank = BitBoard::EP_RANKS[self.side as usize];
+                    let ep_rank = BitBoard::EP_RANKS[self.side.index()];
                     if self.own_king() & ep_rank != BitBoard::EMPTY
                         && self.opp_queen_rook() & ep_rank != BitBoard::EMPTY
                     {
@@ -210,7 +215,7 @@ impl Board {
         }
 
         // Normal captures
-        for src in pawns & !BitBoard::PROMO_RANKS[self.side as usize] {
+        for src in pawns & !BitBoard::PROMO_RANKS[self.side.index()] {
             let mut attacks = pawn_attacks(src, self.side);
 
             if diag_pins.get_bit(src) {
@@ -290,12 +295,12 @@ impl Board {
         // pin masks are between the attacker and the king square (attacker included)
         let diag_pins = diag_attackers
             .into_iter()
-            .map(|sq| BETWEEN[king_square as usize][sq as usize])
+            .map(|sq| BETWEEN[king_square.index()][sq.index()])
             .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         let hv_pins = hv_attackers
             .into_iter()
-            .map(|sq| BETWEEN[king_square as usize][sq as usize])
+            .map(|sq| BETWEEN[king_square.index()][sq.index()])
             .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         (diag_pins, hv_pins)
@@ -316,7 +321,7 @@ impl Board {
 
         // Generate all the legal piece moves using pin and blocker/capture masks
         let check_mask = if attacker_count == 1 {
-            BETWEEN[self.own_king().lsb() as usize][self.checkers.lsb() as usize] | self.checkers
+            BETWEEN[self.own_king().lsb().index()][self.checkers.lsb().index()] | self.checkers
         } else {
             BitBoard::FULL
         };

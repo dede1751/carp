@@ -131,7 +131,7 @@ impl Position {
 
     /// Checks whether the current side's king is in check
     pub fn king_in_check(&self) -> bool {
-        self.board.checkers != BitBoard::EMPTY
+        self.board.king_in_check()
     }
 
     /// Only king and pawns are on the board for the side to move. Possible Zugzwang.

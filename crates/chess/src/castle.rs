@@ -31,6 +31,7 @@ const NO_B: u8 = NO_BK & NO_BQ;
 
 /// Returns the rook src/tgt square for a given king target square
 /// King target square must be a valid castling destination, so either C1/C8 or G1/G8
+#[inline(always)]
 pub const fn rook_castling_move(king_tgt: Square) -> (Square, Square) {
     match king_tgt.file() {
         File::C => (king_tgt.left().left(), king_tgt.right()),
@@ -103,30 +104,35 @@ impl CastlingRights {
     pub const COUNT: usize = 16;
     pub const NONE: CastlingRights = CastlingRights(0);
 
-    /// Get index of rights as usize
-    pub const fn index(self) -> usize {
-        self.0 as usize
-    }
-
     /// Returns underlying u8 representation
+    #[inline(always)]
     pub const fn inner(self) -> u8 {
         self.0
     }
 
+    /// Get index of rights as usize
+    #[inline(always)]
+    pub const fn index(self) -> usize {
+        self.0 as usize
+    }
+
     /// Checks whether given color has kingside rights
+    #[inline(always)]
     pub const fn has_kingside(self, side: Color) -> bool {
-        self.0 & KINGSIDE[side as usize] != 0
+        self.0 & KINGSIDE[side.index()] != 0
     }
 
     /// Checks whether given color has queenside rights
+    #[inline(always)]
     pub const fn has_queenside(self, side: Color) -> bool {
-        self.0 & QUEENSIDE[side as usize] != 0
+        self.0 & QUEENSIDE[side.index()] != 0
     }
 
     /// Updates rights according to move.
     /// Based on the idea that any move starting or ending on one of the four corners of the board
     /// will remove the rights relative to that corner, and remove all rights in case the move
     /// starts (or ends but it's impossible) on the king start square
+    #[inline(always)]
     pub const fn update(self, src: Square, tgt: Square) -> CastlingRights {
         #[rustfmt::skip]
         const CASTLE_MASKS: [u8; Square::COUNT] = [
@@ -140,7 +146,7 @@ impl CastlingRights {
             NO_WQ, ALL, ALL, ALL, NO_W, ALL, ALL, NO_WK,
         ];
 
-        let new = self.0 & CASTLE_MASKS[src as usize] & CASTLE_MASKS[tgt as usize];
+        let new = self.0 & CASTLE_MASKS[src.index()] & CASTLE_MASKS[tgt.index()];
         CastlingRights(new)
     }
 }

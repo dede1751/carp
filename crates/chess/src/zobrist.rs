@@ -36,12 +36,19 @@ pub const CASTLE_KEYS: [u64; CastlingRights::COUNT] = [8406779754442449593, 8716
 pub const SIDE_KEY: u64 = 4747071328949516916;
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
-pub struct ZHash(pub u64);
+pub struct ZHash(u64);
 
 impl ZHash {
     pub const NULL: Self = Self(0);
 
-    pub fn new(board: &Board) -> Self {
+    /// Initialize a zobrist hash from a raw 64b value.
+    #[inline(always)]
+    pub fn from_raw(raw: u64) -> Self {
+        Self(raw)
+    }
+
+    /// Initialize Zobrist hash from a board position.
+    pub fn from_board(board: &Board) -> Self {
         let mut hash: Self = Self::NULL;
 
         for piece in Piece::ALL {
@@ -62,35 +69,40 @@ impl ZHash {
         hash
     }
 
-    /// Toggle when piece moves to/from square
-    pub fn toggle_piece(&mut self, piece: Piece, square: Square) {
-        self.0 ^= PIECE_KEYS[piece as usize][square as usize];
+    /// Get underlying u64 representation
+    #[inline(always)]
+    pub const fn inner(self) -> u64 {
+        self.0
     }
 
-    /// Toggles source and target squares
-    pub fn move_piece(&mut self, piece: Piece, from: Square, to: Square) {
-        self.0 ^= PIECE_KEYS[piece as usize][from as usize];
-        self.0 ^= PIECE_KEYS[piece as usize][to as usize];
+    /// Toggle when piece moves to/from square
+    #[inline(always)]
+    pub(crate) const fn toggle_piece(&mut self, piece: Piece, square: Square) {
+        self.0 ^= PIECE_KEYS[piece.index()][square.index()];
     }
 
     /// Toggle the enpassant square
-    pub fn toggle_ep(&mut self, square: Square) {
-        self.0 ^= EP_KEYS[square as usize];
+    #[inline(always)]
+    pub(crate) const fn toggle_ep(&mut self, square: Square) {
+        self.0 ^= EP_KEYS[square.index()];
     }
 
     /// Toggles the given castling index
-    pub fn toggle_castle(&mut self, castle: CastlingRights) {
+    #[inline(always)]
+    pub(crate) const fn toggle_castle(&mut self, castle: CastlingRights) {
         self.0 ^= CASTLE_KEYS[castle.index()];
     }
 
     /// Toggles out old castle rights and toggles in new
-    pub fn swap_castle(&mut self, old_castle: CastlingRights, new_castle: CastlingRights) {
+    #[inline(always)]
+    pub(crate) const fn swap_castle(&mut self, old_castle: CastlingRights, new_castle: CastlingRights) {
         self.0 ^= CASTLE_KEYS[old_castle.index()];
         self.0 ^= CASTLE_KEYS[new_castle.index()];
     }
 
     /// Toggles side to move
-    pub fn toggle_side(&mut self) {
+    #[inline(always)]
+    pub(crate) const fn toggle_side(&mut self) {
         self.0 ^= SIDE_KEY;
     }
 }
@@ -107,8 +119,8 @@ mod tests {
             .parse()
             .unwrap();
 
-        assert_eq!(ZHash::new(&b1), ZHash(11231077536533049824)); // correct start hash
-        assert_eq!(ZHash::new(&b2), b2.hash); // try_from() builds hash correctly
+        assert_eq!(ZHash::from_board(&b1), ZHash::from_raw(11231077536533049824)); // correct start hash
+        assert_eq!(ZHash::from_board(&b2), b2.hash); // try_from() builds hash correctly
     }
 
     #[test]

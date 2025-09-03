@@ -103,32 +103,38 @@ impl BitBoard {
     pub const PROMO_RANKS: [Self; 2] = [Self(0x000000000000FF00), Self(0x00FF000000000000)];
 
     /// Returns underlying u64 representation
+    #[inline(always)]
     pub const fn inner(self) -> u64 {
         self.0
     }
 
     /// Check whether given square is set on the board
+    #[inline(always)]
     pub const fn get_bit(self, square: Square) -> bool {
-        self.0 & (1u64 << square as usize) != 0
+        self.0 & (1u64 << square.index()) != 0
     }
 
     /// Sets given square on the board
+    #[inline(always)]
     pub const fn set_bit(self, square: Square) -> Self {
-        Self(self.0 | 1u64 << square as usize)
+        Self(self.0 | 1u64 << square.index())
     }
 
     /// Pops given square off the board
+    #[inline(always)]
     pub const fn pop_bit(self, square: Square) -> Self {
-        Self(self.0 & !(1u64 << square as usize))
+        Self(self.0 & !(1u64 << square.index()))
     }
 
     /// Flip the bitboard vertically.
     /// Only used because Syzygy TBs index the first bit with A1, not A8
+    #[inline(always)]
     pub const fn flipv(self) -> Self {
         Self(self.0.swap_bytes())
     }
 
     /// Shift the bitboard one rank forward for the side to move.
+    #[inline(always)]
     pub const fn forward(self, side: Color) -> Self {
         match side {
             Color::White => Self(self.0 >> 8),
@@ -138,11 +144,13 @@ impl BitBoard {
 
     /// Returns popcnt
     /// Using RUSTFLAGS='target-cpu=native' we enforce the popcnt feature
+    #[inline(always)]
     pub const fn count_bits(self) -> u32 {
         self.0.count_ones()
     }
 
     /// Returns first set square from board (least significant 1 bit)
+    #[inline(always)]
     pub const fn lsb(self) -> Square {
         transmute_enum!(self.0.trailing_zeros() as u8, 63)
     }

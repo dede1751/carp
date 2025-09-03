@@ -190,7 +190,7 @@ impl Clock {
     /// Update the number of nodes searched by a single move.
     /// Only called from the root to see how deep each move has been searched.
     pub fn update_node_counts(&mut self, m: Move, delta: u64) {
-        self.node_count[m.get_src() as usize][m.get_tgt() as usize] += delta;
+        self.node_count[m.get_src().index()][m.get_tgt().index()] += delta;
     }
 
     /// Checks whether to deepen the search.
@@ -213,7 +213,7 @@ impl Clock {
                 // to searching the best move (on this thread)
                 let opt_scale = if best_move != Move::NULL && nodes != 0 {
                     let bm_nodes =
-                        self.node_count[best_move.get_src() as usize][best_move.get_tgt() as usize];
+                        self.node_count[best_move.get_src().index()][best_move.get_tgt().index()];
                     let bm_fraction = bm_nodes as f64 / nodes as f64;
 
                     // Scale factor from Ethereal, scale between 50% and 240%

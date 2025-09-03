@@ -22,7 +22,7 @@ use Square::*;
 /// Print fen formatted square.
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s: String = String::from(Self::STR[*self as usize]);
+        let s: String = String::from(Self::STR[self.index()]);
         write!(f, "{s}")
     }
 }
@@ -81,37 +81,50 @@ impl Square {
     ];
 
     /// Get underlying u8 representation
+    #[inline(always)]
     pub const fn inner(self) -> u8 {
         self as u8
     }
 
+    /// Get usize index into square arrays
+    #[inline(always)]
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
     /// Get square from (rank, file) coordinates
+    #[inline(always)]
     pub const fn from_coords(file: File, rank: Rank) -> Self {
-        transmute_enum!((rank as u8) << 3 ^ (file as u8), 63) // rank*8 + file
+        transmute_enum!(rank.inner() << 3 ^ file.inner(), 63) // rank*8 + file
     }
 
     /// Converts square to bitboard
+    #[inline(always)]
     pub const fn to_board(self) -> BitBoard {
-        BitBoard(1u64 << self as usize)
+        BitBoard(1u64 << self.index())
     }
 
     /// Gets file coordinate
+    #[inline(always)]
     pub const fn file(self) -> File {
-        transmute_enum!(self as u8, 7)
+        transmute_enum!(self.inner(), 7)
     }
 
     /// Gets rank coordinate
+    #[inline(always)]
     pub const fn rank(self) -> Rank {
-        transmute_enum!(self as u8 >> 3, 7)
+        transmute_enum!(self.inner() >> 3, 7)
     }
 
     /// Get new square by flipping the rank of the original.
+    #[inline(always)]
     pub const fn flipv(self) -> Self {
-        transmute_enum!(self as u8 ^ 56, 63)
+        transmute_enum!(self.inner() ^ 56, 63)
     }
 
     /// Get new square moving forward from original based on side.
     /// To go backwards, simply use the opposite side.
+    #[inline(always)]
     pub const fn forward(self, side: Color) -> Self {
         match side {
             Color::White => self.up(),
@@ -120,23 +133,27 @@ impl Square {
     }
 
     /// Get new square from original. Wrap linear over the Square enum (H4.right() = A3)
+    #[inline(always)]
     pub const fn right(self) -> Self {
-        transmute_enum!(self as u8 + 1, 63)
+        transmute_enum!(self.inner() + 1, 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (A4.left() = H5)
+    #[inline(always)]
     pub const fn left(self) -> Self {
-        transmute_enum!((self as u8).wrapping_sub(1), 63)
+        transmute_enum!(self.inner().wrapping_sub(1), 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (H1.down() = H8)
+    #[inline(always)]
     pub const fn down(self) -> Self {
-        transmute_enum!(self as u8 + 8, 63)
+        transmute_enum!(self.inner() + 8, 63)
     }
 
     /// Get new square from original. Wrap linear over the Square enum (A8.up() = A1)
+    #[inline(always)]
     pub const fn up(self) -> Self {
-        transmute_enum!((self as u8).wrapping_sub(8), 63)
+        transmute_enum!(self.inner().wrapping_sub(8), 63)
     }
 }
 
@@ -159,14 +176,28 @@ impl File {
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'
     ];
 
+    /// Get underlying u8 representation
+    #[inline(always)]
+    pub const fn inner(self) -> u8 {
+        self as u8
+    }
+
+    /// Get usize index into file arrays
+    #[inline(always)]
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
     /// Gets file to the right, wraps H->A
+    #[inline(always)]
     pub const fn right(self) -> Self {
-        transmute_enum!((self as u8) + 1, 7)
+        transmute_enum!(self.inner() + 1, 7)
     }
 
     /// Gets file to the left, wraps A->H
+    #[inline(always)]
     pub const fn left(self) -> Self {
-        transmute_enum!((self as u8).wrapping_sub(1), 7)
+        transmute_enum!(self.inner().wrapping_sub(1), 7)
     }
 
     /// Converts file to char
@@ -197,14 +228,28 @@ impl Rank {
         '8', '7', '6', '5', '4', '3', '2', '1'
     ];
 
+    /// Gets underlying u8 representation
+    #[inline(always)]
+    pub const fn inner(self) -> u8 {
+        self as u8
+    }
+
+    /// Gets usize index into rank arrays
+    #[inline(always)]
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
     /// Gets rank below, wraps First->Eight
+    #[inline(always)]
     pub const fn down(self) -> Self {
-        transmute_enum!(self as u8 + 1, 7)
+        transmute_enum!(self.inner() + 1, 7)
     }
 
     /// Gets rank above, wraps Eight->First
+    #[inline(always)]
     pub const fn up(self) -> Self {
-        transmute_enum!((self as u8).wrapping_sub(1), 7)
+        transmute_enum!(self.inner().wrapping_sub(1), 7)
     }
 
     /// Converts rank to a char

@@ -216,7 +216,7 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board, thread: &Thread) 
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
         t if t.is_underpromotion() => return BAD_TACTICAL,
-        _ => MVV[board.get_capture(m).index()] + thread.score_cap_hist(m, board),
+        _ => MVV[board.get_captured_piece(m).type_index()] + thread.score_cap_hist(m, board),
     };
 
     // Give a bonus to moves with positive SEE
@@ -260,7 +260,7 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 
 /// Returns the least valuable of the attackers within the attacker map
 fn get_lva(board: &Board, own_attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
-    for piece in Piece::SPLIT_COLOR[side as usize] {
+    for piece in Piece::SPLIT_COLOR[side.index()] {
         let squares = own_attackers & board.piece_type_occupancy(piece); // own attackers already excludes enemies
 
         if squares != BitBoard::EMPTY {
