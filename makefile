@@ -72,7 +72,7 @@ datagen: tmp-dir
 	$(RMDIR) $(_THIS)/data
 
 trainer:
-	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=$(EXE)-train$(EXT)
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=$(EXE)-trainer$(EXT)
 
 ###################################################################################################
 
