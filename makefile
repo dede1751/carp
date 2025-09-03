@@ -1,6 +1,5 @@
 # Build executables for Carp releases. Base rule is reserved for OpenBench
-EXE   := Carp
-LXE   := carp
+NAME := carp
 _THIS := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 TMP := $(_THIS)/tmp
 
@@ -9,6 +8,7 @@ ifeq ($(OS),Windows_NT)
 	VER := win
 
 	PROF := llvm-profdata
+	MKDIR := mkdir
     RMDIR := rmdir /s /q
 	RMFILE := del
 else ifeq ($(shell uname -s), Darwin)
@@ -28,8 +28,6 @@ else
     RMDIR := rm -rf
 	RMFILE := rm -f
 endif
-NAME := $(EXE)$(EXT)
-
 
 # $(call DO_PGO, crate, features, target_cpu, target_features, outname, run_cmd)
 define DO_PGO
@@ -46,18 +44,18 @@ endef
 ###################################### OPENBENCH ##################################################
 
 rule:
-	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p engine --bins --features tune -- --emit link=$(NAME)$(EXT)
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p engine --bins -- --emit link=Carp$(EXT)
 
 ################################### RELEASE BUILDS ################################################
 
 x86-64-v1 apple-m1 apple-m2 apple-m3 apple-m4: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(LXE)-$(VER)-$@$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(NAME)-$(VER)-$@$(EXT),./pgo bench 16)
 
 x86-64-v2 x86-64-v3: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(LXE)-$(VER)-$@$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(NAME)-$(VER)-$@$(EXT),./pgo bench 16)
 
 x86-64-v4: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(LXE)-$(VER)-$@$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(NAME)-$(VER)-$@$(EXT),./pgo bench 16)
 
 release-x86: x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4
 
@@ -67,17 +65,14 @@ bench:
 	RUSTFLAGS="-C target-cpu=native" cargo r -r -p engine -- bench
 
 native: tmp-dir
-	$(call DO_PGO,engine --bins,,native,,$(LXE)-$(VER)-native$(EXT),./pgo bench 16)
-
-syzygy: tmp-dir
-	$(call DO_PGO,engine --bins,syzygy,native,,$(LXE)-$(VER)-syzygy$(EXT),./pgo bench 16)
+	$(call DO_PGO,engine --bins,syzygy,native,,$(NAME)-$(VER)-native$(EXT),./pgo bench 16)
 
 datagen: tmp-dir
-	$(call DO_PGO,tools,,native,,datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000)
+	$(call DO_PGO,tools,,native,,$(NAME)-datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000)
 	$(RMDIR) $(_THIS)/data
 
 trainer:
-	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=trainer$(EXT)
+	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=$(NAME)-train$(EXT)
 
 ###################################################################################################
 

@@ -1,0 +1,27 @@
+[package]
+name = "tools"
+version = "1.0.0"
+description = "Tools for Carp development"
+authors = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+chess = { path = "../chess" }
+engine = { path = "../engine", features = ["datagen", "syzygy"] }
+
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1"
+chrono = "0.4"
+fastrand = "2.3"
+ctrlc = "3.4"
+
+bullet = { git = "https://github.com/jw1912/bullet", package = "bullet_lib", optional = true }
+toml = { version = "0.9.5", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+
+[features]
+train = ["dep:bullet", "dep:toml", "dep:serde"]
