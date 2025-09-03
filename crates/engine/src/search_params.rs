@@ -143,11 +143,9 @@ macro_rules! tunable_params {
                 pub fn print_options() {
                     $(
                         println!(
-                            "option name {} type spin default {} min {} max {}",
+                            "option name {} type string default {:?}",
                             stringify!($name),
-                            Self::$name(),
-                            $min,
-                            $max
+                            Self::$name() as f32,
                         );
                     )*
                 }
