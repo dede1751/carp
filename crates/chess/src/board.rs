@@ -15,21 +15,21 @@ pub use crate::movegen::{gen_moves::*, perft::*};
 /// Bitboard-based board representation
 /// Any board without a king for each player (and with more than one for either) is UB!
 #[derive(Clone, Debug)]
-pub struct Board {
+pub struct Board {                          // 160B
     // Main bitboards
-    piece_bb: [BitBoard; Piece::COUNT],
-    side_bb: [BitBoard; 2],
+    piece_bb: [BitBoard; Piece::COUNT],     // 8B * 6
+    side_bb: [BitBoard; 2],                 // 8B * 2
 
     // Piece map for piece_at lookup
-    piece: [Option<Piece>; Square::COUNT],
+    piece: [Option<Piece>; Square::COUNT],  // 1B * 64
 
     // Other positional information
-    pub side: Color,
-    pub castling_rights: CastlingRights,
-    pub en_passant: Option<Square>,
-    pub halfmoves: usize,
-    pub hash: ZHash,
-    pub(crate) checkers: BitBoard,
+    pub side: Color,                        // 1B
+    pub castling_rights: CastlingRights,    // 1B
+    pub en_passant: Option<Square>,         // 1B
+    pub halfmoves: usize,                   // 8B
+    pub hash: ZHash,                        // 8B
+    pub(crate) checkers: BitBoard,          // 8B
 }
 
 /// Pretty print board state
@@ -286,7 +286,7 @@ impl Board {
     /// Get the occupancy bitboard for the opponent pieces
     #[inline(always)]
     pub const fn opp_occupancy(&self) -> BitBoard {
-        self.side_bb[self.side.index() ^ 1]
+        self.side_bb[self.side.opp_index()]
     }
 
     #[inline(always)]
@@ -356,7 +356,7 @@ impl Board {
 
     /// Set the piece on the board at the given square (remove first, set later)
     #[inline(always)]
-    pub(crate) fn set_piece(&mut self, piece: Piece, square: Square) {
+    pub(crate) const fn set_piece(&mut self, piece: Piece, square: Square) {
         let p = piece.type_index();
         let c = piece.color().index();
 
@@ -369,7 +369,7 @@ impl Board {
     /// Remove the piece at the given square on the board (set first, remove later)
     /// The piece must exist at the given square
     #[inline(always)]
-    pub(crate) fn remove_piece(&mut self, square: Square) {
+    pub(crate) const fn remove_piece(&mut self, square: Square) {
         let piece = self.piece_at(square);
         let p = piece.type_index();
         let c = piece.color().index();

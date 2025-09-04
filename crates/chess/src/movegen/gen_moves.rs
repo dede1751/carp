@@ -1,7 +1,7 @@
 /// Implement both static attack lookups and board move generation.
 use std::mem::transmute;
 
-use super::magics::Magics;
+use super::magics::{BISHOP_MAGICS, ROOK_MAGICS};
 
 use crate::{
     bitboard::{BB64, BitBoard},
@@ -17,9 +17,9 @@ static BETWEEN: [BB64; Square::COUNT] =
     unsafe { transmute(*include_bytes!("../../../../bins/between.bin")) };
 
 /// Attacks for the hopping pieces are just precalculated bitboards.
-const KING_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../../bins/king.bin")) };
-const KNIGHT_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../../bins/knight.bin")) };
-const PAWN_ATTACKS: [BB64; 2] = unsafe { transmute(*include_bytes!("../../../../bins/pawn.bin")) };
+static KING_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../../bins/king.bin")) };
+static KNIGHT_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../../bins/knight.bin")) };
+static PAWN_ATTACKS: [BB64; 2] = unsafe { transmute(*include_bytes!("../../../../bins/pawn.bin")) };
 
 /// Gets pawn attacks from tables
 /// SAFETY: Square and Color only allow valid indices
@@ -49,13 +49,13 @@ pub fn king_attacks(square: Square) -> BitBoard {
 /// Gets bishop attacks based on the blocker bitboard
 #[inline(always)]
 pub fn bishop_attacks(square: Square, blockers: BitBoard) -> BitBoard {
-    Magics::BISHOP.attacks(square, blockers)
+    BISHOP_MAGICS.attacks(square, blockers)
 }
 
 /// Gets rook attacks based on the blocker bitboard
 #[inline(always)]
 pub fn rook_attacks(square: Square, blockers: BitBoard) -> BitBoard {
-    Magics::ROOK.attacks(square, blockers)
+    ROOK_MAGICS.attacks(square, blockers)
 }
 
 pub const QUIETS: bool = true;
@@ -65,8 +65,7 @@ const QS: usize = 1;
 
 impl Board {
     /// Generate all legal king moves, or only captures if QUIET==false
-    fn gen_king_moves<const QUIET: bool>(&self, move_list: &mut MoveList) {
-        let src = self.own_king().lsb();
+    fn gen_king_moves<const QUIET: bool>(&self, src: Square, move_list: &mut MoveList) {
         let attacks = king_attacks(src);
         let blockers = self.occupancy().pop_bit(src);
 
@@ -310,8 +309,9 @@ impl Board {
     pub fn gen_moves<const QUIET: bool>(&self) -> MoveList {
         let mut ml = MoveList::default();
         let move_list = &mut ml;
+        let king_sq = self.own_king().lsb();
 
-        self.gen_king_moves::<QUIET>(move_list);
+        self.gen_king_moves::<QUIET>(king_sq, move_list);
 
         // With double checks, only king moves are legal, so we stop here
         let attacker_count = self.checkers.count_bits();
@@ -321,7 +321,7 @@ impl Board {
 
         // Generate all the legal piece moves using pin and blocker/capture masks
         let check_mask = if attacker_count == 1 {
-            BETWEEN[self.own_king().lsb().index()][self.checkers.lsb().index()] | self.checkers
+            BETWEEN[king_sq.index()][self.checkers.lsb().index()] | self.checkers
         } else {
             BitBoard::FULL
         };

@@ -47,6 +47,12 @@ impl Color {
     pub const fn index(self) -> usize {
         self as usize
     }
+
+    /// Returns usize index into color arrays for the opposite color
+    #[inline(always)]
+    pub const fn opp_index(self) -> usize {
+        self as usize ^ 1
+    }
 }
 
 /// Chess Piece enum (includes color)

@@ -9,6 +9,11 @@ const ATTACK_COUNT: usize = 87988;
 static ATTACKS: [BitBoard; ATTACK_COUNT] =
     unsafe { transmute(*include_bytes!("../../../../bins/sliders.bin")) };
 
+pub static BISHOP_MAGICS: Magics =
+    unsafe { transmute(*include_bytes!("../../../../bins/bishop_magics.bin")) };
+pub static ROOK_MAGICS: Magics =
+    unsafe { transmute(*include_bytes!("../../../../bins/rook_magics.bin")) };
+
 /// Black magics, contain the magic number and attack table index
 #[repr(C)]
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default)]
@@ -32,18 +37,13 @@ pub struct Magics {
 }
 
 impl Magics {
-    pub const BISHOP: Self =
-        unsafe { transmute(*include_bytes!("../../../../bins/bishop_magics.bin")) };
-    pub const ROOK: Self =
-        unsafe { transmute(*include_bytes!("../../../../bins/rook_magics.bin")) };
-
     /// Get magic index for the tables given the blocker board and source square
     #[inline(always)]
     const fn magic_map(&self, square: Square, blockers: BitBoard) -> usize {
         let sq = square.index();
         let bm = self.magics[sq];
 
-        let mut relevant_occs = blockers.0 | self.notmasks[sq].0;
+        let mut relevant_occs = blockers.inner() | self.notmasks[sq].inner();
         relevant_occs = relevant_occs.wrapping_mul(bm.magic);
         relevant_occs >>= 64 - self.shift;
 
@@ -65,8 +65,8 @@ mod tests {
 
     #[test]
     fn bishop_magic_attacks() {
-        let bb1 = Magics::BISHOP.attacks(Square::E4, BitBoard(1161084283129857));
-        let bb2 = Magics::BISHOP.attacks(Square::B7, BitBoard(35253091631104));
+        let bb1 = BISHOP_MAGICS.attacks(Square::E4, BitBoard(1161084283129857));
+        let bb2 = BISHOP_MAGICS.attacks(Square::B7, BitBoard(35253091631104));
 
         println!("{bb1}\n{bb2}\n");
 
@@ -76,8 +76,8 @@ mod tests {
 
     #[test]
     fn rook_magic_attacks() {
-        let bb1 = Magics::ROOK.attacks(Square::A8, BitBoard(1099511627778));
-        let bb2 = Magics::ROOK.attacks(Square::E4, BitBoard(76561335399223296));
+        let bb1 = ROOK_MAGICS.attacks(Square::A8, BitBoard(1099511627778));
+        let bb2 = ROOK_MAGICS.attacks(Square::E4, BitBoard(76561335399223296));
 
         println!("{bb1}\n{bb2}\n");
 
