@@ -1,6 +1,6 @@
 use chess::{
     board::Board,
-    piece::Color,
+    piece::{Color, PieceType},
     square::{File, Rank},
 };
 use engine::position::GameResult;
@@ -30,18 +30,22 @@ impl PackedBoard {
         let mut pieces = endian::U4Array32::default();
         for (i, sq) in occupancy.enumerate() {
             let sq = sq.flipv(); // need to flip back
-            let piece = board.piece_at(sq);
-            let color = piece.color();
+            let piece_type = board.piece_type_at(sq);
+            let color = if board.white().get_bit(sq) {
+                Color::White
+            } else {
+                Color::Black
+            };
 
             let first_rank = (sq.rank() == Rank::First && color == Color::White)
                 || (sq.rank() == Rank::Eight && color == Color::Black);
             let can_castle = (sq.file() == File::A && board.castling_rights.has_queenside(color))
                 || (sq.file() == File::H && board.castling_rights.has_kingside(color));
 
-            let piece_code = if piece.is_rook() && first_rank && can_castle {
+            let piece_code = if piece_type == PieceType::Rook && first_rank && can_castle {
                 UNMOVED_ROOK
             } else {
-                piece.inner()
+                piece_type.inner()
             };
             pieces.set(i, piece_code | (color.inner() << 3));
         }

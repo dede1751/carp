@@ -5,7 +5,7 @@ use crate::search_params::*;
 use chess::{
     board::Board,
     moves::Move,
-    piece::{Color, Piece},
+    piece::{Color, Piece, PieceType},
     square::Square,
 };
 
@@ -48,8 +48,8 @@ impl PVTable {
 }
 
 type History = [[[i16; Square::COUNT]; Square::COUNT]; 2];
-type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::TOTAL];
-type CaptureHistory = [[[i16; Piece::COUNT - 1]; Square::COUNT]; Piece::TOTAL];
+type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::COUNT];
+type CaptureHistory = [[[i16; PieceType::COUNT - 1]; Square::COUNT]; Piece::COUNT];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
@@ -193,7 +193,7 @@ pub struct CaptureHistoryTable<const MAX: i32> {
 impl<const MAX: i32> Default for CaptureHistoryTable<MAX> {
     fn default() -> Self {
         Self {
-            history: [[[0; Piece::COUNT - 1]; Square::COUNT]; Piece::TOTAL],
+            history: [[[0; PieceType::COUNT - 1]; Square::COUNT]; Piece::COUNT],
         }
     }
 }
@@ -201,11 +201,10 @@ impl<const MAX: i32> Default for CaptureHistoryTable<MAX> {
 impl<const MAX: i32> CaptureHistoryTable<MAX> {
     /// Get an index for the given move.
     fn index(m: Move, board: &Board) -> (usize, usize, usize) {
-        (
-            board.piece_at(m.get_src()).index(),
-            m.get_tgt().index(),
-            board.get_captured_piece(m).type_index(),
-        )
+        let capturing = board.side.piece(board.piece_type_at(m.get_src()));
+        let captured = board.get_captured_piece_type(m);
+
+        (capturing.index(), m.get_tgt().index(), captured.index())
     }
 
     /// Add a history bonus value to the given move.

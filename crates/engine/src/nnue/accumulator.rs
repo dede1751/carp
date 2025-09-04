@@ -32,11 +32,12 @@ impl Accumulator {
     const fn idx(feat: Feature) -> (usize, usize) {
         const COLOR_STRIDE: usize = 64 * 6;
         const PIECE_STRIDE: usize = 64;
-        let p = feat.0.type_index();
-        let c = feat.0.color().index();
+        let (piece, color, square) = feat;
+        let p = piece.index();
+        let c = color.index();
 
-        let white_idx = c * COLOR_STRIDE + p * PIECE_STRIDE + feat.1.flipv().index();
-        let black_idx = (1 ^ c) * COLOR_STRIDE + p * PIECE_STRIDE + feat.1.index();
+        let white_idx = c * COLOR_STRIDE + p * PIECE_STRIDE + square.flipv().index();
+        let black_idx = (1 ^ c) * COLOR_STRIDE + p * PIECE_STRIDE + square.index();
 
         (white_idx * HIDDEN, black_idx * HIDDEN)
     }
@@ -121,12 +122,7 @@ impl AccumulatorStack {
             Box::from_raw(ptr.cast())
         };
 
-        // init with feature biases and add in all features of the board
-        boxed.accs[0] = Accumulator::default();
-        for sq in board.occupancy() {
-            boxed.accs[0].update_weights::<ON>((board.piece_at(sq), sq));
-        }
-
+        boxed.refresh(board);
         boxed
     }
 
@@ -139,7 +135,7 @@ impl AccumulatorStack {
         // update the first accumulator
         for piece in Piece::ALL {
             for sq in board.piece_occupancy(piece) {
-                self.accs[0].update_weights::<ON>((piece, sq));
+                self.accs[0].update_weights::<ON>((piece.get_type(), piece.get_color(), sq));
             }
         }
     }
@@ -148,8 +144,11 @@ impl AccumulatorStack {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chess::movegen::make_move::OFF;
-    use chess::square::Square;
+    use chess::{
+        movegen::make_move::OFF,
+        piece::{Color, PieceType},
+        square::Square,
+    };
 
     #[test]
     fn test_nnue_stack() {
@@ -169,10 +168,10 @@ mod tests {
 
     #[test]
     fn test_nnue_index() {
-        let idx1 = Accumulator::idx((Piece::WP, Square::A8));
-        let idx2 = Accumulator::idx((Piece::WP, Square::H1));
-        let idx3 = Accumulator::idx((Piece::BP, Square::A1));
-        let idx4 = Accumulator::idx((Piece::WK, Square::E1));
+        let idx1 = Accumulator::idx((PieceType::Pawn, Color::White, Square::A8));
+        let idx2 = Accumulator::idx((PieceType::Pawn, Color::White, Square::H1));
+        let idx3 = Accumulator::idx((PieceType::Pawn, Color::Black, Square::A1));
+        let idx4 = Accumulator::idx((PieceType::King, Color::White, Square::E1));
 
         assert_eq!(idx1, (HIDDEN * 56, HIDDEN * 384));
         assert_eq!(idx2, (HIDDEN * 7, HIDDEN * 447));
@@ -189,9 +188,10 @@ mod tests {
         let mut acc1 = old_acc;
         let mut acc2 = old_acc;
 
-        acc1.update_weights::<ON>((Piece::WP, Square::A3));
-        acc1.update_weights::<OFF>((Piece::WP, Square::A3));
-        acc2.add_sub_weights((Piece::WP, Square::A3), (Piece::WP, Square::A3));
+        let feat = (PieceType::Pawn, Color::White, Square::A3);
+        acc1.update_weights::<ON>(feat);
+        acc1.update_weights::<OFF>(feat);
+        acc2.add_sub_weights(feat, feat);
 
         for i in 0..HIDDEN {
             assert_eq!(old_acc.white[i], acc1.white[i]);
@@ -210,8 +210,8 @@ mod tests {
         let mut s1 = AccumulatorStack::from_board(&b1);
         let s2 = AccumulatorStack::from_board(&b2);
 
-        let piece = b1.piece_at(m.get_src());
-        s1.accs[0].add_sub_weights((piece, m.get_tgt()), (piece, m.get_src()));
+        let piece = b1.piece_type_at(m.get_src());
+        s1.accs[0].add_sub_weights((piece, b1.side, m.get_tgt()), (piece, b1.side, m.get_src()));
 
         for i in 0..HIDDEN {
             assert_eq!(s1.accs[0].white[i], s2.accs[0].white[i]);

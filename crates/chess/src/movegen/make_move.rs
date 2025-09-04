@@ -3,11 +3,11 @@ use crate::{
     board::Board,
     castle::rook_castling_move,
     moves::{Move, MoveType},
-    piece::Piece,
+    piece::{Color, PieceType},
     square::Square,
 };
 
-pub type Feature = (Piece, Square);
+pub type Feature = (PieceType, Color, Square);
 
 pub const ON: bool = true;
 pub const OFF: bool = false;
@@ -21,38 +21,44 @@ impl Board {
     /// Supplying illegal moves will lead to illegal board states.
     pub fn make_move(&self, m: Move) -> Board {
         let mut new = self.clone();
+
+        let us = self.side;
+        let them = !self.side;
         let (src, tgt) = (m.get_src(), m.get_tgt());
-        let piece = self.piece_at(src); // must exist
+        let piece = self.piece_type_at(src); // must exist
         let move_type = m.get_type();
         let capture = move_type.is_capture();
 
         // Remove moving piece and reset halfmoves
-        new.remove_piece(src);
-        if capture || piece.is_pawn() {
-            new.halfmoves = 0
+        new.pop_piece(piece, us, src);
+        if capture || piece == PieceType::Pawn {
+            new.halfmoves = 0;
         } else {
             new.halfmoves += 1;
         }
 
-        // Handle pieces affected by the move (captures/castles..)
-        if move_type == MoveType::EnPassant {
-            new.remove_piece(tgt.forward(!self.side));
-        } else if capture {
-            new.remove_piece(tgt);
-        } else if move_type == MoveType::Castle {
-            let rook = self.side.rook();
-            let (rook_src, rook_tgt) = rook_castling_move(tgt);
+        if capture {
+            let (tgt_piece, tgt_sq) = if move_type == MoveType::EnPassant {
+                (PieceType::Pawn, tgt.forward(them))
+            } else {
+                (self.piece_type_at(tgt), tgt)
+            };
 
-            new.remove_piece(rook_src);
-            new.set_piece(rook, rook_tgt);
+            new.pop_piece(tgt_piece, them, tgt_sq);
+        } else if move_type == MoveType::Castle {
+            let rook = PieceType::Rook;
+            let (rook_src, rook_tgt) = rook_castling_move(tgt);
+            new.pop_piece(rook, us, rook_src);
+            new.set_piece(rook, us, rook_tgt);
         }
 
         // Move the piece to the new square
-        if move_type.is_promotion() {
-            new.set_piece(move_type.get_promotion(self.side), tgt);
+        let new_piece = if move_type.is_promotion() {
+            move_type.get_promotion()
         } else {
-            new.set_piece(piece, tgt);
-        }
+            piece
+        };
+        new.set_piece(new_piece, us, tgt);
 
         // Handle enpassant
         if let Some(square) = self.en_passant {
@@ -62,7 +68,7 @@ impl Board {
 
         // Handle double push
         if move_type == MoveType::DoublePush {
-            let ep_tgt = src.forward(self.side);
+            let ep_tgt = src.forward(us);
 
             new.en_passant = Some(ep_tgt);
             new.hash.toggle_ep(ep_tgt);
@@ -73,7 +79,7 @@ impl Board {
         new.castling_rights = new_rights;
         new.hash.swap_castle(self.castling_rights, new_rights);
 
-        new.side = !self.side;
+        new.side = them;
         new.hash.toggle_side();
         new.checkers = new.checkers();
 
@@ -83,42 +89,45 @@ impl Board {
     /// Make move with NNUE accumulator increments.
     pub fn make_move_nnue<T: FeatureUpdate>(&self, m: Move, acc: &mut T) -> Board {
         let mut new = self.clone();
+
+        let us = self.side;
+        let them = !self.side;
         let (src, tgt) = (m.get_src(), m.get_tgt());
-        let piece = self.piece_at(src);
+        let piece = self.piece_type_at(src);
         let move_type = m.get_type();
         let capture = move_type.is_capture();
 
-        new.remove_piece(src);
-        if capture || piece.is_pawn() {
+        new.pop_piece(piece, us, src);
+        if capture || piece == PieceType::Pawn {
             new.halfmoves = 0
         } else {
             new.halfmoves += 1;
         }
 
-        if move_type == MoveType::EnPassant {
-            let ep_target = tgt.forward(!self.side);
+        if capture {
+            let (tgt_piece, tgt_sq) = if move_type == MoveType::EnPassant {
+                (PieceType::Pawn, tgt.forward(them))
+            } else {
+                (self.piece_type_at(tgt), tgt)
+            };
 
-            new.remove_piece(ep_target);
-            acc.update_weights::<OFF>(((!self.side).pawn(), ep_target));
-        } else if capture {
-            new.remove_piece(tgt);
-            acc.update_weights::<OFF>((self.piece_at(tgt), tgt));
+            new.pop_piece(tgt_piece, them, tgt_sq);
+            acc.update_weights::<OFF>((tgt_piece, them, tgt_sq));
         } else if move_type == MoveType::Castle {
-            let rook = self.side.rook();
+            let rook = PieceType::Rook;
             let (rook_src, rook_tgt) = rook_castling_move(tgt);
-
-            new.remove_piece(rook_src);
-            new.set_piece(rook, rook_tgt);
-            acc.add_sub_weights((rook, rook_tgt), (rook, rook_src));
+            new.pop_piece(rook, us, rook_src);
+            new.set_piece(rook, us, rook_tgt);
+            acc.add_sub_weights((rook, us, rook_tgt), (rook, us, rook_src));
         }
 
         let new_piece = if move_type.is_promotion() {
-            move_type.get_promotion(self.side)
+            move_type.get_promotion()
         } else {
             piece
         };
-        new.set_piece(new_piece, tgt);
-        acc.add_sub_weights((new_piece, tgt), (piece, src));
+        new.set_piece(new_piece, us, tgt);
+        acc.add_sub_weights((new_piece, us, tgt), (piece, us, src));
 
         if let Some(square) = self.en_passant {
             new.en_passant = None;
@@ -126,7 +135,7 @@ impl Board {
         }
 
         if move_type == MoveType::DoublePush {
-            let ep_tgt = src.forward(self.side);
+            let ep_tgt = src.forward(us);
 
             new.en_passant = Some(ep_tgt);
             new.hash.toggle_ep(ep_tgt);
@@ -136,7 +145,7 @@ impl Board {
         new.castling_rights = new_rights;
         new.hash.swap_castle(self.castling_rights, new_rights);
 
-        new.side = !self.side;
+        new.side = them;
         new.hash.toggle_side();
         new.checkers = new.checkers();
 

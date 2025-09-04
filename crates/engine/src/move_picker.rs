@@ -5,7 +5,7 @@ use chess::{
     board::{Board, bishop_attacks, rook_attacks},
     move_list::MoveList,
     moves::{Move, MoveType},
-    piece::{Color, Piece},
+    piece::PieceType,
     square::Square,
 };
 
@@ -207,7 +207,7 @@ pub const TT_SCORE: i32 = i32::MAX;
 pub const GOOD_TACTICAL: i32 = 2_000_000;
 const BAD_TACTICAL: i32 = 1_000_000;
 const PROMO_SCORE: i32 = CAP_HIST_MAX + MVV[4] + 1; // Queen promotions have best MVV + CapHist value
-const MVV: [i32; Piece::COUNT] = [0, 2400, 2400, 4800, 9600, 0];
+const MVV: [i32; PieceType::COUNT] = [0, 2400, 2400, 4800, 9600, 0];
 
 /// Score a single tactical move. These moves are either captures or queen promotions.
 fn score_tactical(m: Move, see_threshold: Eval, board: &Board, thread: &Thread) -> i32 {
@@ -216,7 +216,7 @@ fn score_tactical(m: Move, see_threshold: Eval, board: &Board, thread: &Thread) 
         MoveType::QueenCapPromo => return GOOD_TACTICAL + PROMO_SCORE,
         MoveType::QueenPromotion => PROMO_SCORE,
         t if t.is_underpromotion() => return BAD_TACTICAL,
-        _ => MVV[board.get_captured_piece(m).type_index()] + thread.score_cap_hist(m, board),
+        _ => MVV[board.get_captured_piece_type(m).index()] + thread.score_cap_hist(m, board),
     };
 
     // Give a bonus to moves with positive SEE
@@ -259,10 +259,9 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
 }
 
 /// Returns the least valuable of the attackers within the attacker map
-fn get_lva(board: &Board, own_attackers: BitBoard, side: Color) -> Option<(Square, Piece)> {
-    for piece in Piece::SPLIT_COLOR[side.index()] {
+fn get_lva(board: &Board, own_attackers: BitBoard) -> Option<(Square, PieceType)> {
+    for piece in PieceType::ALL {
         let squares = own_attackers & board.piece_type_occupancy(piece); // own attackers already excludes enemies
-
         if squares != BitBoard::EMPTY {
             return Some((squares.lsb(), piece));
         }
@@ -285,23 +284,19 @@ pub fn see(board: &Board, m: Move, threshold: Eval) -> bool {
 
     // Piece being swapped off is the promoted piece
     let victim = if mt.is_promotion() {
-        mt.get_promotion(board.side)
+        mt.get_promotion()
     } else {
-        board.piece_at(src)
+        board.piece_type_at(src)
     };
 
     // Get the static move value (also works for quiets)
     let mut move_value = if mt.is_capture() {
-        if mt == MoveType::EnPassant {
-            piece_value(Piece::WP)
-        } else {
-            piece_value(board.piece_at(tgt))
-        }
+        piece_value(board.get_captured_piece_type(m))
     } else {
         0
     };
     if mt.is_promotion() {
-        move_value += piece_value(victim) - piece_value(Piece::WP);
+        move_value += piece_value(victim) - piece_value(PieceType::Pawn);
     }
 
     // Lose if the balance is already in our opponent's favor and it's their turn
@@ -339,16 +334,19 @@ pub fn see(board: &Board, m: Move, threshold: Eval) -> bool {
         }
 
         // Get the least valuable attacker and simulate the recapture
-        let (attacker_square, attacker) = get_lva(board, own_attackers, side_to_move).unwrap(); // attackers are at least one
+        let (attacker_square, attacker) = get_lva(board, own_attackers).unwrap(); // attackers are at least one
         occs = occs.pop_bit(attacker_square);
 
         // Diagonal recaptures uncover bishops/queens
-        if attacker.is_pawn() || attacker.is_bishop() || attacker.is_queen() {
+        if attacker == PieceType::Pawn
+            || attacker == PieceType::Bishop
+            || attacker == PieceType::Queen
+        {
             attackers |= bishop_attacks(tgt, occs) & diagonal_sliders;
         }
 
         // Orthogonal recaptures uncover rooks/queens
-        if attacker.is_rook() || attacker.is_queen() {
+        if attacker == PieceType::Rook || attacker == PieceType::Queen {
             attackers |= rook_attacks(tgt, occs) & orthogonal_sliders;
         }
         attackers &= occs; // ignore pieces already "used up"
@@ -359,7 +357,7 @@ pub fn see(board: &Board, m: Move, threshold: Eval) -> bool {
         if balance >= 0 {
             // If the recapturing piece is a king, and the opponent has another attacker,
             // a positive balance should not translate to an exchange win.
-            if attacker.is_king()
+            if attacker == PieceType::King
                 && attackers & board.side_occupancy(side_to_move) != BitBoard::EMPTY
             {
                 return board.side == side_to_move;

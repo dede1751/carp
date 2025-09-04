@@ -4,7 +4,7 @@ use crate::{
     bitboard::BitBoard,
     castle::CastlingRights,
     moves::{Move, MoveType},
-    piece::{Color, Piece},
+    piece::{Color, Piece, PieceType},
     square::{File, Rank, Square},
     zobrist::ZHash,
 };
@@ -12,24 +12,21 @@ use crate::{
 // Re-export the movegen module into the board.
 pub use crate::movegen::{gen_moves::*, perft::*};
 
-/// Bitboard-based board representation
+/// Bitboard-based board representation (96B)
 /// Any board without a king for each player (and with more than one for either) is UB!
 #[derive(Clone, Debug)]
-pub struct Board {                          // 160B
+pub struct Board {
     // Main bitboards
-    piece_bb: [BitBoard; Piece::COUNT],     // 8B * 6
-    side_bb: [BitBoard; 2],                 // 8B * 2
-
-    // Piece map for piece_at lookup
-    piece: [Option<Piece>; Square::COUNT],  // 1B * 64
+    piece_bb: [BitBoard; Piece::COUNT], // 8B * 6
+    side_bb: [BitBoard; 2],             // 8B * 2
 
     // Other positional information
-    pub side: Color,                        // 1B
-    pub castling_rights: CastlingRights,    // 1B
-    pub en_passant: Option<Square>,         // 1B
-    pub halfmoves: usize,                   // 8B
-    pub hash: ZHash,                        // 8B
-    pub(crate) checkers: BitBoard,          // 8B
+    pub side: Color,                     // 1B
+    pub castling_rights: CastlingRights, // 1B
+    pub en_passant: Option<Square>,      // 1B
+    pub halfmoves: usize,                // 8B
+    pub hash: ZHash,                     // 8B
+    pub(crate) checkers: BitBoard,       // 8B
 }
 
 /// Pretty print board state
@@ -45,8 +42,9 @@ impl fmt::Display for Board {
 
             for file in File::ALL {
                 let square = Square::from_coords(file, rank);
-                let piece_str =
-                    self.piece[square.index()].map_or(String::from(" "), |p| p.to_string());
+                let piece_str = self
+                    .piece_at(square)
+                    .map_or(String::from(" "), |p| p.to_string());
 
                 board_str.push_str(&piece_str);
                 board_str.push_str(" ┃ ");
@@ -108,7 +106,9 @@ impl FromStr for Board {
                     }
                 }
                 _ => {
-                    board.set_piece(Piece::try_from(token)?, Square::from_coords(file, rank));
+                    let piece = Piece::try_from(token)?;
+                    let square = Square::from_coords(file, rank);
+                    board.set_piece(piece.get_type(), piece.get_color(), square);
                     file = file.right();
                     token_count += 1;
                 }
@@ -164,7 +164,7 @@ impl Board {
             for file in File::ALL {
                 let square = Square::from_coords(file, rank);
 
-                if let Some(p) = self.piece[square.index()] {
+                if let Some(p) = self.piece_at(square) {
                     if empty > 0 {
                         fen.push_str(&empty.to_string());
                         empty = 0;
@@ -264,16 +264,16 @@ impl Board {
 
     /// Get the occupancy bitboard for the given piece type
     #[inline(always)]
-    pub const fn piece_type_occupancy(&self, piece: Piece) -> BitBoard {
-        self.piece_bb[piece.type_index()]
+    pub const fn piece_type_occupancy(&self, piece_type: PieceType) -> BitBoard {
+        self.piece_bb[piece_type.index()]
     }
 
     /// Get the occupancy bitboard for the given piece (includes color information)
     #[inline(always)]
     pub const fn piece_occupancy(&self, piece: Piece) -> BitBoard {
         BitBoard::and(
-            self.piece_type_occupancy(piece),
-            self.side_occupancy(piece.color()),
+            self.piece_type_occupancy(piece.get_type()),
+            self.side_occupancy(piece.get_color()),
         )
     }
 
@@ -342,8 +342,6 @@ impl Board {
             piece_bb: [BitBoard::EMPTY; Piece::COUNT],
             side_bb: [BitBoard::EMPTY; 2],
 
-            piece: [None; Square::COUNT],
-
             side: Color::White,
             castling_rights: CastlingRights::NONE,
             en_passant: None,
@@ -354,46 +352,58 @@ impl Board {
         }
     }
 
+    /// Returns the PieceType at the given square. Panics if no piece is found.
+    pub fn piece_type_at(&self, square: Square) -> PieceType {
+        self.piece_bb
+            .iter()
+            .position(|pc_bb| pc_bb.get_bit(square))
+            .unwrap()
+            .into()
+    }
+
+    /// Returns the Piece at the given square.
+    pub fn piece_at(&self, square: Square) -> Option<Piece> {
+        let piece = self
+            .piece_bb
+            .iter()
+            .position(|pc_bb| pc_bb.get_bit(square))?;
+        let color = if self.white().get_bit(square) {
+            Color::White
+        } else {
+            Color::Black
+        };
+        Some(color.piece(piece.into()))
+    }
+
     /// Set the piece on the board at the given square (remove first, set later)
     #[inline(always)]
-    pub(crate) const fn set_piece(&mut self, piece: Piece, square: Square) {
-        let p = piece.type_index();
-        let c = piece.color().index();
+    pub(crate) const fn set_piece(&mut self, piece_type: PieceType, side: Color, square: Square) {
+        let p = piece_type.index();
+        let c = side.index();
 
         self.piece_bb[p] = self.piece_bb[p].set_bit(square);
         self.side_bb[c] = self.side_bb[c].set_bit(square);
-        self.piece[square.index()] = Some(piece);
-        self.hash.toggle_piece(piece, square);
+        self.hash.toggle_piece(side.piece(piece_type), square);
     }
 
-    /// Remove the piece at the given square on the board (set first, remove later)
-    /// The piece must exist at the given square
+    /// Remove the piece at the given square on the board
     #[inline(always)]
-    pub(crate) const fn remove_piece(&mut self, square: Square) {
-        let piece = self.piece_at(square);
-        let p = piece.type_index();
-        let c = piece.color().index();
+    pub(crate) const fn pop_piece(&mut self, piece_type: PieceType, side: Color, square: Square) {
+        let p = piece_type.index();
+        let c = side.index();
 
         self.piece_bb[p] = self.piece_bb[p].pop_bit(square);
         self.side_bb[c] = self.side_bb[c].pop_bit(square);
-        self.piece[square.index()] = None;
-        self.hash.toggle_piece(piece, square);
-    }
-
-    /// Looks for which piece is on the given Square
-    /// Panics if no piece is on that square
-    #[inline(always)]
-    pub const fn piece_at(&self, square: Square) -> Piece {
-        self.piece[square.index()].unwrap()
+        self.hash.toggle_piece(side.piece(piece_type), square);
     }
 
     /// Returns the piece being captured by the move.
     #[inline(always)]
-    pub fn get_captured_piece(&self, m: Move) -> Piece {
+    pub fn get_captured_piece_type(&self, m: Move) -> PieceType {
         if m.get_type() == MoveType::EnPassant {
-            (!self.side).pawn()
+            PieceType::Pawn
         } else {
-            self.piece_at(m.get_tgt())
+            self.piece_type_at(m.get_tgt())
         }
     }
 

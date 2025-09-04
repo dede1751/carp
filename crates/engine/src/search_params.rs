@@ -24,10 +24,10 @@ pub const HISTORY_MAX: i32 = HIST_MAX + CONT_HIST_MAX * CONT_HIST_COUNT as i32;
 #[cfg(not(feature = "tune"))]
 mod lookups {
     use super::*;
-    use chess::piece::Piece;
+    use chess::piece::PieceType;
 
     #[rustfmt::skip]
-    const PIECE_VALUES: [Eval; Piece::COUNT] = [
+    const PIECE_VALUES: [Eval; PieceType::COUNT] = [
         P::pawn(), P::knight(), P::bishop(), P::rook(), P::queen(), 0,
     ];
 
@@ -35,8 +35,8 @@ mod lookups {
         unsafe { std::mem::transmute(*include_bytes!("../../../bins/lmr.bin")) };
 
     #[inline(always)]
-    pub const fn piece_value(piece: Piece) -> Eval {
-        PIECE_VALUES[piece.type_index()]
+    pub const fn piece_value(piece: PieceType) -> Eval {
+        PIECE_VALUES[piece.index()]
     }
 
     #[inline(always)]
@@ -48,17 +48,17 @@ mod lookups {
 #[cfg(feature = "tune")]
 mod lookups {
     use super::*;
-    use chess::piece::Piece;
+    use chess::piece::PieceType;
 
     #[inline(always)]
-    pub fn piece_value(piece: Piece) -> Eval {
+    pub fn piece_value(piece: PieceType) -> Eval {
         match piece.index() {
-            Piece::P => P::pawn(),
-            Piece::N => P::knight(),
-            Piece::B => P::bishop(),
-            Piece::R => P::rook(),
-            Piece::Q => P::queen(),
-            Piece::K => 0,
+            PieceType::Pawn => P::pawn(),
+            PieceType::Knight => P::knight(),
+            PieceType::Bishop => P::bishop(),
+            PieceType::Rook => P::rook(),
+            PieceType::Queen => P::queen(),
+            PieceType::King => 0,
             _ => unreachable!(),
         }
     }

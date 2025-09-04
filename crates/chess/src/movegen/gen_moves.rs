@@ -8,13 +8,17 @@ use crate::{
     board::Board,
     move_list::MoveList,
     moves::{Move, MoveType},
-    piece::{Color, Piece},
+    piece::{Color, PieceType},
     square::Square,
 };
 
 /// Bitboard of squares between two squares, excluding the squares themselves
 static BETWEEN: [BB64; Square::COUNT] =
     unsafe { transmute(*include_bytes!("../../../../bins/between.bin")) };
+
+fn between(a: Square, b: Square) -> BitBoard {
+    unsafe { *BETWEEN.get_unchecked(a.index()).get_unchecked(b.index()) }
+}
 
 /// Attacks for the hopping pieces are just precalculated bitboards.
 static KING_ATTACKS: BB64 = unsafe { transmute(*include_bytes!("../../../../bins/king.bin")) };
@@ -237,18 +241,18 @@ impl Board {
         move_list: &mut MoveList,
     ) {
         let pieces = match PIECE {
-            Piece::N => self.own_knights(),
-            Piece::B => self.own_queens() | self.own_bishops(),
-            Piece::R => self.own_queens() | self.own_rooks(),
+            PieceType::N => self.own_knights(),
+            PieceType::B => self.own_queens() | self.own_bishops(),
+            PieceType::R => self.own_queens() | self.own_rooks(),
             _ => unreachable!(),
         } & !stuck_pin_mask;
         let blockers = self.occupancy();
 
         for src in pieces {
             let mut attacks = match PIECE {
-                Piece::N => knight_attacks(src),
-                Piece::B => bishop_attacks(src, blockers),
-                Piece::R => rook_attacks(src, blockers),
+                PieceType::N => knight_attacks(src),
+                PieceType::B => bishop_attacks(src, blockers),
+                PieceType::R => rook_attacks(src, blockers),
                 _ => unreachable!(),
             } & check_mask;
 
@@ -274,8 +278,7 @@ impl Board {
     /// Any pinned piece can safely move along these squares (simply & moves with pinmask).
     /// For simplicity, pin masks also indirectly include the check mask (this has no actual
     /// effect on the pin use, as no piece can be sitting on the check mask anyways)
-    fn map_pins(&self) -> (BitBoard, BitBoard) {
-        let king_square = self.own_king().lsb();
+    fn map_pins(&self, king_square: Square) -> (BitBoard, BitBoard) {
         let occs = self.occupancy();
 
         // get all own pieces on diagonal/orthogonal rays from the king
@@ -294,12 +297,12 @@ impl Board {
         // pin masks are between the attacker and the king square (attacker included)
         let diag_pins = diag_attackers
             .into_iter()
-            .map(|sq| BETWEEN[king_square.index()][sq.index()])
+            .map(|sq| between(king_square, sq))
             .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         let hv_pins = hv_attackers
             .into_iter()
-            .map(|sq| BETWEEN[king_square.index()][sq.index()])
+            .map(|sq| between(king_square, sq))
             .fold(BitBoard::EMPTY, |acc, x| acc | x);
 
         (diag_pins, hv_pins)
@@ -309,9 +312,9 @@ impl Board {
     pub fn gen_moves<const QUIET: bool>(&self) -> MoveList {
         let mut ml = MoveList::default();
         let move_list = &mut ml;
-        let king_sq = self.own_king().lsb();
+        let king_square = self.own_king().lsb();
 
-        self.gen_king_moves::<QUIET>(king_sq, move_list);
+        self.gen_king_moves::<QUIET>(king_square, move_list);
 
         // With double checks, only king moves are legal, so we stop here
         let attacker_count = self.checkers.count_bits();
@@ -321,11 +324,11 @@ impl Board {
 
         // Generate all the legal piece moves using pin and blocker/capture masks
         let check_mask = if attacker_count == 1 {
-            BETWEEN[king_sq.index()][self.checkers.lsb().index()] | self.checkers
+            between(king_square, self.checkers.lsb()) | self.checkers
         } else {
             BitBoard::FULL
         };
-        let (diag_pins, hv_pins) = self.map_pins();
+        let (diag_pins, hv_pins) = self.map_pins(king_square);
         let all_pins = diag_pins | hv_pins;
 
         if QUIET && attacker_count == 0 {
@@ -339,9 +342,9 @@ impl Board {
 
         self.gen_pawn_captures(check_mask, diag_pins, hv_pins, move_list);
         self.gen_pawn_advances::<QUIET>(check_mask, diag_pins, hv_pins, move_list);
-        self.gen_piece::<{ Piece::N }, QUIET>(check_mask, BitBoard::EMPTY, all_pins, move_list);
-        self.gen_piece::<{ Piece::B }, QUIET>(check_mask, diag_pins, hv_pins, move_list);
-        self.gen_piece::<{ Piece::R }, QUIET>(check_mask, hv_pins, diag_pins, move_list);
+        self.gen_piece::<{ PieceType::N }, QUIET>(check_mask, BitBoard::EMPTY, all_pins, move_list);
+        self.gen_piece::<{ PieceType::B }, QUIET>(check_mask, diag_pins, hv_pins, move_list);
+        self.gen_piece::<{ PieceType::R }, QUIET>(check_mask, hv_pins, diag_pins, move_list);
 
         ml
     }
@@ -358,7 +361,8 @@ mod tests {
             .unwrap();
         println!("{board}");
 
-        let (diag_pins, hv_pins) = board.map_pins();
+        let king_square = board.own_king().lsb();
+        let (diag_pins, hv_pins) = board.map_pins(king_square);
         let pinned = (diag_pins | hv_pins) & board.own_occupancy();
         println!("{}\n{}\n{}", pinned, diag_pins, hv_pins);
 

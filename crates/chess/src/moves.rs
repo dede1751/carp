@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    piece::{Color, Piece},
+    piece::{Color, PieceType},
     square::Square,
     transmute_enum,
 };
@@ -65,14 +65,13 @@ impl MoveType {
 
     /// Returns the promotion piece of the given color. MoveType must be a promotion.
     #[inline(always)]
-    pub const fn get_promotion(self, side: Color) -> Piece {
+    pub const fn get_promotion(self) -> PieceType {
         const PROMO_MASK: usize = 0b0011;
-        const PROMO_PIECES: [[Piece; 4]; 2] = [
-            [Piece::WN, Piece::WB, Piece::WR, Piece::WQ],
-            [Piece::BN, Piece::BB, Piece::BR, Piece::BQ],
+        #[rustfmt::skip]
+        const PROMO_PIECES: [PieceType; 4] = [
+            PieceType::Knight, PieceType::Bishop, PieceType::Rook, PieceType::Queen,
         ];
-
-        PROMO_PIECES[side.index()][self as usize & PROMO_MASK]
+        PROMO_PIECES[self as usize & PROMO_MASK]
     }
 }
 
@@ -92,7 +91,7 @@ impl fmt::Display for Move {
                 f,
                 "{}{}",
                 s,
-                move_type.get_promotion(Color::Black).to_char()
+                Color::Black.piece(move_type.get_promotion()).to_char()
             )
         } else {
             write!(f, "{s}")
@@ -144,6 +143,7 @@ impl Move {
 mod tests {
     use super::*;
     use crate::board::Board;
+    use crate::piece::Piece;
 
     #[test]
     fn test_move_constructor() {
@@ -160,8 +160,8 @@ mod tests {
         assert_eq!(m1.get_tgt(), Square::G6);
         assert_eq!(m1.get_type(), MoveType::Capture);
 
-        assert_eq!(b.piece_at(Square::F7), Piece::BP);
-        assert_eq!(b.piece_at(Square::G6), Piece::WB);
+        assert_eq!(b.piece_at(Square::F7), Some(Piece::BP));
+        assert_eq!(b.piece_at(Square::G6), Some(Piece::WB));
 
         assert_eq!(m2.get_src(), Square::E8);
         assert_eq!(m2.get_tgt(), Square::E7);

@@ -53,6 +53,60 @@ impl Color {
     pub const fn opp_index(self) -> usize {
         self as usize ^ 1
     }
+
+    /// Returns a Piece with the given piece type and the current color
+    #[inline(always)]
+    pub const fn piece(self, piece_type: PieceType) -> Piece {
+        transmute_enum!((piece_type.inner() << 1) | self.inner(), 15)
+    }
+}
+
+/// Chess PieceType enum (no color)
+#[repr(u8)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
+#[rustfmt::skip]
+pub enum PieceType {
+    Pawn, Knight, Bishop, Rook, Queen, King
+}
+
+/// Create piece type from usize index
+/// UB:
+/// If 6 <= index mod 16 <=15 this will try to transmute to a non-existent piece type
+/// Simply use indices that make sense
+impl From<usize> for PieceType {
+    fn from(index: usize) -> Self {
+        transmute_enum!(index as u8, 15)
+    }
+}
+
+impl PieceType {
+    pub const COUNT: usize = 6;
+
+    pub const P: usize = Self::Pawn.index();
+    pub const N: usize = Self::Knight.index();
+    pub const B: usize = Self::Bishop.index();
+    pub const R: usize = Self::Rook.index();
+    pub const Q: usize = Self::Queen.index();
+    pub const K: usize = Self::King.index();
+
+    /// All piece types indexed by binary representation
+    #[rustfmt::skip]
+    pub const ALL: [Self; Self::COUNT] = [
+        Self::Pawn, Self::Knight, Self::Bishop,
+        Self::Rook, Self::Queen, Self::King,
+    ];
+
+    /// Returns underlying u8 representation between 0 and 5
+    #[inline(always)]
+    pub const fn inner(self) -> u8 {
+        self as u8
+    }
+
+    /// Returns a usize index between 0 and 5 (indexes the piece type)
+    #[inline(always)]
+    pub const fn index(self) -> usize {
+        self as usize
+    }
 }
 
 /// Chess Piece enum (includes color)
@@ -61,7 +115,7 @@ impl Color {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Hash)]
 #[rustfmt::skip]
 pub enum Piece {
-    WP, BP, WN, BN, WB, BB, WR, BR, WQ, BQ, WK, BK,
+    WP, BP, WN, BN, WB, BB, WR, BR, WQ, BQ, WK, BK
 }
 use Piece::*;
 
@@ -69,7 +123,7 @@ use Piece::*;
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[rustfmt::skip]
-        const UNICODE: [char; Piece::TOTAL] = [
+        const UNICODE: [char; Piece::COUNT] = [
             '♟', '♙', '♞', '♘', '♝', '♗',
             '♜', '♖', '♛', '♕', '♚', '♔',
         ];
@@ -101,7 +155,7 @@ macro_rules! impl_conversions {
             impl Color {
                 #[inline(always)]
                 pub const fn $piece(self) -> Piece {
-                    transmute_enum!($val + self.inner(), 15)
+                    transmute_enum!($val | self.inner(), 15)
                 }
             }
 
@@ -134,33 +188,18 @@ impl From<usize> for Piece {
 }
 
 impl Piece {
-    pub const COUNT: usize = 6;
-    pub const TOTAL: usize = 12;
-
-    pub const P: usize = 0;
-    pub const N: usize = 1;
-    pub const B: usize = 2;
-    pub const R: usize = 3;
-    pub const Q: usize = 4;
-    pub const K: usize = 5;
+    pub const COUNT: usize = 12;
 
     /// All pieces indexed by binary representation
     #[rustfmt::skip]
-    pub const ALL: [Self; Self::TOTAL] = [
+    pub const ALL: [Self; Self::COUNT] = [
         WP, BP, WN, BN, WB, BB,
         WR, BR, WQ, BQ, WK, BK,
     ];
 
-    /// All pieces indexed by color
-    #[rustfmt::skip]
-    pub const SPLIT_COLOR: [[Self; Self::COUNT]; 2] = [
-        [ WP, WN, WB, WR, WQ, WK ],
-        [ BP, BN, BB, BR, BQ, BK ]
-    ];
-
     /// Used for printing/reading pieces
     #[rustfmt::skip]
-    const CHAR: [char; Self::TOTAL] = [
+    const CHAR: [char; Self::COUNT] = [
         'P', 'p', 'N', 'n', 'B', 'b',
         'R', 'r', 'Q', 'q', 'K', 'k',
     ];
@@ -171,22 +210,22 @@ impl Piece {
         self as u8
     }
 
-    /// Returns underlying u8 representation between 0 and 11 (type and color)
-    #[inline(always)]
-    pub const fn inner_type(self) -> u8 {
-        self as u8 >> 1
-    }
-
     /// Returns a usize index between 0 and 11 (indexes piece and color)
     #[inline(always)]
     pub const fn index(self) -> usize {
         self as usize
     }
 
-    /// Returns a usize index between 0 and 5 (indexes the piece type)
+    /// Get the underlying PieceType
     #[inline(always)]
-    pub const fn type_index(self) -> usize {
-        self as usize >> 1
+    pub const fn get_type(self) -> PieceType {
+        transmute_enum!(self.inner() >> 1, 7)
+    }
+
+    /// Get the underlying piece Color
+    #[inline(always)]
+    pub const fn get_color(self) -> Color {
+        transmute_enum!(self.inner(), 1)
     }
 
     /// Returns fen formatted piece
@@ -194,15 +233,9 @@ impl Piece {
         Self::CHAR[self.index()]
     }
 
-    /// Get piece color
-    #[inline(always)]
-    pub const fn color(self) -> Color {
-        transmute_enum!(self.inner(), 1)
-    }
-
     /// Switch piece color
     #[inline(always)]
-    pub const fn opposite_color(self) -> Self {
+    pub const fn opp_color(self) -> Self {
         transmute_enum!(self.inner() ^ 1, 15) // ^1 flips color bit
     }
 }

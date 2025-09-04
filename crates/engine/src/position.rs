@@ -11,7 +11,7 @@ use chess::{
     bitboard::BitBoard,
     board::Board,
     moves::Move,
-    piece::{Color, Piece},
+    piece::{Color, PieceType},
 };
 
 /// Position, represents a Board's evolution along the game tree.
@@ -96,9 +96,8 @@ impl Position {
         let new = self.board.make_move_nnue(m, acc);
         let old = std::mem::replace(&mut self.board, new);
 
-        let piece = old.piece_at(m.get_src());
+        let piece = old.side.piece(old.piece_type_at(m.get_src()));
         self.history.push(old);
-
         t.push_move(piece, m);
     }
 
@@ -154,10 +153,10 @@ impl Position {
 
         #[rustfmt::skip]
         let total_material =
-            self.board.knights().count_bits() as Eval * piece_value(Piece::WN) +
-            self.board.bishops().count_bits() as Eval * piece_value(Piece::WB) +
-            self.board.rooks().count_bits() as Eval   * piece_value(Piece::WR) +
-            self.board.queens().count_bits() as Eval  * piece_value(Piece::WQ);
+            self.board.knights().count_bits() as Eval * piece_value(PieceType::Knight) +
+            self.board.bishops().count_bits() as Eval * piece_value(PieceType::Bishop) +
+            self.board.rooks().count_bits() as Eval   * piece_value(PieceType::Rook)   +
+            self.board.queens().count_bits() as Eval  * piece_value(PieceType::Queen);
 
         (eval * (700 + total_material / 32)) / 1024
     }
