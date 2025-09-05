@@ -516,7 +516,7 @@ impl Position {
         }
 
         if t.stop {
-            return 0;
+            return 0; // This should never happen, right? Best not risk...
         }
 
         alpha = alpha.min(syzygy_max);
@@ -653,7 +653,7 @@ impl Position {
         }
 
         if t.stop {
-            return 0;
+            return 0; // This should never happen, right? Best not risk...
         }
 
         // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
