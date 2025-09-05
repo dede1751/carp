@@ -3,8 +3,6 @@ target
 tmp
 data
 checkpoints
-engine/src/syzygy/bindings.rs
 
 # Executables
-/Carp
-/carp-*
+/carp*

@@ -1,0 +1,321 @@
+use std::{hint::black_box, time::Instant};
+
+use crate::{
+    move_picker::MovePicker,
+    nnue::AccumulatorStack,
+    search_params::*,
+    syzygy::probe::{TB, WDL},
+    thread::Thread,
+};
+use chess::{
+    bitboard::BitBoard,
+    board::Board,
+    moves::Move,
+    piece::{Color, PieceType},
+};
+
+/// Position, represents a Board's evolution along the game tree.
+/// Also incorporates move ordering and various game rules (50mr, draw detection etc)
+#[derive(Clone, Debug)]
+pub struct Position {
+    pub board: Board,
+    history: Vec<Board>,
+    acc_stack: Box<AccumulatorStack>,
+}
+
+/// Get position from uci position string
+impl std::str::FromStr for Position {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut tokens = s.split_whitespace();
+        let mut board: Board = match tokens.next() {
+            Some("startpos") => Board::default(),
+            Some("fen") => {
+                let fen = &tokens.clone().take(6).collect::<Vec<&str>>().join(" ")[..];
+
+                for _ in 0..6 {
+                    tokens.next();
+                }
+
+                fen.parse()?
+            }
+            _ => return Err("Invalid position"),
+        };
+
+        let mut history = Vec::new();
+        if let Some("moves") = tokens.next() {
+            for move_str in tokens {
+                let m = board.find_move(move_str);
+
+                match m {
+                    Some(m) => {
+                        let new = board.make_move(m);
+                        history.push(board);
+                        board = new;
+                    }
+                    None => eprintln!("Move is not legal!"),
+                };
+            }
+        };
+
+        let acc_stack = AccumulatorStack::from_board(&board);
+
+        Ok(Self {
+            board,
+            history,
+            acc_stack,
+        })
+    }
+}
+
+/// Default position is startpos
+impl Default for Position {
+    fn default() -> Self {
+        "startpos".parse().unwrap()
+    }
+}
+
+impl Position {
+    /// Produce a move picker for the current position
+    pub fn gen_moves<const QUIETS: bool>(
+        &self,
+        tt_move: Option<Move>,
+        see_threshold: Eval,
+    ) -> MovePicker<QUIETS> {
+        let move_list = self.board.gen_moves::<QUIETS>();
+
+        MovePicker::<QUIETS>::new(move_list, tt_move, see_threshold)
+    }
+
+    /// Makes the given move within the game tree
+    /// We use std::mem::replace to avoid cloning the board
+    pub fn make_move(&mut self, m: Move, t: &mut Thread) {
+        self.acc_stack.push();
+        let acc = &mut self.acc_stack.accs[self.acc_stack.top];
+        let new = self.board.make_move_nnue(m, acc);
+        let old = std::mem::replace(&mut self.board, new);
+
+        let piece = old.side.piece(old.piece_type_at(m.get_src()));
+        self.history.push(old);
+        t.push_move(piece, m);
+    }
+
+    /// Passes turn to opponent (this resets the ply_from_null clock in the thread)
+    /// Calling this when in check breaks the game state!
+    pub fn make_null(&mut self, t: &mut Thread) {
+        let new = self.board.make_null();
+        let old = std::mem::replace(&mut self.board, new);
+
+        self.acc_stack.push();
+        self.history.push(old);
+
+        t.push_null();
+    }
+
+    /// Pops the current board, going back to previous history entry
+    /// Panics if the history vector is empty!
+    pub fn undo_move(&mut self, t: &mut Thread) {
+        let old_board = self.history.pop().unwrap();
+        self.acc_stack.pop();
+        self.board = old_board;
+
+        t.pop_move();
+    }
+
+    /// Returns true if it's white to move
+    pub fn white_to_move(&self) -> bool {
+        self.board.side == Color::White
+    }
+
+    /// Checks whether the current side's king is in check
+    pub fn king_in_check(&self) -> bool {
+        self.board.king_in_check()
+    }
+
+    /// Only king and pawns are on the board for the side to move. Possible Zugzwang.
+    pub fn only_king_pawns_left(&self) -> bool {
+        (self.board.own_occupancy() ^ self.board.own_king() ^ self.board.own_pawns())
+            == BitBoard::EMPTY
+    }
+
+    /// Checks if position is a rule-based draw
+    pub fn is_draw(&self, ply_from_null: usize) -> bool {
+        self.board.halfmoves >= 100
+            || self.is_repetition(ply_from_null)
+            || self.insufficient_material()
+    }
+
+    /// Return the NNUE evaluation of the current position
+    /// We scale the evaluation by the total material on the board
+    pub fn evaluate(&self) -> Eval {
+        let eval = self.acc_stack.evaluate(self.board.side);
+
+        #[rustfmt::skip]
+        let total_material =
+            self.board.knights().count_bits() as Eval * piece_value(PieceType::Knight) +
+            self.board.bishops().count_bits() as Eval * piece_value(PieceType::Bishop) +
+            self.board.rooks().count_bits() as Eval   * piece_value(PieceType::Rook)   +
+            self.board.queens().count_bits() as Eval  * piece_value(PieceType::Queen);
+
+        (eval * (700 + total_material / 32)) / 1024
+    }
+
+    pub fn nnuebench(&self) -> f64 {
+        let runs = 100_000_000;
+        let start = Instant::now();
+        for _ in 0..runs {
+            black_box(black_box(&self.acc_stack).evaluate(black_box(Color::White)));
+        }
+        let elapsed = start.elapsed();
+        let nanos = elapsed.as_nanos();
+        nanos as f64 / runs as f64
+    }
+
+    /// Check for repetitions in hash history (twofold)
+    fn is_repetition(&self, ply_from_null: usize) -> bool {
+        let rollback = 1 + ply_from_null.min(self.board.halfmoves);
+
+        // Rollback == 1 implies we only look at the opponent's position.
+        if rollback == 1 {
+            return false;
+        }
+
+        self.history
+            .iter()
+            .rev() // step through history in reverse
+            .take(rollback) // only check elements within rollback
+            .skip(1) // first element is opponent, skip.
+            .step_by(2) // don't check opponent moves
+            .any(|b| b.hash == self.board.hash) // stop at first repetition
+    }
+
+    /// Draw by insufficient material (strictly for when it is impossible to mate):
+    /// Some of the logic is taken from Tantabus
+    fn insufficient_material(&self) -> bool {
+        const WHITE_SQUARES: BitBoard = BitBoard(12273903644374837845);
+        const CORNERS: BitBoard = BitBoard(9295429630892703873);
+        const EDGES: BitBoard = BitBoard(18411139144890810879);
+
+        let kings = self.board.kings();
+        let knights = self.board.knights();
+        let bishops = self.board.bishops();
+
+        match self.board.occupancy().count_bits() {
+            2 => true,
+            3 => knights | bishops != BitBoard::EMPTY, // 1 knight or 1 bishop
+            4 => {
+                let one_each = self.board.own_occupancy().count_bits() == 2;
+                let knight_count = knights.count_bits();
+                let bishop_count = bishops.count_bits();
+                let king_in_corner = kings & CORNERS != BitBoard::EMPTY;
+                let king_on_edge = kings & EDGES != BitBoard::EMPTY;
+
+                (knight_count == 2 && !king_on_edge) || // knvkn, king not on edge
+                (bishop_count == 2 && (
+                    (bishops & WHITE_SQUARES).count_bits() != 1 || // same color bishops
+                    (one_each && !king_in_corner))) ||  // one bishop each, king not in corner
+                (knight_count == 1 && bishop_count == 1 && one_each && !king_in_corner)
+                // knvkb, king not in corner
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Game result, used for datagen
+/// The bool refers to the game being adjudicated
+#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+pub enum GameResult {
+    Ongoing,
+    WhiteWin(bool),
+    BlackWin(bool),
+    Draw(bool),
+}
+
+#[cfg(feature = "datagen")]
+impl GameResult {
+    pub const WHITE_WIN: u8 = 2;
+    pub const BLACK_WIN: u8 = 0;
+    pub const DRAW: u8 = 1;
+
+    pub const fn as_packed_u8(self) -> u8 {
+        match self {
+            Self::WhiteWin(_) => Self::WHITE_WIN,
+            Self::BlackWin(_) => Self::BLACK_WIN,
+            Self::Draw(_) => Self::DRAW,
+            Self::Ongoing => panic!("Game is not over!"),
+        }
+    }
+}
+
+pub const ADJ: bool = true;
+pub const NO_ADJ: bool = false;
+
+/// Datagen-specific implementations
+impl Position {
+    /// Returns the number of plies in the game
+    pub fn ply(&self) -> usize {
+        self.history.len()
+    }
+
+    /// Push the move without updating search-specific data.
+    /// Accumulator is refreshed to avoid overflows
+    pub fn push_move(&mut self, m: Move) {
+        let new = self.board.make_move(m);
+        self.acc_stack.refresh(&new);
+
+        let old = std::mem::replace(&mut self.board, new);
+        self.history.push(old);
+    }
+
+    /// Checks if the game is over and returns the result.
+    /// If available, adjudicates using the TBs.
+    pub fn check_result(&self, tb: TB) -> GameResult {
+        if let Some(result) = tb.probe_root(&self.board) {
+            let wtm = self.white_to_move();
+
+            return if result.wdl == WDL::Draw {
+                GameResult::Draw(ADJ)
+            } else if (result.wdl == WDL::Win && wtm) || (result.wdl == WDL::Loss && !wtm) {
+                GameResult::WhiteWin(ADJ)
+            } else {
+                GameResult::BlackWin(ADJ)
+            };
+        }
+
+        let move_list = self.board.gen_moves::<true>();
+
+        if move_list.is_empty() {
+            if self.king_in_check() {
+                if self.white_to_move() {
+                    GameResult::BlackWin(NO_ADJ)
+                } else {
+                    GameResult::WhiteWin(NO_ADJ)
+                }
+            } else {
+                GameResult::Draw(NO_ADJ)
+            }
+        } else if self.is_draw(self.board.halfmoves) {
+            GameResult::Draw(NO_ADJ)
+        } else {
+            GameResult::Ongoing
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_draw() {
+        let kbvkn_mate: Position = "fen 5b1K/5k1N/8/8/8/8/8/8 b - - 1 1".parse().unwrap();
+        let kbvkn_draw: Position = "fen 8/8/3k4/4n3/8/2KB4/8/8 w - - 0 1".parse().unwrap();
+        let krvkn: Position = "fen 8/8/4k3/4n3/8/2KR4/8/8 w - - 0 1".parse().unwrap();
+
+        assert!(!kbvkn_mate.insufficient_material());
+        assert!(kbvkn_draw.insufficient_material());
+        assert!(!krvkn.insufficient_material());
+    }
+}
