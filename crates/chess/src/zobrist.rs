@@ -1,11 +1,4 @@
-/// Zobrist hash, an incremental hash for a board position using random keys (in constants mod)
-///
-/// Didactic note:
-/// Zobrist hashes for two identical positions are the same ONLY if obtained through any combination
-/// of toggles from the SAME state. Given position A and B, if they both lead to C through m1..mn,
-/// ZH(C(A)) == ZH(C(B))   <=>     ZH(B) is obtained from ZH(A) through some sequence of moves.
-///
-/// Building ZH(A) and ZH(B) independently by summing material score WILL NOT produce the same hash
+/// Zobrist hashing, an incremental hashing algorithm for chess boards.
 use crate::{
     board::*,
     castle::CastlingRights,
@@ -36,61 +29,60 @@ pub const CASTLE_KEYS: [u64; CastlingRights::COUNT] = [8406779754442449593, 8716
 pub const SIDE_KEY: u64 = 4747071328949516916;
 
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Default, Hash)]
-pub struct ZHash(u64);
+pub struct Keys {
+    pub zobrist: u64,
+    pub pawn: u64,
+}
 
-impl ZHash {
-    pub const NULL: Self = Self(0);
+impl Keys {
+    pub const NULL: Self = Self {
+        zobrist: 0,
+        pawn: 0,
+    };
 
-    /// Initialize a zobrist hash from a raw 64b value.
-    #[inline(always)]
-    pub fn from_raw(raw: u64) -> Self {
-        Self(raw)
-    }
-
-    /// Initialize Zobrist hash from a board position.
+    /// Initialize all hashes from a board position.
     pub fn from_board(board: &Board) -> Self {
-        let mut hash: Self = Self::NULL;
+        let mut keys: Self = Self::NULL;
 
         for piece in Piece::ALL {
             for square in board.piece_occupancy(piece) {
-                hash.toggle_piece(piece, square);
+                keys.toggle_piece(piece, square);
             }
         }
 
         if let Some(square) = board.en_passant {
-            hash.toggle_ep(square);
+            keys.toggle_ep(square);
         }
 
-        hash.toggle_castle(board.castling_rights);
+        keys.toggle_castle(board.castling_rights);
         if board.side == Color::White {
-            hash.toggle_side();
+            keys.toggle_side();
         }
 
-        hash
-    }
-
-    /// Get underlying u64 representation
-    #[inline(always)]
-    pub const fn inner(self) -> u64 {
-        self.0
+        keys
     }
 
     /// Toggle when piece moves to/from square
     #[inline(always)]
     pub(crate) const fn toggle_piece(&mut self, piece: Piece, square: Square) {
-        self.0 ^= PIECE_KEYS[piece.index()][square.index()];
+        let key = PIECE_KEYS[piece.index()][square.index()];
+
+        self.zobrist ^= key;
+        if piece.is_pawn() {
+            self.pawn ^= key;
+        }
     }
 
     /// Toggle the enpassant square
     #[inline(always)]
     pub(crate) const fn toggle_ep(&mut self, square: Square) {
-        self.0 ^= EP_KEYS[square.index()];
+        self.zobrist ^= EP_KEYS[square.index()];
     }
 
     /// Toggles the given castling index
     #[inline(always)]
     pub(crate) const fn toggle_castle(&mut self, castle: CastlingRights) {
-        self.0 ^= CASTLE_KEYS[castle.index()];
+        self.zobrist ^= CASTLE_KEYS[castle.index()];
     }
 
     /// Toggles out old castle rights and toggles in new
@@ -100,14 +92,13 @@ impl ZHash {
         old_castle: CastlingRights,
         new_castle: CastlingRights,
     ) {
-        self.0 ^= CASTLE_KEYS[old_castle.index()];
-        self.0 ^= CASTLE_KEYS[new_castle.index()];
+        self.zobrist ^= CASTLE_KEYS[old_castle.index()] ^ CASTLE_KEYS[new_castle.index()];
     }
 
     /// Toggles side to move
     #[inline(always)]
     pub(crate) const fn toggle_side(&mut self) {
-        self.0 ^= SIDE_KEY;
+        self.zobrist ^= SIDE_KEY;
     }
 }
 
@@ -124,10 +115,13 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            ZHash::from_board(&b1),
-            ZHash::from_raw(11231077536533049824)
+            Keys::from_board(&b1),
+            Keys {
+                zobrist: 11231077536533049824,
+                pawn: 12477696582342124299
+            }
         ); // correct start hash
-        assert_eq!(ZHash::from_board(&b2), b2.hash); // try_from() builds hash correctly
+        assert_eq!(Keys::from_board(&b2), b2.keys); // try_from() builds hash correctly
     }
 
     #[test]
@@ -141,19 +135,19 @@ mod tests {
 
         println!("{b1}\n{b2}");
 
-        let mut z1 = b1.hash;
-        z1.toggle_piece(Piece::WK, Square::E1);
-        z1.toggle_piece(Piece::WK, Square::G1);
-        z1.toggle_piece(Piece::WR, Square::H1);
-        z1.toggle_piece(Piece::WR, Square::F1);
+        let mut k1 = b1.keys;
+        k1.toggle_piece(Piece::WK, Square::E1);
+        k1.toggle_piece(Piece::WK, Square::G1);
+        k1.toggle_piece(Piece::WR, Square::H1);
+        k1.toggle_piece(Piece::WR, Square::F1);
 
         let old_rights: CastlingRights = "KQkq".parse().unwrap();
         let new_rights: CastlingRights = "kq".parse().unwrap();
-        z1.swap_castle(old_rights, new_rights);
-        z1.toggle_side();
+        k1.swap_castle(old_rights, new_rights);
+        k1.toggle_side();
 
-        // z1 is the same as we obtained through incremental hash updates in make move
-        assert_eq!(z1, b2.hash);
+        // k1 is the same as we obtained through incremental hash updates in make move
+        assert_eq!(k1, b2.keys);
     }
 
     #[test]
@@ -165,16 +159,16 @@ mod tests {
         let m = Move::new(Square::F5, Square::E6, MoveType::EnPassant);
         let b2 = b1.make_move(m);
 
-        let mut z1 = b1.hash;
-        z1.toggle_piece(Piece::WP, Square::F5);
-        z1.toggle_piece(Piece::WP, Square::E6);
-        z1.toggle_piece(Piece::BP, Square::E5);
+        let mut k1 = b1.keys;
+        k1.toggle_piece(Piece::WP, Square::F5);
+        k1.toggle_piece(Piece::WP, Square::E6);
+        k1.toggle_piece(Piece::BP, Square::E5);
 
-        z1.toggle_ep(Square::E6);
-        z1.toggle_side();
+        k1.toggle_ep(Square::E6);
+        k1.toggle_side();
 
-        // z1 is the same as we obtained through incremental hash updates in make move
-        assert_eq!(z1, b2.hash);
+        // k1 is the same as we obtained through incremental hash updates in make move
+        assert_eq!(k1, b2.keys);
     }
 
     #[test]
@@ -183,12 +177,12 @@ mod tests {
         let b: Board = "rnbqkb1r/pp1p1pPp/8/2p1pP2/1P1P4/3P3P/P1P1P3/RNBQKBNR w KQkq e6 0 1"
             .parse()
             .unwrap();
-        let mut z1 = b.hash;
-        z1.toggle_ep(Square::E6);
-        z1.toggle_side();
+        let mut k1 = b.keys;
+        k1.toggle_ep(Square::E6);
+        k1.toggle_side();
 
-        // z1 is the same as we obtained through incremental hash updates in make move
+        // k1 is the same as we obtained through incremental hash updates in make move
         let b2 = b.make_null();
-        assert_eq!(z1, b2.hash);
+        assert_eq!(k1, b2.keys);
     }
 }

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::search_params::*;
-use chess::{moves::Move, zobrist::ZHash};
+use chess::moves::Move;
 
 /// TTFlag: determines the type of eval stored in the field
 #[repr(u8)]
@@ -150,8 +150,7 @@ impl From<(u64, u64)> for TTEntry {
 
 impl AtomicField {
     /// Atomic read checking that the field contents match the checksum
-    fn read(&self, hash: ZHash) -> Option<TTEntry> {
-        let checksum = hash.inner();
+    fn read(&self, checksum: u64) -> Option<TTEntry> {
         let key = self.key.load(Ordering::SeqCst);
         let data = self.data.load(Ordering::SeqCst);
 
@@ -203,8 +202,8 @@ impl TT {
 
     /// Get a key that wraps around the table size, avoiding using Modulo.
     /// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
-    fn get_key(&self, hash: ZHash) -> usize {
-        let key = hash.inner() as u128;
+    fn get_key(&self, key: u64) -> usize {
+        let key = key as u128;
         let len = self.table.len() as u128;
 
         ((key * len) >> 64) as usize
@@ -230,28 +229,31 @@ impl TT {
         self.age = (self.age + 1) & 0b01111111; // 7 bit age
     }
 
+    /// Fetch the tt field for a given key.
+    /// UB: so long and we use the wrapped key from TT::get_key, we are guaranteed to be within bounds
+    fn fetch(&self, key: u64) -> &AtomicField {
+        unsafe { self.table.get_unchecked(self.get_key(key)) }
+    }
+
     /// Prefetch a cache line containing the entry for the given hash
     /// Implementation from Viridithas
     #[cfg(target_arch = "x86_64")]
-    pub fn prefetch(&self, hash: ZHash) {
+    pub fn prefetch(&self, key: u64) {
+        // get a reference to the entry in the table:
+        let entry = self.fetch(key);
+
+        // prefetch the entry:
         unsafe {
             use std::arch::x86_64::{_MM_HINT_T0, _mm_prefetch};
-
-            // get a reference to the entry in the table:
-            let tt_index = self.get_key(hash);
-            let entry = self.table.get_unchecked(tt_index);
-
-            // prefetch the entry:
             _mm_prefetch((entry as *const AtomicField).cast::<i8>(), _MM_HINT_T0);
         }
     }
     #[cfg(not(target_arch = "x86_64"))]
-    pub fn prefetch(&self, _hash: ZHash) {}
+    pub fn prefetch(&self, _key: u64) {}
 
     /// Probe tt for entry
-    /// UB: so long and we use the wrapped key from TT::get_key, we are guaranteed to be within bounds
-    pub fn probe(&self, hash: ZHash) -> Option<TTEntry> {
-        unsafe { self.table.get_unchecked(self.get_key(hash)).read(hash) }
+    pub fn probe(&self, key: u64) -> Option<TTEntry> {
+        self.fetch(key).read(key)
     }
 
     /// Insert entry in appropriate tt field.
@@ -262,7 +264,7 @@ impl TT {
     #[allow(clippy::too_many_arguments)]
     pub fn insert(
         &self,
-        hash: ZHash,
+        key: u64,
         flag: TTFlag,
         mut best_move: Move,
         eval: Eval,
@@ -271,9 +273,9 @@ impl TT {
         ply: usize,
         pv: bool,
     ) {
-        let old_slot = unsafe { self.table.get_unchecked(self.get_key(hash)) };
+        let old_slot = self.fetch(key);
         let old  = old_slot.read_unchecked();
-        let same_position = hash.inner() == old.key;
+        let same_position = key == old.key;
 
         if  self.age != old.age // always replace entries with a different age
             || !same_position
@@ -286,7 +288,7 @@ impl TT {
             }
 
             old_slot.write(TTEntry {
-                key: hash.inner(),
+                key,
                 age: self.age,
                 depth: depth as u8,
                 flag,
@@ -314,14 +316,13 @@ mod tests {
     #[test]
     fn test_tt_insert() {
         let tt = TT::default();
-        let z = ZHash::NULL;
 
-        tt.insert(z, TTFlag::Exact, Move::from_raw(1), 100, 100, 1, 0, false); // insert in empty field
-        tt.insert(z, TTFlag::Exact, Move::from_raw(1), 100, 100, 12, 0, false); // replace
-        tt.insert(z, TTFlag::Upper, Move::from_raw(1), 100, 100, 1, 0, false); // do not replace
+        tt.insert(0, TTFlag::Exact, Move::from_raw(1), 100, 100, 1, 0, false); // insert in empty field
+        tt.insert(0, TTFlag::Exact, Move::from_raw(1), 100, 100, 12, 0, false); // replace
+        tt.insert(0, TTFlag::Upper, Move::from_raw(1), 100, 100, 1, 0, false); // do not replace
 
-        let target1 = tt.probe(z).unwrap();
-        let target2 = tt.probe(ZHash::from_raw(8));
+        let target1 = tt.probe(0).unwrap();
+        let target2 = tt.probe(8);
 
         assert_eq!(12, target1.get_depth());
         assert!(target2.is_none());
@@ -332,12 +333,10 @@ mod tests {
         let mut tt = TT::default();
         tt.resize(1);
 
-        let z1 = ZHash::from_raw(0); // will map to slot 0
-        let z2 = ZHash::from_raw(1); // will also map to slot 0
-        tt.insert(z1, TTFlag::Exact, Move::NULL, 100, 100, 1, 0, false);
-        tt.insert(z2, TTFlag::Exact, Move::NULL, 100, 100, 2, 0, false);
+        tt.insert(0, TTFlag::Exact, Move::NULL, 100, 100, 1, 0, false);
+        tt.insert(1, TTFlag::Exact, Move::NULL, 100, 100, 2, 0, false);
 
-        let new = tt.probe(z1); // check no match on first hash
+        let new = tt.probe(0); // check no match on first hash
         assert!(new.is_none());
     }
 }

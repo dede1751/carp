@@ -178,7 +178,7 @@ impl Position {
         let mut possible_singularity = false;
 
         // Probe tt for the best move and possible cutoffs.
-        let tt_entry = tt.probe(self.board.hash);
+        let tt_entry = tt.probe(self.zobrist_hash());
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
@@ -226,7 +226,7 @@ impl Position {
                     || (tb_flag == TTFlag::Upper && tb_value <= alpha)
                 {
                     tt.insert(
-                        self.board.hash,
+                        self.zobrist_hash(),
                         tb_flag,
                         Move::NULL,
                         -INFINITY,
@@ -260,7 +260,7 @@ impl Position {
                 let tt_eval = entry.get_eval();
 
                 t.ss[t.ply].eval = if tt_eval == -INFINITY {
-                    self.evaluate()
+                    self.corrected_eval(t)
                 } else {
                     tt_eval
                 };
@@ -274,7 +274,7 @@ impl Position {
                 }
             } else {
                 // Without a tt entry (and not in check), we have to compute the static eval
-                t.ss[t.ply].eval = self.evaluate();
+                t.ss[t.ply].eval = self.corrected_eval(t);
                 t.ss[t.ply].eval
             }
         } else {
@@ -425,7 +425,7 @@ impl Position {
             }
 
             self.make_move(m, t);
-            tt.prefetch(self.board.hash); // prefetch next hash
+            tt.prefetch(self.zobrist_hash()); // prefetch next hash
 
             // Principal Variation Search + Late Move Reductions
             // Before most searches, we run a "verification" search on a null window to prove it
@@ -515,28 +515,39 @@ impl Position {
             move_count += 1;
         }
 
-        if !t.stop {
-            alpha = alpha.min(syzygy_max);
-
-            let tt_flag = if best_value >= beta {
-                TTFlag::Lower
-            } else if best_value > old_alpha {
-                TTFlag::Exact
-            } else {
-                TTFlag::Upper
-            };
-
-            tt.insert(
-                self.board.hash,
-                tt_flag,
-                best_move,
-                t.ss[t.ply].eval,
-                alpha,
-                depth,
-                t.ply,
-                pv_node,
-            );
+        if t.stop {
+            return 0; // This should never happen, right? Best not risk...
         }
+
+        alpha = alpha.min(syzygy_max);
+
+        let tt_flag = if best_value >= beta {
+            TTFlag::Lower
+        } else if best_value > old_alpha {
+            TTFlag::Exact
+        } else {
+            TTFlag::Upper
+        };
+
+        if !(in_singular_search
+            || in_check
+            || !best_move.get_type().is_quiet()
+            || (tt_flag == TTFlag::Lower && best_value <= eval)
+            || (tt_flag == TTFlag::Upper && best_value >= eval))
+        {
+            t.corrhist.update(&self.board, depth, best_value - eval);
+        }
+
+        tt.insert(
+            self.zobrist_hash(),
+            tt_flag,
+            best_move,
+            t.ss[t.ply].eval,
+            alpha,
+            depth,
+            t.ply,
+            pv_node,
+        );
 
         alpha
     }
@@ -552,7 +563,7 @@ impl Position {
 
         // Return early when reaching max depth
         if t.ply >= MAX_DEPTH {
-            return self.evaluate();
+            return self.corrected_eval(t);
         }
 
         // Stop searching if the position is a rule-based draw
@@ -563,7 +574,7 @@ impl Position {
         let in_check = self.king_in_check();
 
         // Probe the TT and if possible get a tt move
-        let tt_entry = tt.probe(self.board.hash);
+        let tt_entry = tt.probe(self.zobrist_hash());
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
@@ -584,7 +595,7 @@ impl Position {
                 let tt_eval = entry.get_eval();
 
                 t.ss[t.ply].eval = if tt_eval == -INFINITY {
-                    self.evaluate()
+                    self.corrected_eval(t)
                 } else {
                     tt_eval
                 };
@@ -596,7 +607,7 @@ impl Position {
                     _ => t.ss[t.ply].eval,
                 }
             } else {
-                t.ss[t.ply].eval = self.evaluate();
+                t.ss[t.ply].eval = self.corrected_eval(t);
                 t.ss[t.ply].eval
             }
         } else {
@@ -618,7 +629,7 @@ impl Position {
         // The capture picker implicitly prunes bad SEE moves
         while let Some((m, _)) = picker.next(&self.board, t) {
             self.make_move(m, t);
-            tt.prefetch(self.board.hash); // prefetch next hash
+            tt.prefetch(self.zobrist_hash()); // prefetch next hash
             let value = -self.quiescence(t, tt, -beta, -alpha);
             self.undo_move(t);
 
@@ -641,32 +652,34 @@ impl Position {
             }
         }
 
+        if t.stop {
+            return 0; // This should never happen, right? Best not risk...
+        }
+
         // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
         if in_check && best_value == -INFINITY {
             return -5000;
         }
 
         // Save to TT if we at least improved on the static eval.
-        if !t.stop {
-            let tt_flag = if best_value >= beta {
-                TTFlag::Lower
-            } else if best_value > old_alpha {
-                TTFlag::Exact
-            } else {
-                TTFlag::Upper
-            };
+        let tt_flag = if best_value >= beta {
+            TTFlag::Lower
+        } else if best_value > old_alpha {
+            TTFlag::Exact
+        } else {
+            TTFlag::Upper
+        };
 
-            tt.insert(
-                self.board.hash,
-                tt_flag,
-                best_move,
-                t.ss[t.ply].eval,
-                alpha,
-                0,
-                t.ply,
-                false,
-            );
-        }
+        tt.insert(
+            self.zobrist_hash(),
+            tt_flag,
+            best_move,
+            t.ss[t.ply].eval,
+            alpha,
+            0,
+            t.ply,
+            false,
+        );
 
         alpha
     }

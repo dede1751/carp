@@ -9,12 +9,33 @@ use chess::{
     square::Square,
 };
 
+// All table layouts:
+type PV = [Move; MAX_DEPTH];
+type History = [[[i16; Square::COUNT]; Square::COUNT]; 2];
+type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::COUNT];
+type CaptureHistory = [[[i16; PieceType::COUNT - 1]; Square::COUNT]; Piece::COUNT];
+type CorrectionHistory = [[Eval; CORR_HIST_SIZE]; 2];
+
+/// Some of these tables are too large for the stack on debug builds, so we box them.
+/// Warning: wildly unsafe behavior for non-zeroable types
+/// All credits go to Cosmo, creator of Viridithas
+fn box_array<T>() -> Box<T> {
+    unsafe {
+        let layout = std::alloc::Layout::new::<T>();
+        let ptr = std::alloc::alloc_zeroed(layout);
+        if ptr.is_null() {
+            std::alloc::handle_alloc_error(layout);
+        }
+        Box::from_raw(ptr.cast())
+    }
+}
+
 /// PV Tables store the principal variation.
 /// Whenever a move scores within the window, it is added to the PV table of its child subtree.
 #[derive(Clone, Debug)]
 pub struct PVTable {
     pub length: usize,
-    pub moves: [Move; MAX_DEPTH],
+    pub moves: PV,
 }
 
 impl Default for PVTable {
@@ -46,10 +67,6 @@ impl PVTable {
         self.moves[1..=old.length].copy_from_slice(&old.moves[..old.length]);
     }
 }
-
-type History = [[[i16; Square::COUNT]; Square::COUNT]; 2];
-type ContinuationHistory = [[[[i16; Square::COUNT]; Square::COUNT]; Square::COUNT]; Piece::COUNT];
-type CaptureHistory = [[[i16; PieceType::COUNT - 1]; Square::COUNT]; Piece::COUNT];
 
 /// History bonus is Stockfish's "gravity"
 pub fn history_bonus(depth: usize) -> i16 {
@@ -123,20 +140,6 @@ impl<const MAX: i32> HistoryTable<MAX> {
 #[derive(Clone, Debug)]
 pub struct ContinuationHistoryTable<const MAX: i32> {
     history: Box<ContinuationHistory>,
-}
-
-/// Used to box arrays without blowing the stack on debug builds.
-/// Warning: wildly unsafe behavior for non-zeroable types
-/// All credits go to Cosmo, creator of Viridithas
-fn box_array<T>() -> Box<T> {
-    unsafe {
-        let layout = std::alloc::Layout::new::<T>();
-        let ptr = std::alloc::alloc_zeroed(layout);
-        if ptr.is_null() {
-            std::alloc::handle_alloc_error(layout);
-        }
-        Box::from_raw(ptr.cast())
-    }
 }
 
 impl<const MAX: i32> Default for ContinuationHistoryTable<MAX> {
@@ -233,5 +236,51 @@ impl<const MAX: i32> CaptureHistoryTable<MAX> {
         let index = Self::index(m, board);
 
         self.history[index.0][index.1][index.2] as i32
+    }
+}
+
+/// History tables used to correct the network evaluation.
+///     Indexing: [side][pawn hash]
+#[derive(Clone, Debug)]
+pub struct CorrectionHistoryTable<const MAX: i32> {
+    history: Box<CorrectionHistory>,
+}
+
+impl<const MAX: i32> Default for CorrectionHistoryTable<MAX> {
+    fn default() -> Self {
+        Self {
+            history: box_array(),
+        }
+    }
+}
+
+impl<const MAX: i32> CorrectionHistoryTable<MAX> {
+    const fn index(board: &Board) -> (usize, usize) {
+        (
+            board.side.index(),
+            (board.keys.pawn as usize) % CORR_HIST_SIZE,
+        )
+    }
+
+    /// Age all entries in the table by halving them.
+    pub fn increment_age(&mut self) {
+        self.history.iter_mut().flatten().for_each(|x| *x /= 2);
+    }
+
+    /// Update the correction history table score with the new evaluation difference.
+    pub fn update(&mut self, board: &Board, depth: usize, diff: Eval) {
+        let idx = Self::index(board);
+        let entry = &mut self.history[idx.0][idx.1];
+
+        let scaled_diff = diff * CORR_HIST_GRAIN;
+        let new_weight = 16.min(depth + 1) as Eval;
+        let update = *entry * (CORR_HIST_SCALE - new_weight) + scaled_diff * new_weight;
+        *entry = (update / CORR_HIST_SCALE).clamp(-MAX, MAX);
+    }
+
+    /// Correct the evaluation of a position using the correction history table.
+    pub fn correct_evaluation(&self, board: &Board, eval: i32) -> i32 {
+        let idx = Self::index(board);
+        eval + (self.history[idx.0][idx.1] / CORR_HIST_GRAIN)
     }
 }

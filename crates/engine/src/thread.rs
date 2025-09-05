@@ -17,7 +17,9 @@ use crate::{
     clock::{Clock, TimeControl},
     position::Position,
     search_params::*,
-    search_tables::{ContinuationHistoryTable, HistoryTable, PVTable, history_bonus},
+    search_tables::{
+        ContinuationHistoryTable, CorrectionHistoryTable, HistoryTable, PVTable, history_bonus,
+    },
     syzygy::probe::{TB, TB_HITS},
     tt::TT,
 };
@@ -42,6 +44,7 @@ pub struct Thread {
     // Structures used by the search
     pub clock: Clock,
     pub ss: [SearchStackEntry; MAX_DEPTH],
+    pub corrhist: CorrectionHistoryTable<CORR_HIST_MAX>,
 
     // Move ordering
     history: HistoryTable<HIST_MAX>,
@@ -136,6 +139,7 @@ impl Thread {
         Self {
             clock,
             ss: [SearchStackEntry::default(); MAX_DEPTH],
+            corrhist: CorrectionHistoryTable::default(),
 
             history: HistoryTable::default(),
             caphist: CaptureHistoryTable::default(),
@@ -177,6 +181,8 @@ impl Thread {
 
     /// Prepare a thread for a new search.
     pub fn clear_for_search(&mut self, ply: usize, halfmoves: usize) {
+        self.corrhist.increment_age();
+
         self.nodes = 0;
         self.clock.last_nodes = 0; // reset SMP worker threads
         self.seldepth = 0;

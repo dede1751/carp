@@ -77,6 +77,16 @@ impl Default for Position {
 }
 
 impl Position {
+    /// Get the zobrist hash of the position
+    pub const fn zobrist_hash(&self) -> u64 {
+        self.board.keys.zobrist
+    }
+
+    /// Get the pawn hash of the position
+    pub const fn pawn_hash(&self) -> u64 {
+        self.board.keys.pawn
+    }
+
     /// Produce a move picker for the current position
     pub fn gen_moves<const QUIETS: bool>(
         &self,
@@ -161,6 +171,13 @@ impl Position {
         (eval * (700 + total_material / 32)) / 1024
     }
 
+    /// Get the history-corrected evaluation for the position.
+    pub fn corrected_eval(&self, thread: &Thread) -> Eval {
+        thread
+            .corrhist
+            .correct_evaluation(&self.board, self.evaluate())
+    }
+
     pub fn nnuebench(&self) -> f64 {
         let runs = 100_000_000;
         let start = Instant::now();
@@ -187,7 +204,7 @@ impl Position {
             .take(rollback) // only check elements within rollback
             .skip(1) // first element is opponent, skip.
             .step_by(2) // don't check opponent moves
-            .any(|b| b.hash == self.board.hash) // stop at first repetition
+            .any(|b| b.keys.zobrist == self.board.keys.zobrist) // stop at first repetition
     }
 
     /// Draw by insufficient material (strictly for when it is impossible to mate):
