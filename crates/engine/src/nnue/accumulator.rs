@@ -32,12 +32,14 @@ impl Accumulator {
     const fn idx(feat: Feature) -> (usize, usize) {
         const COLOR_STRIDE: usize = 64 * 6;
         const PIECE_STRIDE: usize = 64;
+
         let (piece, color, square) = feat;
         let p = piece.index();
-        let c = color.index();
+        let (c1, c2) = (color.index(), color.opp_index());
+        let (sq1, sq2) = (square.flipv().index(), square.index());
 
-        let white_idx = c * COLOR_STRIDE + p * PIECE_STRIDE + square.flipv().index();
-        let black_idx = (1 ^ c) * COLOR_STRIDE + p * PIECE_STRIDE + square.index();
+        let white_idx = c1 * COLOR_STRIDE + p * PIECE_STRIDE + sq1;
+        let black_idx = c2 * COLOR_STRIDE + p * PIECE_STRIDE + sq2;
 
         (white_idx * HIDDEN, black_idx * HIDDEN)
     }

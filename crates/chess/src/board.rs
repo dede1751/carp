@@ -12,21 +12,22 @@ use crate::{
 // Re-export the movegen module into the board.
 pub use crate::movegen::{gen_moves::*, perft::*};
 
-/// Bitboard-based board representation (96B)
+/// Bitboard-based board representation
 /// Any board without a king for each player (and with more than one for either) is UB!
 #[derive(Clone, Debug)]
 pub struct Board {
-    // Main bitboards
-    piece_bb: [BitBoard; Piece::COUNT], // 8B * 6
-    side_bb: [BitBoard; 2],             // 8B * 2
+    // Main bitboards + mailbox
+    piece_bb: [BitBoard; Piece::COUNT],
+    side_bb: [BitBoard; 2],
+    piece_at: [Option<Piece>; Square::COUNT],
 
     // Other positional information
-    pub side: Color,                     // 1B
-    pub castling_rights: CastlingRights, // 1B
-    pub en_passant: Option<Square>,      // 1B
-    pub halfmoves: usize,                // 8B
-    pub hash: ZHash,                     // 8B
-    pub(crate) checkers: BitBoard,       // 8B
+    pub side: Color,
+    pub castling_rights: CastlingRights,
+    pub en_passant: Option<Square>,
+    pub halfmoves: usize,
+    pub hash: ZHash,
+    pub(crate) checkers: BitBoard,
 }
 
 /// Pretty print board state
@@ -108,7 +109,7 @@ impl FromStr for Board {
                 _ => {
                     let piece = Piece::try_from(token)?;
                     let square = Square::from_coords(file, rank);
-                    board.set_piece(piece.get_type(), piece.get_color(), square);
+                    board.set_piece(piece, square);
                     file = file.right();
                     token_count += 1;
                 }
@@ -329,8 +330,8 @@ impl Board {
 
     /// Returns true if the king is in check
     #[inline(always)]
-    pub fn king_in_check(&self) -> bool {
-        self.checkers != BitBoard::EMPTY
+    pub const fn king_in_check(&self) -> bool {
+        self.checkers.inner() != 0
     }
 }
 
@@ -341,60 +342,49 @@ impl Board {
         Self {
             piece_bb: [BitBoard::EMPTY; Piece::COUNT],
             side_bb: [BitBoard::EMPTY; 2],
+            piece_at: [None; Square::COUNT],
 
             side: Color::White,
             castling_rights: CastlingRights::NONE,
             en_passant: None,
             halfmoves: 0,
             hash: ZHash::NULL,
-
             checkers: BitBoard::EMPTY,
         }
     }
 
-    /// Returns the PieceType at the given square. Panics if no piece is found.
-    pub fn piece_type_at(&self, square: Square) -> PieceType {
-        self.piece_bb
-            .iter()
-            .position(|pc_bb| pc_bb.get_bit(square))
-            .unwrap()
-            .into()
+    /// Returns the Piece at the given square.
+    pub const fn piece_at(&self, square: Square) -> Option<Piece> {
+        self.piece_at[square.index()]
     }
 
-    /// Returns the Piece at the given square.
-    pub fn piece_at(&self, square: Square) -> Option<Piece> {
-        let piece = self
-            .piece_bb
-            .iter()
-            .position(|pc_bb| pc_bb.get_bit(square))?;
-        let color = if self.white().get_bit(square) {
-            Color::White
-        } else {
-            Color::Black
-        };
-        Some(color.piece(piece.into()))
+    /// Returns the PieceType at the given square. Panics if no piece is found.
+    pub fn piece_type_at(&self, square: Square) -> PieceType {
+        self.piece_at[square.index()].unwrap().get_type()
     }
 
     /// Set the piece on the board at the given square (remove first, set later)
     #[inline(always)]
-    pub(crate) const fn set_piece(&mut self, piece_type: PieceType, side: Color, square: Square) {
-        let p = piece_type.index();
-        let c = side.index();
+    pub(crate) const fn set_piece(&mut self, piece: Piece, square: Square) {
+        let p = piece.get_type().index();
+        let c = piece.get_color().index();
 
         self.piece_bb[p] = self.piece_bb[p].set_bit(square);
         self.side_bb[c] = self.side_bb[c].set_bit(square);
-        self.hash.toggle_piece(side.piece(piece_type), square);
+        self.piece_at[square.index()] = Some(piece);
+        self.hash.toggle_piece(piece, square);
     }
 
     /// Remove the piece at the given square on the board
     #[inline(always)]
-    pub(crate) const fn pop_piece(&mut self, piece_type: PieceType, side: Color, square: Square) {
-        let p = piece_type.index();
-        let c = side.index();
+    pub(crate) const fn pop_piece(&mut self, piece: Piece, square: Square) {
+        let p = piece.get_type().index();
+        let c = piece.get_color().index();
 
         self.piece_bb[p] = self.piece_bb[p].pop_bit(square);
         self.side_bb[c] = self.side_bb[c].pop_bit(square);
-        self.hash.toggle_piece(side.piece(piece_type), square);
+        self.piece_at[square.index()] = None;
+        self.hash.toggle_piece(piece, square);
     }
 
     /// Returns the piece being captured by the move.

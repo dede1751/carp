@@ -21,17 +21,16 @@ impl Board {
     /// Supplying illegal moves will lead to illegal board states.
     pub fn make_move(&self, m: Move) -> Board {
         let mut new = self.clone();
-
-        let us = self.side;
-        let them = !self.side;
+        
+        let (us, them) = (self.side, !self.side);
         let (src, tgt) = (m.get_src(), m.get_tgt());
-        let piece = self.piece_type_at(src); // must exist
+        let piece = self.piece_at(src).unwrap(); // must exist
         let move_type = m.get_type();
         let capture = move_type.is_capture();
 
         // Remove moving piece and reset halfmoves
-        new.pop_piece(piece, us, src);
-        if capture || piece == PieceType::Pawn {
+        new.pop_piece(piece, src);
+        if capture || piece.is_pawn() {
             new.halfmoves = 0;
         } else {
             new.halfmoves += 1;
@@ -39,26 +38,26 @@ impl Board {
 
         if capture {
             let (tgt_piece, tgt_sq) = if move_type == MoveType::EnPassant {
-                (PieceType::Pawn, tgt.forward(them))
+                (them.piece(PieceType::Pawn), tgt.forward(them))
             } else {
-                (self.piece_type_at(tgt), tgt)
+                (self.piece_at(tgt).unwrap(), tgt)
             };
 
-            new.pop_piece(tgt_piece, them, tgt_sq);
+            new.pop_piece(tgt_piece, tgt_sq);
         } else if move_type == MoveType::Castle {
-            let rook = PieceType::Rook;
+            let rook = us.piece(PieceType::Rook);
             let (rook_src, rook_tgt) = rook_castling_move(tgt);
-            new.pop_piece(rook, us, rook_src);
-            new.set_piece(rook, us, rook_tgt);
+            new.pop_piece(rook, rook_src);
+            new.set_piece(rook, rook_tgt);
         }
 
         // Move the piece to the new square
         let new_piece = if move_type.is_promotion() {
-            move_type.get_promotion()
+            us.piece(move_type.get_promotion())
         } else {
             piece
         };
-        new.set_piece(new_piece, us, tgt);
+        new.set_piece(new_piece, tgt);
 
         // Handle enpassant
         if let Some(square) = self.en_passant {
@@ -90,44 +89,43 @@ impl Board {
     pub fn make_move_nnue<T: FeatureUpdate>(&self, m: Move, acc: &mut T) -> Board {
         let mut new = self.clone();
 
-        let us = self.side;
-        let them = !self.side;
+        let (us, them) = (self.side, !self.side);
         let (src, tgt) = (m.get_src(), m.get_tgt());
-        let piece = self.piece_type_at(src);
+        let piece = self.piece_at(src).unwrap(); // must exist
         let move_type = m.get_type();
         let capture = move_type.is_capture();
 
-        new.pop_piece(piece, us, src);
-        if capture || piece == PieceType::Pawn {
-            new.halfmoves = 0
+        new.pop_piece(piece, src);
+        if capture || piece.is_pawn() {
+            new.halfmoves = 0;
         } else {
             new.halfmoves += 1;
         }
 
         if capture {
             let (tgt_piece, tgt_sq) = if move_type == MoveType::EnPassant {
-                (PieceType::Pawn, tgt.forward(them))
+                (them.piece(PieceType::Pawn), tgt.forward(them))
             } else {
-                (self.piece_type_at(tgt), tgt)
+                (self.piece_at(tgt).unwrap(), tgt)
             };
 
-            new.pop_piece(tgt_piece, them, tgt_sq);
-            acc.update_weights::<OFF>((tgt_piece, them, tgt_sq));
+            new.pop_piece(tgt_piece, tgt_sq);
+            acc.update_weights::<OFF>((tgt_piece.get_type(), them, tgt_sq));
         } else if move_type == MoveType::Castle {
-            let rook = PieceType::Rook;
+            let rook = us.piece(PieceType::Rook);
             let (rook_src, rook_tgt) = rook_castling_move(tgt);
-            new.pop_piece(rook, us, rook_src);
-            new.set_piece(rook, us, rook_tgt);
-            acc.add_sub_weights((rook, us, rook_tgt), (rook, us, rook_src));
+            new.pop_piece(rook, rook_src);
+            new.set_piece(rook, rook_tgt);
+            acc.add_sub_weights((PieceType::Rook, us, rook_tgt), (PieceType::Rook, us, rook_src));
         }
 
         let new_piece = if move_type.is_promotion() {
-            move_type.get_promotion()
+            us.piece(move_type.get_promotion())
         } else {
             piece
         };
-        new.set_piece(new_piece, us, tgt);
-        acc.add_sub_weights((new_piece, us, tgt), (piece, us, src));
+        new.set_piece(new_piece, tgt);
+        acc.add_sub_weights((new_piece.get_type(), us, tgt), (piece.get_type(), us, src));
 
         if let Some(square) = self.en_passant {
             new.en_passant = None;
