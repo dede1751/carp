@@ -62,7 +62,7 @@ impl Board {
         // Handle enpassant
         if let Some(square) = self.en_passant {
             new.en_passant = None;
-            new.hash.toggle_ep(square);
+            new.keys.toggle_ep(square);
         }
 
         // Handle double push
@@ -70,16 +70,16 @@ impl Board {
             let ep_tgt = src.forward(us);
 
             new.en_passant = Some(ep_tgt);
-            new.hash.toggle_ep(ep_tgt);
+            new.keys.toggle_ep(ep_tgt);
         }
 
         // Handle castling rights
         let new_rights = self.castling_rights.update(src, tgt);
         new.castling_rights = new_rights;
-        new.hash.swap_castle(self.castling_rights, new_rights);
+        new.keys.swap_castle(self.castling_rights, new_rights);
 
         new.side = them;
-        new.hash.toggle_side();
+        new.keys.toggle_side();
         new.checkers = new.checkers();
 
         new
@@ -132,22 +132,22 @@ impl Board {
 
         if let Some(square) = self.en_passant {
             new.en_passant = None;
-            new.hash.toggle_ep(square);
+            new.keys.toggle_ep(square);
         }
 
         if move_type == MoveType::DoublePush {
             let ep_tgt = src.forward(us);
 
             new.en_passant = Some(ep_tgt);
-            new.hash.toggle_ep(ep_tgt);
+            new.keys.toggle_ep(ep_tgt);
         }
 
         let new_rights = self.castling_rights.update(src, tgt);
         new.castling_rights = new_rights;
-        new.hash.swap_castle(self.castling_rights, new_rights);
+        new.keys.swap_castle(self.castling_rights, new_rights);
 
         new.side = them;
-        new.hash.toggle_side();
+        new.keys.toggle_side();
         new.checkers = new.checkers();
 
         new
@@ -158,11 +158,11 @@ impl Board {
     pub fn make_null(&self) -> Board {
         let mut new = self.clone();
         new.side = !self.side;
-        new.hash.toggle_side();
+        new.keys.toggle_side();
 
         new.en_passant = None;
         if let Some(square) = self.en_passant {
-            new.hash.toggle_ep(square);
+            new.keys.toggle_ep(square);
         }
         new.checkers = BitBoard::EMPTY;
 

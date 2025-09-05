@@ -178,7 +178,7 @@ impl Position {
         let mut possible_singularity = false;
 
         // Probe tt for the best move and possible cutoffs.
-        let tt_entry = tt.probe(self.board.hash);
+        let tt_entry = tt.probe(self.zobrist_hash());
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
@@ -226,7 +226,7 @@ impl Position {
                     || (tb_flag == TTFlag::Upper && tb_value <= alpha)
                 {
                     tt.insert(
-                        self.board.hash,
+                        self.zobrist_hash(),
                         tb_flag,
                         Move::NULL,
                         -INFINITY,
@@ -425,7 +425,7 @@ impl Position {
             }
 
             self.make_move(m, t);
-            tt.prefetch(self.board.hash); // prefetch next hash
+            tt.prefetch(self.zobrist_hash()); // prefetch next hash
 
             // Principal Variation Search + Late Move Reductions
             // Before most searches, we run a "verification" search on a null window to prove it
@@ -527,7 +527,7 @@ impl Position {
             };
 
             tt.insert(
-                self.board.hash,
+                self.zobrist_hash(),
                 tt_flag,
                 best_move,
                 t.ss[t.ply].eval,
@@ -563,7 +563,7 @@ impl Position {
         let in_check = self.king_in_check();
 
         // Probe the TT and if possible get a tt move
-        let tt_entry = tt.probe(self.board.hash);
+        let tt_entry = tt.probe(self.zobrist_hash());
         let mut tt_move = None;
 
         if let Some(entry) = tt_entry {
@@ -618,7 +618,7 @@ impl Position {
         // The capture picker implicitly prunes bad SEE moves
         while let Some((m, _)) = picker.next(&self.board, t) {
             self.make_move(m, t);
-            tt.prefetch(self.board.hash); // prefetch next hash
+            tt.prefetch(self.zobrist_hash()); // prefetch next hash
             let value = -self.quiescence(t, tt, -beta, -alpha);
             self.undo_move(t);
 
@@ -657,7 +657,7 @@ impl Position {
             };
 
             tt.insert(
-                self.board.hash,
+                self.zobrist_hash(),
                 tt_flag,
                 best_move,
                 t.ss[t.ply].eval,

@@ -77,6 +77,16 @@ impl Default for Position {
 }
 
 impl Position {
+    /// Get the zobrist hash of the position
+    pub const fn zobrist_hash(&self) -> u64 {
+        self.board.keys.zobrist
+    }
+
+    /// Get the pawn hash of the position
+    pub const fn pawn_hash(&self) -> u64 {
+        self.board.keys.pawn
+    }
+
     /// Produce a move picker for the current position
     pub fn gen_moves<const QUIETS: bool>(
         &self,
@@ -187,7 +197,7 @@ impl Position {
             .take(rollback) // only check elements within rollback
             .skip(1) // first element is opponent, skip.
             .step_by(2) // don't check opponent moves
-            .any(|b| b.hash == self.board.hash) // stop at first repetition
+            .any(|b| b.keys.zobrist == self.board.keys.zobrist) // stop at first repetition
     }
 
     /// Draw by insufficient material (strictly for when it is impossible to mate):

@@ -6,7 +6,7 @@ use crate::{
     moves::{Move, MoveType},
     piece::{Color, Piece, PieceType},
     square::{File, Rank, Square},
-    zobrist::ZHash,
+    zobrist::Keys,
 };
 
 // Re-export the movegen module into the board.
@@ -20,14 +20,15 @@ pub struct Board {
     piece_bb: [BitBoard; Piece::COUNT],
     side_bb: [BitBoard; 2],
     piece_at: [Option<Piece>; Square::COUNT],
+    pub(crate) checkers: BitBoard,
 
     // Other positional information
     pub side: Color,
     pub castling_rights: CastlingRights,
     pub en_passant: Option<Square>,
     pub halfmoves: usize,
-    pub hash: ZHash,
-    pub(crate) checkers: BitBoard,
+
+    pub keys: Keys,
 }
 
 /// Pretty print board state
@@ -123,7 +124,7 @@ impl FromStr for Board {
         match fen[1] {
             "w" => {
                 board.side = Color::White;
-                board.hash.toggle_side();
+                board.keys.toggle_side();
             }
             "b" => board.side = Color::Black,
             _ => return Err("Invalid fen!"),
@@ -131,7 +132,7 @@ impl FromStr for Board {
 
         let rights: CastlingRights = fen[2].parse()?;
         board.castling_rights = rights;
-        board.hash.toggle_castle(rights);
+        board.keys.toggle_castle(rights);
 
         match fen[3] {
             "-" => board.en_passant = None,
@@ -139,7 +140,7 @@ impl FromStr for Board {
                 let ep_square: Square = fen[3].parse()?;
 
                 board.en_passant = Some(ep_square);
-                board.hash.toggle_ep(ep_square);
+                board.keys.toggle_ep(ep_square);
             }
         }
 
@@ -343,22 +344,24 @@ impl Board {
             piece_bb: [BitBoard::EMPTY; Piece::COUNT],
             side_bb: [BitBoard::EMPTY; 2],
             piece_at: [None; Square::COUNT],
+            checkers: BitBoard::EMPTY,
 
             side: Color::White,
             castling_rights: CastlingRights::NONE,
             en_passant: None,
             halfmoves: 0,
-            hash: ZHash::NULL,
-            checkers: BitBoard::EMPTY,
+            keys: Keys::NULL,
         }
     }
 
     /// Returns the Piece at the given square.
+    #[inline(always)]
     pub const fn piece_at(&self, square: Square) -> Option<Piece> {
         self.piece_at[square.index()]
     }
 
     /// Returns the PieceType at the given square. Panics if no piece is found.
+    #[inline(always)]
     pub fn piece_type_at(&self, square: Square) -> PieceType {
         self.piece_at[square.index()].unwrap().get_type()
     }
@@ -382,7 +385,7 @@ impl Board {
         self.piece_bb[p] = self.piece_bb[p].set_bit(square);
         self.side_bb[c] = self.side_bb[c].set_bit(square);
         self.piece_at[square.index()] = Some(piece);
-        self.hash.toggle_piece(piece, square);
+        self.keys.toggle_piece(piece, square);
     }
 
     /// Remove the piece at the given square on the board
@@ -394,7 +397,7 @@ impl Board {
         self.piece_bb[p] = self.piece_bb[p].pop_bit(square);
         self.side_bb[c] = self.side_bb[c].pop_bit(square);
         self.piece_at[square.index()] = None;
-        self.hash.toggle_piece(piece, square);
+        self.keys.toggle_piece(piece, square);
     }
 
     /// Returns true if the square is attacked by at least one enemy piece
