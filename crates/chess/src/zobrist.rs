@@ -75,7 +75,7 @@ impl Keys {
 
     /// Toggle the enpassant square
     #[inline(always)]
-    pub(crate) fn toggle_ep(&mut self, square: Square) {
+    pub(crate) const fn toggle_ep(&mut self, square: Square) {
         self.zobrist ^= EP_KEYS[square.index()];
     }
 
