@@ -516,7 +516,7 @@ impl Position {
         }
 
         if t.stop {
-            return alpha;
+            return 0;
         }
 
         alpha = alpha.min(syzygy_max);
@@ -652,32 +652,34 @@ impl Position {
             }
         }
 
+        if t.stop {
+            return 0;
+        }
+
         // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
         if in_check && best_value == -INFINITY {
             return -5000;
         }
 
         // Save to TT if we at least improved on the static eval.
-        if !t.stop {
-            let tt_flag = if best_value >= beta {
-                TTFlag::Lower
-            } else if best_value > old_alpha {
-                TTFlag::Exact
-            } else {
-                TTFlag::Upper
-            };
+        let tt_flag = if best_value >= beta {
+            TTFlag::Lower
+        } else if best_value > old_alpha {
+            TTFlag::Exact
+        } else {
+            TTFlag::Upper
+        };
 
-            tt.insert(
-                self.zobrist_hash(),
-                tt_flag,
-                best_move,
-                t.ss[t.ply].eval,
-                alpha,
-                0,
-                t.ply,
-                false,
-            );
-        }
+        tt.insert(
+            self.zobrist_hash(),
+            tt_flag,
+            best_move,
+            t.ss[t.ply].eval,
+            alpha,
+            0,
+            t.ply,
+            false,
+        );
 
         alpha
     }
