@@ -8,18 +8,23 @@
 pub type Eval = i32;
 pub const MAX_DEPTH: usize = 127;
 
-pub const INFINITY: Eval = 32001; // score upper bound
-pub const MATE: Eval = 32000; // mate in 0 moves
+pub const INFINITY: Eval = 32_001; // score upper bound
+pub const MATE: Eval = 32_000; // mate in 0 moves
 pub const LONGEST_MATE: Eval = MATE - MAX_DEPTH as Eval; // mate in x moves
-pub const TB_MATE: Eval = 30000; // tb win in 0 moves
+pub const TB_MATE: Eval = 30_000; // tb win in 0 moves
 pub const LONGEST_TB_MATE: Eval = TB_MATE - MAX_DEPTH as Eval; // tb win in x moves
 
 // History table sizing. We avoid tuning this.
-pub const HIST_MAX: i32 = 8192;
-pub const CONT_HIST_MAX: i32 = 16384;
-pub const CAP_HIST_MAX: i32 = 16384;
+pub const HIST_MAX: i32 = 8_192;
+pub const CONT_HIST_MAX: i32 = 16_384;
+pub const CAP_HIST_MAX: i32 = 16_384;
 pub const CONT_HIST_COUNT: usize = 2;
 pub const HISTORY_MAX: i32 = HIST_MAX + CONT_HIST_MAX * CONT_HIST_COUNT as i32;
+
+pub const CORR_HIST_SIZE: usize = 16_384;
+pub const CORR_HIST_GRAIN: Eval = 256;
+pub const CORR_HIST_SCALE: Eval = 256;
+pub const CORR_HIST_MAX: Eval = CORR_HIST_GRAIN * 32;
 
 #[cfg(not(feature = "tune"))]
 mod lookups {

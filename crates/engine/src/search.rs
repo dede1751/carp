@@ -260,7 +260,7 @@ impl Position {
                 let tt_eval = entry.get_eval();
 
                 t.ss[t.ply].eval = if tt_eval == -INFINITY {
-                    self.evaluate()
+                    self.corrected_eval(t)
                 } else {
                     tt_eval
                 };
@@ -274,7 +274,7 @@ impl Position {
                 }
             } else {
                 // Without a tt entry (and not in check), we have to compute the static eval
-                t.ss[t.ply].eval = self.evaluate();
+                t.ss[t.ply].eval = self.corrected_eval(t);
                 t.ss[t.ply].eval
             }
         } else {
@@ -515,28 +515,39 @@ impl Position {
             move_count += 1;
         }
 
-        if !t.stop {
-            alpha = alpha.min(syzygy_max);
-
-            let tt_flag = if best_value >= beta {
-                TTFlag::Lower
-            } else if best_value > old_alpha {
-                TTFlag::Exact
-            } else {
-                TTFlag::Upper
-            };
-
-            tt.insert(
-                self.zobrist_hash(),
-                tt_flag,
-                best_move,
-                t.ss[t.ply].eval,
-                alpha,
-                depth,
-                t.ply,
-                pv_node,
-            );
+        if t.stop {
+            return alpha;
         }
+
+        alpha = alpha.min(syzygy_max);
+
+        let tt_flag = if best_value >= beta {
+            TTFlag::Lower
+        } else if best_value > old_alpha {
+            TTFlag::Exact
+        } else {
+            TTFlag::Upper
+        };
+
+        if !(in_singular_search
+            || in_check
+            || !best_move.get_type().is_quiet()
+            || (tt_flag == TTFlag::Lower && best_value <= eval)
+            || (tt_flag == TTFlag::Upper && best_value >= eval))
+        {
+            t.corrhist.update(&self.board, depth, best_value - eval);
+        }
+
+        tt.insert(
+            self.zobrist_hash(),
+            tt_flag,
+            best_move,
+            t.ss[t.ply].eval,
+            alpha,
+            depth,
+            t.ply,
+            pv_node,
+        );
 
         alpha
     }
@@ -552,7 +563,7 @@ impl Position {
 
         // Return early when reaching max depth
         if t.ply >= MAX_DEPTH {
-            return self.evaluate();
+            return self.corrected_eval(t);
         }
 
         // Stop searching if the position is a rule-based draw
@@ -584,7 +595,7 @@ impl Position {
                 let tt_eval = entry.get_eval();
 
                 t.ss[t.ply].eval = if tt_eval == -INFINITY {
-                    self.evaluate()
+                    self.corrected_eval(t)
                 } else {
                     tt_eval
                 };
@@ -596,7 +607,7 @@ impl Position {
                     _ => t.ss[t.ply].eval,
                 }
             } else {
-                t.ss[t.ply].eval = self.evaluate();
+                t.ss[t.ply].eval = self.corrected_eval(t);
                 t.ss[t.ply].eval
             }
         } else {

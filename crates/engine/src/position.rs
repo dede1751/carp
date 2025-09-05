@@ -171,6 +171,13 @@ impl Position {
         (eval * (700 + total_material / 32)) / 1024
     }
 
+    /// Get the history-corrected evaluation for the position.
+    pub fn corrected_eval(&self, thread: &Thread) -> Eval {
+        thread
+            .corrhist
+            .correct_evaluation(&self.board, self.evaluate())
+    }
+
     pub fn nnuebench(&self) -> f64 {
         let runs = 100_000_000;
         let start = Instant::now();

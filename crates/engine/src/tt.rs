@@ -241,7 +241,7 @@ impl TT {
     pub fn prefetch(&self, key: u64) {
         // get a reference to the entry in the table:
         let entry = self.fetch(key);
-    
+
         // prefetch the entry:
         unsafe {
             use std::arch::x86_64::{_MM_HINT_T0, _mm_prefetch};

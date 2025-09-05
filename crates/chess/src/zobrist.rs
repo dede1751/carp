@@ -35,7 +35,10 @@ pub struct Keys {
 }
 
 impl Keys {
-    pub const NULL: Self = Self { zobrist: 0, pawn: 0 };
+    pub const NULL: Self = Self {
+        zobrist: 0,
+        pawn: 0,
+    };
 
     /// Initialize all hashes from a board position.
     pub fn from_board(board: &Board) -> Self {
@@ -113,7 +116,10 @@ mod tests {
 
         assert_eq!(
             Keys::from_board(&b1),
-            Keys { zobrist: 11231077536533049824, pawn: 12477696582342124299 }
+            Keys {
+                zobrist: 11231077536533049824,
+                pawn: 12477696582342124299
+            }
         ); // correct start hash
         assert_eq!(Keys::from_board(&b2), b2.keys); // try_from() builds hash correctly
     }
