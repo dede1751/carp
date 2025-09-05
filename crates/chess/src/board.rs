@@ -363,6 +363,16 @@ impl Board {
         self.piece_at[square.index()].unwrap().get_type()
     }
 
+    /// Returns the piece being captured by the move.
+    #[inline(always)]
+    pub fn get_captured_piece_type(&self, m: Move) -> PieceType {
+        if m.get_type() == MoveType::EnPassant {
+            PieceType::Pawn
+        } else {
+            self.piece_type_at(m.get_tgt())
+        }
+    }
+
     /// Set the piece on the board at the given square (remove first, set later)
     #[inline(always)]
     pub(crate) const fn set_piece(&mut self, piece: Piece, square: Square) {
@@ -385,16 +395,6 @@ impl Board {
         self.side_bb[c] = self.side_bb[c].pop_bit(square);
         self.piece_at[square.index()] = None;
         self.hash.toggle_piece(piece, square);
-    }
-
-    /// Returns the piece being captured by the move.
-    #[inline(always)]
-    pub fn get_captured_piece_type(&self, m: Move) -> PieceType {
-        if m.get_type() == MoveType::EnPassant {
-            PieceType::Pawn
-        } else {
-            self.piece_type_at(m.get_tgt())
-        }
     }
 
     /// Returns true if the square is attacked by at least one enemy piece

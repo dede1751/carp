@@ -21,7 +21,7 @@ impl Board {
     /// Supplying illegal moves will lead to illegal board states.
     pub fn make_move(&self, m: Move) -> Board {
         let mut new = self.clone();
-        
+
         let (us, them) = (self.side, !self.side);
         let (src, tgt) = (m.get_src(), m.get_tgt());
         let piece = self.piece_at(src).unwrap(); // must exist
@@ -116,7 +116,10 @@ impl Board {
             let (rook_src, rook_tgt) = rook_castling_move(tgt);
             new.pop_piece(rook, rook_src);
             new.set_piece(rook, rook_tgt);
-            acc.add_sub_weights((PieceType::Rook, us, rook_tgt), (PieceType::Rook, us, rook_src));
+            acc.add_sub_weights(
+                (PieceType::Rook, us, rook_tgt),
+                (PieceType::Rook, us, rook_src),
+            );
         }
 
         let new_piece = if move_type.is_promotion() {

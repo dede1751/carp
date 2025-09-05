@@ -119,13 +119,13 @@ impl CastlingRights {
     /// Checks whether given color has kingside rights
     #[inline(always)]
     pub const fn has_kingside(self, side: Color) -> bool {
-        self.0 & KINGSIDE[side.index()] != 0
+        self.inner() & KINGSIDE[side.index()] != 0
     }
 
     /// Checks whether given color has queenside rights
     #[inline(always)]
     pub const fn has_queenside(self, side: Color) -> bool {
-        self.0 & QUEENSIDE[side.index()] != 0
+        self.inner() & QUEENSIDE[side.index()] != 0
     }
 
     /// Updates rights according to move.
@@ -146,7 +146,7 @@ impl CastlingRights {
             NO_WQ, ALL, ALL, ALL, NO_W, ALL, ALL, NO_WK,
         ];
 
-        let new = self.0 & CASTLE_MASKS[src.index()] & CASTLE_MASKS[tgt.index()];
+        let new = self.inner() & CASTLE_MASKS[src.index()] & CASTLE_MASKS[tgt.index()];
         CastlingRights(new)
     }
 }
