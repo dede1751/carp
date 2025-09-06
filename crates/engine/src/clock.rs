@@ -6,6 +6,7 @@ use std::{
 };
 use web_time::{Duration, Instant};
 
+use crate::search_params::P;
 use chess::{moves::Move, square::Square};
 
 /// Time Controls supported by the UCI protocol.
@@ -20,7 +21,7 @@ pub enum TimeControl {
         btime: u64,
         winc: Option<u64>,
         binc: Option<u64>,
-        movestogo: Option<u64>,
+        movestogo: Option<usize>,
     },
 }
 
@@ -42,7 +43,7 @@ impl FromStr for TimeControl {
         let mut btime: Option<u64> = None;
         let mut winc: Option<u64> = None;
         let mut binc: Option<u64> = None;
-        let mut movestogo: Option<u64> = None;
+        let mut movestogo: Option<usize> = None;
 
         while let Some(token) = tokens.next() {
             // needed to be able to pass tokens to parse_value
@@ -125,20 +126,27 @@ impl Clock {
                 };
 
                 // When below overhead, make opt and max time 0
-                let time = time - OVERHEAD.min(time);
-                let inc = if time < OVERHEAD { 0 } else { inc };
+                let time = (time - OVERHEAD.min(time)) as f64;
+                let inc = if time < OVERHEAD as f64 {
+                    0.0
+                } else {
+                    inc as f64
+                };
 
                 // This time allocation formula is taken from Svart by Crippa
                 let (opt, max) = if let Some(moves) = movestogo {
-                    let scale = 0.7 / (moves.min(50) as f64);
-                    let eight = 0.8 * time as f64;
+                    let scale = P::tm_mtg_scale() / (moves.min(P::tm_mtg_max_moves()) as f64);
+                    let frac = P::tm_mtg_opt_mult() * time;
+                    let opt_time = (scale * time).min(frac);
 
-                    let opt_time = (scale * time as f64).min(eight);
-                    (opt_time, (5.0 * opt_time).min(eight))
+                    (opt_time, (P::tm_mtg_max_mult() * opt_time).min(frac))
                 } else {
-                    let total = ((time / 20) + (inc * 3 / 4)) as f64;
+                    let total = (time * P::tm_time_mult()) + (inc * P::tm_inc_mult());
 
-                    (0.6 * total, (2.0 * total).min(time as f64))
+                    (
+                        P::tm_opt_mult() * total,
+                        (P::tm_max_mult() * total).min(time),
+                    )
                 };
 
                 (
@@ -214,10 +222,10 @@ impl Clock {
                 let opt_scale = if best_move != Move::NULL && nodes != 0 {
                     let bm_nodes =
                         self.node_count[best_move.get_src().index()][best_move.get_tgt().index()];
-                    let bm_fraction = bm_nodes as f64 / nodes as f64;
+                    let non_bm_fraction = 1.0 - (bm_nodes as f64 / nodes as f64);
 
-                    // Scale factor from Ethereal, scale between 50% and 240%
-                    (0.4 + (1.0 - bm_fraction) * 2.0).max(0.5)
+                    (P::tm_nodes_base() + non_bm_fraction * P::tm_nodes_factor())
+                        .max(P::tm_nodes_min())
                 } else {
                     1.0
                 };

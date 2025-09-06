@@ -124,6 +124,14 @@ macro_rules! tunable_params {
                 #[inline] fn from_store(x: Self::Raw) -> Self { f32::from_bits(x as u32) }
             }
 
+            impl ParamStore for f64 {
+                type Raw = i64;
+                type Atomic = AtomicI64;
+                const TYPE_STRING: &'static str = "float";
+                #[inline] fn to_store(v: Self) -> Self::Raw { v.to_bits() as i64 }
+                #[inline] fn from_store(x: Self::Raw) -> Self { f64::from_bits(x as u64) }
+            }
+
             static PARAMS: P = P::new();
 
             pub struct P {
@@ -221,40 +229,51 @@ macro_rules! tunable_params {
 }
 
 tunable_params![
-    history_max_bonus: i16 = {val=1600, min=800, max=4000, step=200},
-    history_factor: i16 = {val=350, min=100, max=500, step=10},
-    history_offset: i16 = {val=350, min=0, max=1000, step=10},
-    tt_replace_offset: usize = {val=4, min=1, max=8, step=1},
-    tt_pv_scale: usize = {val=2, min=1, max=4, step=1},
-    aspiration_lower_limit: usize = {val=5, min=3, max=8, step=1},
-    aspiration_window: Eval = {val=25, min=1, max=50, step=3},
-    big_delta: Eval = {val=1100, min=800, max=2000, step=100},
+    history_max_bonus: i16 = {val=1602, min=800, max=4000, step=200},
+    history_factor: i16 = {val=364, min=100, max=500, step=10},
+    history_offset: i16 = {val=345, min=0, max=1000, step=10},
+    tt_replace_offset: usize = {val=3, min=1, max=8, step=1},
+    tt_pv_scale: usize = {val=3, min=1, max=4, step=1},
+    aspiration_lower_limit: usize = {val=6, min=3, max=8, step=1},
+    aspiration_window: Eval = {val=19, min=1, max=50, step=3},
+    big_delta: Eval = {val=957, min=800, max=2000, step=100},
     lmr_threshold: usize = {val=2, min=1, max=4, step=1},
     lmr_lower_limit: usize = {val=2, min=2, max=4, step=1},
     se_lower_limit: usize = {val=8, min=6, max=12, step=1},
-    rfp_threshold: usize = {val=8, min=6, max=10, step=1},
-    rfp_margin: Eval = {val=80, min=20, max=160, step=5},
-    rfp_improving_margin: Eval = {val=55, min=0, max=120, step=5},
-    nmp_lower_limit: usize = {val=3, min=2, max=5, step=1},
-    nmp_improving_margin: Eval = {val=70, min=0, max=100, step=10},
+    rfp_threshold: usize = {val=9, min=6, max=10, step=1},
+    rfp_margin: Eval = {val=70, min=20, max=160, step=5},
+    rfp_improving_margin: Eval = {val=66, min=0, max=120, step=5},
+    nmp_lower_limit: usize = {val=2, min=2, max=5, step=1},
+    nmp_improving_margin: Eval = {val=53, min=0, max=100, step=10},
     nmp_base: usize = {val=4, min=2, max=6, step=1},
     nmp_factor: usize = {val=4, min=1, max=6, step=1},
-    iir_lower_limit: usize = {val=4, min=3, max=8, step=1},
-    hlp_threshold: usize = {val=2, min=1, max=4, step=1},
-    hlp_base: i32 = {val=-5000, min=-8000, max=0, step=200},
-    efp_threshold: usize = {val=5, min=3, max=8, step=1},
-    efp_base: Eval = {val=80, min=40, max=140, step=5},
-    efp_margin: Eval = {val=90, min=50, max=160, step=10},
-    lmp_threshold: usize = {val=8, min=4, max=12, step=1},
-    lmp_base: usize = {val=4, min=3, max=12, step=1},
+    iir_lower_limit: usize = {val=3, min=3, max=8, step=1},
+    hlp_threshold: usize = {val=1, min=1, max=4, step=1},
+    hlp_base: i32 = {val=-5191, min=-8000, max=0, step=200},
+    efp_threshold: usize = {val=6, min=3, max=8, step=1},
+    efp_base: Eval = {val=72, min=40, max=140, step=5},
+    efp_margin: Eval = {val=86, min=50, max=160, step=10},
+    lmp_threshold: usize = {val=7, min=4, max=12, step=1},
+    lmp_base: usize = {val=3, min=3, max=12, step=1},
     see_pruning_threshold: usize = {val=9, min=6, max=14, step=1},
-    see_capture_margin: Eval = {val=-20, min=-50, max=0, step=5},
-    see_quiet_margin: Eval = {val=-65, min=-120, max=0, step=10},
+    see_capture_margin: Eval = {val=-19, min=-50, max=0, step=5},
+    see_quiet_margin: Eval = {val=-66, min=-120, max=0, step=10},
     lmr_base: f32 = {val=0.75, min=0.5, max=1.5, step=0.05},
     lmr_factor: f32 = {val=2.0, min=1.0, max=4.0, step=0.1},
-    pawn: Eval = {val=161, min=80, max=250, step=10},
-    knight: Eval = {val=446, min=300, max=600, step=15},
-    bishop: Eval = {val=464, min=300, max=600, step=15},
-    rook: Eval = {val=705, min=500, max=900, step=20},
-    queen: Eval = {val=1322, min=900, max=2000, step=50},
+    pawn: Eval = {val=135, min=80, max=250, step=10},
+    knight: Eval = {val=452, min=300, max=600, step=15},
+    bishop: Eval = {val=474, min=300, max=600, step=15},
+    rook: Eval = {val=691, min=500, max=900, step=20},
+    queen: Eval = {val=1291, min=900, max=2000, step=50},
+    tm_time_mult: f64 = {val=0.05, min=0.02, max=0.2, step=0.002},
+    tm_inc_mult: f64 = {val=0.75, min=0.4, max=1.0, step=0.05},
+    tm_opt_mult: f64 = {val=0.6, min=0.3, max=1.0, step=0.05},
+    tm_max_mult: f64 = {val=2.0, min=0.5, max=10.0, step=0.5},
+    tm_mtg_scale: f64 = {val=0.7, min=0.4, max=1.0, step=0.05},
+    tm_mtg_opt_mult: f64 = {val=0.8, min=0.4, max=1.0, step=0.05},
+    tm_mtg_max_mult: f64 = {val=5.0, min=2.0, max=10.0, step=1.0},
+    tm_mtg_max_moves: usize = {val=50, min=30, max=80, step=5},
+    tm_nodes_min: f64 = {val=0.5, min=0.1, max=0.8, step=0.05},
+    tm_nodes_base: f64 = {val=0.4, min=0.1, max=1.0, step=0.05},
+    tm_nodes_factor: f64 = {val=2.0, min=1.0, max=5.0, step=0.2},
 ];
