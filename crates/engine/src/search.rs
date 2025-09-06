@@ -515,12 +515,7 @@ impl Position {
             move_count += 1;
         }
 
-        if t.stop {
-            return 0; // This should never happen, right? Best not risk...
-        }
-
         alpha = alpha.min(syzygy_max);
-
         let tt_flag = if best_value >= beta {
             TTFlag::Lower
         } else if best_value > old_alpha {
@@ -650,10 +645,6 @@ impl Position {
                     break;
                 }
             }
-        }
-
-        if t.stop {
-            return 0; // This should never happen, right? Best not risk...
         }
 
         // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
