@@ -296,7 +296,7 @@ impl Position {
             let rfp_margin =
                 P::rfp_margin() * (depth as Eval) - P::rfp_improving_margin() * (improving as Eval);
             if depth <= P::rfp_threshold() && eval - rfp_margin >= beta {
-                return beta; // may need to update for fail-soft
+                return eval; // may need to scale this back closer to beta
             }
 
             // Null Move Pruning (reduction value from CounterGO)
