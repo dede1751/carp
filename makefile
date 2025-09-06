@@ -1,5 +1,5 @@
 # Build executables for Carp releases. Base rule is reserved for OpenBench
-EXE := carp # This may be overwritten by OpenBench
+EXE := carp
 _THIS := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 TMP := $(_THIS)/tmp
 
@@ -69,7 +69,6 @@ native: tmp-dir
 
 datagen: tmp-dir
 	$(call DO_PGO,tools,,native,,$(EXE)-datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000)
-	$(RMDIR) $(_THIS)/data
 
 trainer:
 	RUSTFLAGS="-C target-cpu=native" cargo rustc -r -p tools --features train -- --emit link=$(EXE)-trainer$(EXT)
