@@ -12,7 +12,7 @@ use crate::{
     search_tables::PVTable,
     syzygy::probe::{TB, WDL},
     thread::Thread,
-    tt::{TT, TTFlag},
+    tt::{TTFlag, TT},
 };
 use chess::{
     board::{QUIETS, TACTICALS},
@@ -189,13 +189,8 @@ impl Position {
                 let tt_value = entry.get_value(t.ply);
 
                 // TT Cutoffs
-                if !pv_node && tt_depth >= depth {
-                    match tt_flag {
-                        TTFlag::Exact => return tt_value,
-                        TTFlag::Lower if tt_value >= beta => return beta,
-                        TTFlag::Upper if tt_value <= alpha => return alpha,
-                        _ => (),
-                    }
+                if !pv_node && tt_depth >= depth && tt_flag.cutoff(tt_value, alpha, beta) {
+                    return tt_value;
                 }
 
                 tt_move = entry.get_move();
@@ -208,7 +203,7 @@ impl Position {
         }
 
         // Probe the Syzygy tablebases for a WDL result.
-        let mut syzygy_max = INFINITY;
+        let (mut syzygy_max, mut syzygy_min) = (INFINITY, -INFINITY);
         if !ROOT && !in_singular_search {
             if let Some(wdl) = tb.probe_wdl(&self.board) {
                 #[cfg(not(feature = "datagen"))]
@@ -221,10 +216,7 @@ impl Position {
                     WDL::Draw => TTFlag::Exact,
                 };
 
-                if tb_flag == TTFlag::Exact
-                    || (tb_flag == TTFlag::Lower && tb_value >= beta)
-                    || (tb_flag == TTFlag::Upper && tb_value <= alpha)
-                {
+                if tb_flag.cutoff(tb_value, alpha, beta){
                     tt.insert(
                         self.zobrist_hash(),
                         tb_flag,
@@ -241,6 +233,7 @@ impl Position {
 
                 if pv_node && tb_flag == TTFlag::Lower {
                     alpha = alpha.max(tb_value);
+                    syzygy_min = tb_value;
                 }
 
                 if pv_node && tb_flag == TTFlag::Upper {
@@ -303,7 +296,7 @@ impl Position {
             let rfp_margin =
                 P::rfp_margin() * (depth as Eval) - P::rfp_improving_margin() * (improving as Eval);
             if depth <= P::rfp_threshold() && eval - rfp_margin >= beta {
-                return beta;
+                return beta; // may need to update for fail-soft
             }
 
             // Null Move Pruning (reduction value from CounterGO)
@@ -322,7 +315,7 @@ impl Position {
 
                 // cutoff above beta
                 if value >= beta {
-                    return beta;
+                    return value;
                 }
             }
         }
@@ -499,8 +492,6 @@ impl Position {
 
                 if value >= beta {
                     t.update_tables(m, depth, &self.board, quiets_tried, caps_tried);
-                    alpha = beta;
-
                     break;
                 }
             }
@@ -515,7 +506,7 @@ impl Position {
             move_count += 1;
         }
 
-        alpha = alpha.min(syzygy_max);
+        best_value = best_value.clamp(syzygy_min, syzygy_max);
         let tt_flag = if best_value >= beta {
             TTFlag::Lower
         } else if best_value > old_alpha {
@@ -538,13 +529,13 @@ impl Position {
             tt_flag,
             best_move,
             t.ss[t.ply].eval,
-            alpha,
+            best_value,
             depth,
             t.ply,
             pv_node,
         );
 
-        alpha
+        best_value
     }
 
     /// Quiescence search: only search captures to avoid the horizon effect
@@ -571,16 +562,13 @@ impl Position {
         // Probe the TT and if possible get a tt move
         let tt_entry = tt.probe(self.zobrist_hash());
         let mut tt_move = None;
-
         if let Some(entry) = tt_entry {
             let tt_value = entry.get_value(t.ply);
 
-            match entry.get_flag() {
-                TTFlag::Exact => return tt_value,
-                TTFlag::Lower if tt_value >= beta => return beta,
-                TTFlag::Upper if tt_value <= alpha => return alpha,
-                _ => tt_move = entry.get_move(),
+            if entry.get_flag().cutoff(tt_value, alpha, beta) {
+                return tt_value;
             }
+            tt_move = entry.get_move();
         };
 
         // Compute the static eval when not in check
@@ -614,7 +602,7 @@ impl Position {
         let old_alpha = alpha;
         alpha = alpha.max(eval);
         if eval >= beta {
-            return beta;
+            return eval;
         }
 
         let mut best_move = Move::NULL;
@@ -641,7 +629,6 @@ impl Position {
                 }
 
                 if value >= beta {
-                    alpha = beta;
                     break;
                 }
             }
@@ -666,13 +653,13 @@ impl Position {
             tt_flag,
             best_move,
             t.ss[t.ply].eval,
-            alpha,
+            best_value,
             0,
             t.ply,
             false,
         );
 
-        alpha
+        best_value
     }
 }
 
