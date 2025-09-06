@@ -12,7 +12,7 @@ use crate::{
     search_tables::PVTable,
     syzygy::probe::{TB, WDL},
     thread::Thread,
-    tt::{TTFlag, TT},
+    tt::{TT, TTFlag},
 };
 use chess::{
     board::{QUIETS, TACTICALS},
@@ -216,7 +216,7 @@ impl Position {
                     WDL::Draw => TTFlag::Exact,
                 };
 
-                if tb_flag.cutoff(tb_value, alpha, beta){
+                if tb_flag.cutoff(tb_value, alpha, beta) {
                     tt.insert(
                         self.zobrist_hash(),
                         tb_flag,
