@@ -84,7 +84,10 @@ impl std::fmt::Display for Thread {
         };
 
         let time = self.clock.elapsed().as_millis().max(1);
-        let nodes = self.clock.global_nodes();
+        let mut nodes = self.clock.global_nodes();
+        if self.clock.is_nodes_tc() && nodes > 0 {
+            nodes -= 1;
+        }
 
         write!(
             f,
@@ -169,7 +172,7 @@ impl Thread {
         Self::new(Clock::new(
             Arc::new(AtomicBool::new(false)),
             Arc::new(AtomicU64::new(0)),
-            TimeControl::FixedDepth(depth),
+            TimeControl::Depth(depth),
             false,
         ))
     }
@@ -289,6 +292,7 @@ pub struct ThreadPool {
     workers: Vec<Thread>,
     global_stop: Arc<AtomicBool>,
     global_nodes: Arc<AtomicU64>,
+    pub minimal_output: bool,
 }
 
 impl ThreadPool {
@@ -301,6 +305,7 @@ impl ThreadPool {
             workers: Vec::new(),
             global_stop,
             global_nodes,
+            minimal_output: false,
         }
     }
 
@@ -377,17 +382,23 @@ impl ThreadPool {
                     .push(scope.spawn(move || worker_pos.iterative_search::<false>(t, tt, tb)));
             }
 
-            // Run the main search thread with info enabled
-            // Explicitly stop all other workers in case we exceded the depth limit.
-            pos.iterative_search::<true>(&mut self.main_thread, tt, tb);
+            // Run the main search thread with chosen verbosity.
+            if self.minimal_output {
+                pos.iterative_search::<false>(&mut self.main_thread, tt, tb);
+            } else {
+                pos.iterative_search::<true>(&mut self.main_thread, tt, tb);
+            }
+            
+            // Explicitly stop all other workers in case we exceeded the depth limit.
             self.global_stop.store(true, Ordering::SeqCst);
         });
 
         // Take the moves at highest depth, and from those the ones which occur the most
-        let results = iter::once(&self.main_thread).chain(self.workers.iter());
-        let highest_depth = results.clone().max_by_key(|t| t.depth).unwrap().depth;
+        let results: Vec<_> = iter::once(&self.main_thread).chain(self.workers.iter()).collect();
 
-        results
+        let highest_depth = results.iter().max_by_key(|t| t.depth).unwrap().depth;
+        let best_move = results
+            .iter()
             .filter_map(|t| {
                 if t.depth == highest_depth {
                     Some(t.best_move())
@@ -396,7 +407,7 @@ impl ThreadPool {
                 }
             })
             .fold(
-                std::collections::HashMap::<Move, u8>::new(),
+                std::collections::HashMap::<Move, u16>::new(),
                 |mut map, x| {
                     *map.entry(x).or_default() += 1;
                     map
@@ -405,6 +416,18 @@ impl ThreadPool {
             .into_iter()
             .max_by_key(|(_, value)| *value)
             .unwrap()
-            .0 // always at least one search, impossible panic
+            .0;
+        
+        // After search, output a final UCI info string. Print the best thread for better PV.
+        let total_nodes = results.iter().map(|t| t.nodes).sum::<u64>();
+        let best_thread = results
+            .iter()
+            .find(|t| t.best_move() == best_move && t.depth == highest_depth)
+            .unwrap();
+
+        self.global_nodes.store(total_nodes, Ordering::Relaxed);
+        println!("{}", best_thread);
+    
+        best_move
     }
 }

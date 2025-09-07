@@ -15,7 +15,7 @@ use clap::Args;
 use engine::{
     clock::{Clock, TimeControl},
     move_picker::see,
-    position::{ADJ, GameResult, NO_ADJ, Position},
+    position::{GameResult, Position, ADJ, NO_ADJ},
     search_params::*,
     syzygy::probe::TB,
     thread::Thread,
@@ -84,12 +84,12 @@ pub fn run_datagen(options: DatagenOptions) {
     std::thread::scope(|s| {
         for id in 0..options.threads {
             let path = &data_dir;
-            let mut tc = TimeControl::FixedDepth(8);
+            let mut tc = TimeControl::Depth(8);
 
             if let Some(nodes) = options.nodes {
-                tc = TimeControl::FixedNodes(nodes);
+                tc = TimeControl::SoftNodes(nodes);
             } else if let Some(depth) = options.depth {
-                tc = TimeControl::FixedDepth(depth);
+                tc = TimeControl::Depth(depth);
             }
 
             s.spawn(move || {

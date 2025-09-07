@@ -21,7 +21,8 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
 const BASE_OPTIONS: &str = "
 option name Hash type spin default 16 min 1 max 1048576 
-option name Threads type spin default 1 min 1 max 512";
+option name Threads type spin default 1 min 1 max 512
+option name Minimal type check default false";
 
 #[cfg(feature = "syzygy")]
 const SYZYGY_OPTIONS: &str = "
@@ -50,6 +51,7 @@ enum UCICommand {
     Eval,
     NNUEBench,
     PrintParams,
+    Wait,
 }
 
 /// Parse string into uci command
@@ -94,6 +96,7 @@ impl FromStr for UCICommand {
             Some("eval") => Ok(Self::Eval),
             Some("nnuebench") => Ok(Self::NNUEBench),
             Some("params") => Ok(Self::PrintParams),
+            Some("wait") => Ok(Self::Wait),
             _ => Err("Error parsing command!"),
         }
     }
@@ -106,19 +109,28 @@ impl FromStr for UCICommand {
 /// implementation inspired by weiawaga/asymptote
 pub struct UCIReader {
     stop: Arc<AtomicBool>,
+    searching: Arc<AtomicBool>,
     controller_tx: mpsc::Sender<UCICommand>,
+    done_rx: mpsc::Receiver<()>,
 }
 
 impl Default for UCIReader {
     fn default() -> Self {
-        let (tx, rx) = mpsc::channel::<UCICommand>();
+        let (controller_tx, controller_rx) = mpsc::channel::<UCICommand>();
+        let (done_tx, done_rx) = mpsc::channel::<()>(); // <— NEW
+
         let stop = Arc::new(AtomicBool::new(false));
-        let thread_stop = stop.clone();
-        thread::spawn(move || UCIController::run(rx, thread_stop));
+        let searching = Arc::new(AtomicBool::new(false));
+        let (thread_stop, thread_searching) = (stop.clone(), searching.clone());
+        thread::spawn(move || {
+            UCIController::run(controller_rx, done_tx, thread_stop, thread_searching)
+        });
 
         Self {
             stop,
-            controller_tx: tx,
+            searching,
+            controller_tx,
+            done_rx,
         }
     }
 }
@@ -146,7 +158,17 @@ impl UCIReader {
                             println!("readyok");
                         }
                         UCICommand::Stop => self.stop.store(true, Ordering::SeqCst), // strict ordering
+                        UCICommand::Wait => {
+                            // Block until the controller notifies completion.
+                            if self.searching.load(Ordering::SeqCst) {
+                                self.done_rx.recv().unwrap();
+                            }
+                        }
                         UCICommand::Quit => return,
+                        UCICommand::Go(_) => {
+                            self.searching.store(true, Ordering::SeqCst);
+                            self.controller_tx.send(command).unwrap()
+                        }
                         _ => self.controller_tx.send(command).unwrap(),
                     }
                 }
@@ -162,14 +184,19 @@ struct UCIController();
 impl UCIController {
     /// Directly handle the "active" uci commands forwarded by the controller.
     /// Meant to be run on a separate thread, to allow for async search interruption.
-    fn run(rx: mpsc::Receiver<UCICommand>, stop: Arc<AtomicBool>) {
+    fn run(
+        controller_rx: mpsc::Receiver<UCICommand>,
+        done_tx: mpsc::Sender<()>,
+        stop: Arc<AtomicBool>,
+        searching: Arc<AtomicBool>,
+    ) {
         let mut position = Position::default();
         let mut tt = TT::default();
         let mut tb = TB::default();
         let mut syzygy_probe_limit = TB::MAX_MEN;
         let mut thread_pool = ThreadPool::new(stop);
 
-        for command in &rx {
+        for command in &controller_rx {
             match command {
                 UCICommand::UciNewGame => {
                     position = Position::default();
@@ -185,6 +212,11 @@ impl UCIController {
                     "Threads" => match value.parse::<usize>() {
                         Ok(size) if size > 0 => thread_pool.resize(size - 1),
                         _ => eprintln!("Could not parse threads option value!"),
+                    },
+                    "Minimal" => match value.as_str() {
+                        "true" => thread_pool.minimal_output = true,
+                        "false" => thread_pool.minimal_output = false,
+                        _ => eprintln!("Could not parse minimal option value!"),
                     },
                     "SyzygyPath" => tb.activate(&value, syzygy_probe_limit),
                     "SyzygyProbeLimit" => match value.parse::<u8>() {
@@ -213,6 +245,8 @@ impl UCIController {
                         "bestmove {}",
                         thread_pool.deploy_search(&mut position, &tt, tb, tc),
                     );
+                    searching.store(false, Ordering::SeqCst);
+                    done_tx.send(()).unwrap();
                 }
 
                 UCICommand::BulkPerft(d) => {

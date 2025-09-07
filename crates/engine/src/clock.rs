@@ -13,9 +13,10 @@ use chess::{moves::Move, square::Square};
 #[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
 pub enum TimeControl {
     Infinite,
-    FixedDepth(usize),
-    FixedNodes(u64),
-    FixedTime(u64),
+    Depth(usize),
+    Nodes(u64),
+    SoftNodes(u64),
+    Time(u64),
     Variable {
         wtime: u64,
         btime: u64,
@@ -49,9 +50,10 @@ impl FromStr for TimeControl {
             // needed to be able to pass tokens to parse_value
             match token {
                 "infinite" => return Ok(Self::Infinite),
-                "depth" => return Ok(Self::FixedDepth(parse_value(&mut tokens)?)),
-                "nodes" => return Ok(Self::FixedNodes(parse_value(&mut tokens)?)),
-                "movetime" => return Ok(Self::FixedTime(parse_value(&mut tokens)?)),
+                "depth" => return Ok(Self::Depth(parse_value(&mut tokens)?)),
+                "nodes" => return Ok(Self::Nodes(parse_value(&mut tokens)?)),
+                "softnodes" => return Ok(Self::SoftNodes(parse_value(&mut tokens)?)),
+                "movetime" => return Ok(Self::Time(parse_value(&mut tokens)?)),
                 "wtime" => wtime = Some(parse_value::<i64>(&mut tokens)?.max(0) as u64), // handle negative values
                 "btime" => btime = Some(parse_value::<i64>(&mut tokens)?.max(0) as u64),
                 "winc" => winc = Some(parse_value(&mut tokens)?),
@@ -102,7 +104,7 @@ impl Clock {
         white_to_move: bool,
     ) -> Self {
         let (opt_time, max_time) = match time_control {
-            TimeControl::FixedTime(time) => (
+            TimeControl::Time(time) => (
                 Duration::from_millis(time - OVERHEAD.min(time)),
                 Duration::from_millis(time - OVERHEAD.min(time)),
             ),
@@ -169,6 +171,14 @@ impl Clock {
         }
     }
 
+    /// Returns true if the time control is node-based.
+    pub fn is_nodes_tc(&self) -> bool {
+        matches!(
+            self.time_control,
+            TimeControl::Nodes(_) | TimeControl::SoftNodes(_)
+        )
+    }
+
     /// Initialize a spinner clock (used as a placeholder or for SMP workers)
     pub fn spin_clock(global_stop: Arc<AtomicBool>, global_nodes: Arc<AtomicU64>) -> Self {
         Self::new(global_stop, global_nodes, TimeControl::Infinite, false)
@@ -188,9 +198,7 @@ impl Clock {
     /// This should only ever be called before beginning a search.
     pub fn no_search_time(&self) -> bool {
         match self.time_control {
-            TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
-                self.opt_time == Duration::ZERO
-            }
+            TimeControl::Time(_) | TimeControl::Variable { .. } => self.opt_time == Duration::ZERO,
             _ => false,
         }
     }
@@ -214,9 +222,8 @@ impl Clock {
         }
 
         let start = match self.time_control {
-            TimeControl::FixedDepth(d) => depth <= d,
-            TimeControl::FixedNodes(n) => self.global_nodes() <= n,
-            TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
+            TimeControl::Depth(d) => depth <= d,
+            TimeControl::Time(_) | TimeControl::Variable { .. } => {
                 // At the start, we scale the opt time based on how many nodes were dedicated
                 // to searching the best move (on this thread)
                 let opt_scale = if best_move != Move::NULL && nodes != 0 {
@@ -254,16 +261,12 @@ impl Clock {
             if self.global_stop.load(Ordering::SeqCst) {
                 return false;
             }
-
-            #[cfg(feature = "datagen")]
-            // ciekce::rand::gen_very_large()
-            if self.last_nodes >= 8_000_000 {
-                return false;
-            }
         }
 
         let proceed = match self.time_control {
-            TimeControl::FixedTime(_) | TimeControl::Variable { .. } => {
+            TimeControl::Nodes(n) => nodes <= n && self.global_nodes() <= n,
+            TimeControl::SoftNodes(_) => nodes <= 8_000_000,
+            TimeControl::Time(_) | TimeControl::Variable { .. } => {
                 searched < CHECK_FREQUENCY || self.elapsed() < self.max_time
             }
             _ => true,

@@ -37,6 +37,7 @@ define DO_PGO
 	RUSTFLAGS="-C target-cpu=$(3)" cargo rustc -r -p $(1) $(if $(2),--features $(2),) -- $(if $(4),-C target-feature=$(4)) -C profile-use=$(TMP)/merged.profdata --emit link=$(5)
 
 	$(RMDIR) $(TMP)/*
+	$(RMDIR) $(TMP)
 	$(RMFILE) *.pdb
 	$(RMFILE) pgo
 endef
@@ -48,13 +49,13 @@ rule:
 
 ################################### RELEASE BUILDS ################################################
 
-x86-64-v1 apple-m1 apple-m2 apple-m3 apple-m4: tmp-dir
+x86-64-v1 apple-m1 apple-m2 apple-m3 apple-m4: tmp
 	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(EXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
-x86-64-v2 x86-64-v3: tmp-dir
+x86-64-v2 x86-64-v3: tmp
 	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(EXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
-x86-64-v4: tmp-dir
+x86-64-v4: tmp
 	$(call DO_PGO,engine --bins,syzygy,${@},+crt-static,$(EXE)-$(VER)-$@$(EXT),./pgo bench 16)
 
 release-x86: x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4
@@ -64,10 +65,10 @@ release-x86: x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4
 bench:
 	RUSTFLAGS="-C target-cpu=native" cargo r -r -p engine -- bench
 
-native: tmp-dir
+native: tmp
 	$(call DO_PGO,engine --bins,syzygy,native,,$(EXE)-$(VER)-native$(EXT),./pgo bench 16)
 
-datagen: tmp-dir
+datagen: tmp
 	$(call DO_PGO,tools,,native,,$(EXE)-datagen$(EXT),./pgo datagen -g 256 -t 32 -n 5000)
 
 trainer:
@@ -76,7 +77,7 @@ trainer:
 ###################################################################################################
 
 .PHONY: rule x86-64-v1 x86-64-v2 x86-64-v3 x86-64-v4 apple-m1 apple-m2 apple-m3 apple-m4 \
-	release-x86 native syzygy datagen trainer tmp-dir
+	release-x86 native syzygy datagen trainer
 
-tmp-dir:
+tmp:
 	$(MKDIR) -p $(TMP)

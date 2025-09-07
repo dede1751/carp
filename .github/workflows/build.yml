@@ -1,4 +1,4 @@
-name: Build
+name: Build and Test
 
 on:
   push:
@@ -17,10 +17,22 @@ jobs:
     steps:
 
     - name: Checkout Code
-      uses: actions/checkout@v3
-  
+      uses: actions/checkout@v5
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Wasm-Pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -y
+
     - name: Build for OpenBench
       run: make
 
-    - name: Test
-      run: cargo test --verbose --release -p engine -p chess
+    - name: Build for WASM
+      run: wasm-pack build crates/wasm --target web
+
+    - name: Test Chess
+      run: cargo test --verbose --release -p chess
+
+    - name: Test Engine
+      run: cargo test --verbose --release -p engine
