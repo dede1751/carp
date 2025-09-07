@@ -76,6 +76,16 @@ impl<const QUIETS: bool> MovePicker<QUIETS> {
         }
     }
 
+    /// Get the length of the move list
+    pub fn len(&self) -> usize {
+        self.move_list.len()
+    }
+
+    /// Check if the move list is empty
+    pub fn is_empty(&self) -> bool {
+        self.move_list.is_empty()
+    }
+
     /// Fetch the next best move from the move list along with a move score.
     /// Note that most of the logic here is "fall through" where a stage may quietly pass without
     /// yielding a move (e.g. all scoring stages)

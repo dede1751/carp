@@ -338,6 +338,7 @@ impl Position {
             }
         };
 
+        let only_move = picker.len() == 1;
         let old_alpha = alpha;
         let mut best_move = Move::NULL;
         let mut best_value = -INFINITY;
@@ -353,7 +354,6 @@ impl Position {
             P::see_capture_margin() * (depth * depth) as Eval,
             P::see_quiet_margin() * depth as Eval,
         ];
-
         while let Some((m, s)) = picker.next(&self.board, t) {
             // Skip SE excluded move
             if excluded == Some(m) {
@@ -404,16 +404,21 @@ impl Position {
             // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
             if possible_singularity && s == TT_SCORE {
-                let tt_value = tt_entry.unwrap().get_value(t.ply); // Can't panic
-                let se_beta = (tt_value - 2 * depth as Eval).max(-INFINITY);
-                let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
-
-                t.ss[t.ply].excluded = Some(m);
-                let value = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
-                t.ss[t.ply].excluded = None;
-
-                if value < se_beta {
+                if only_move {
+                    // Avoid doing a verification search when there is only one legal move.
                     ext_depth += 1;
+                } else {
+                    let tt_value = tt_entry.unwrap().get_value(t.ply); // Can't panic
+                    let se_beta = (tt_value - 2 * depth as Eval).max(-INFINITY);
+                    let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
+
+                    t.ss[t.ply].excluded = Some(m);
+                    let value = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
+                    t.ss[t.ply].excluded = None;
+
+                    if value < se_beta {
+                        ext_depth += 1;
+                    }
                 }
             }
 
@@ -507,6 +512,10 @@ impl Position {
         }
 
         best_value = best_value.clamp(syzygy_min, syzygy_max);
+        if in_singular_search {
+            return best_value;
+        }
+
         let tt_flag = if best_value >= beta {
             TTFlag::Lower
         } else if best_value > old_alpha {
@@ -515,8 +524,7 @@ impl Position {
             TTFlag::Upper
         };
 
-        if !(in_singular_search
-            || in_check
+        if !(in_check
             || !best_move.get_type().is_quiet()
             || (tt_flag == TTFlag::Lower && best_value <= eval)
             || (tt_flag == TTFlag::Upper && best_value >= eval))
