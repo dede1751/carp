@@ -69,7 +69,7 @@ As of Carp 2.0, NNUE has completely replaced the old HCE.
 ## Implemented optimizations
 
 * Fully legal move generation (~435 MNodes/s on a 7950x) with Fixed Shift Black Magic Bitboards
-* Fail-Hard Negamax + Quiescence
+* Fail-Soft Negamax + Quiescence
 * Iterative Deepening with Aspiration Windows
 * Move Ordering with a staged sorter:
   - MVV + Capture History with Threshold Static Exchange Evaluation

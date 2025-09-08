@@ -189,13 +189,8 @@ impl Position {
                 let tt_value = entry.get_value(t.ply);
 
                 // TT Cutoffs
-                if !pv_node && tt_depth >= depth {
-                    match tt_flag {
-                        TTFlag::Exact => return tt_value,
-                        TTFlag::Lower if tt_value >= beta => return beta,
-                        TTFlag::Upper if tt_value <= alpha => return alpha,
-                        _ => (),
-                    }
+                if !pv_node && tt_depth >= depth && tt_flag.cutoff(tt_value, alpha, beta) {
+                    return tt_value;
                 }
 
                 tt_move = entry.get_move();
@@ -208,7 +203,7 @@ impl Position {
         }
 
         // Probe the Syzygy tablebases for a WDL result.
-        let mut syzygy_max = INFINITY;
+        let (mut syzygy_max, mut syzygy_min) = (INFINITY, -INFINITY);
         if !ROOT && !in_singular_search {
             if let Some(wdl) = tb.probe_wdl(&self.board) {
                 #[cfg(not(feature = "datagen"))]
@@ -221,10 +216,7 @@ impl Position {
                     WDL::Draw => TTFlag::Exact,
                 };
 
-                if tb_flag == TTFlag::Exact
-                    || (tb_flag == TTFlag::Lower && tb_value >= beta)
-                    || (tb_flag == TTFlag::Upper && tb_value <= alpha)
-                {
+                if tb_flag.cutoff(tb_value, alpha, beta) {
                     tt.insert(
                         self.zobrist_hash(),
                         tb_flag,
@@ -241,6 +233,7 @@ impl Position {
 
                 if pv_node && tb_flag == TTFlag::Lower {
                     alpha = alpha.max(tb_value);
+                    syzygy_min = tb_value;
                 }
 
                 if pv_node && tb_flag == TTFlag::Upper {
@@ -303,7 +296,7 @@ impl Position {
             let rfp_margin =
                 P::rfp_margin() * (depth as Eval) - P::rfp_improving_margin() * (improving as Eval);
             if depth <= P::rfp_threshold() && eval - rfp_margin >= beta {
-                return beta;
+                return eval; // may need to scale this back closer to beta
             }
 
             // Null Move Pruning (reduction value from CounterGO)
@@ -322,7 +315,7 @@ impl Position {
 
                 // cutoff above beta
                 if value >= beta {
-                    return beta;
+                    return value;
                 }
             }
         }
@@ -345,6 +338,7 @@ impl Position {
             }
         };
 
+        let only_move = picker.len() == 1;
         let old_alpha = alpha;
         let mut best_move = Move::NULL;
         let mut best_value = -INFINITY;
@@ -360,7 +354,6 @@ impl Position {
             P::see_capture_margin() * (depth * depth) as Eval,
             P::see_quiet_margin() * depth as Eval,
         ];
-
         while let Some((m, s)) = picker.next(&self.board, t) {
             // Skip SE excluded move
             if excluded == Some(m) {
@@ -411,16 +404,21 @@ impl Position {
             // Failing below the reduced beta means no other move is any good.
             let mut ext_depth = depth;
             if possible_singularity && s == TT_SCORE {
-                let tt_value = tt_entry.unwrap().get_value(t.ply); // Can't panic
-                let se_beta = (tt_value - 2 * depth as Eval).max(-INFINITY);
-                let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
-
-                t.ss[t.ply].excluded = Some(m);
-                let value = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
-                t.ss[t.ply].excluded = None;
-
-                if value < se_beta {
+                if only_move {
+                    // Avoid doing a verification search when there is only one legal move.
                     ext_depth += 1;
+                } else {
+                    let tt_value = tt_entry.unwrap().get_value(t.ply); // Can't panic
+                    let se_beta = (tt_value - 2 * depth as Eval).max(-INFINITY);
+                    let se_depth = (depth - 1) / 2; // depth is always > 0 so this is safe
+
+                    t.ss[t.ply].excluded = Some(m);
+                    let value = self.zw_search(t, tt, tb, opv, se_beta, se_depth, cutnode);
+                    t.ss[t.ply].excluded = None;
+
+                    if value < se_beta {
+                        ext_depth += 1;
+                    }
                 }
             }
 
@@ -499,8 +497,6 @@ impl Position {
 
                 if value >= beta {
                     t.update_tables(m, depth, &self.board, quiets_tried, caps_tried);
-                    alpha = beta;
-
                     break;
                 }
             }
@@ -515,11 +511,10 @@ impl Position {
             move_count += 1;
         }
 
-        if t.stop {
-            return 0; // This should never happen, right? Best not risk...
+        best_value = best_value.clamp(syzygy_min, syzygy_max);
+        if in_singular_search {
+            return best_value;
         }
-
-        alpha = alpha.min(syzygy_max);
 
         let tt_flag = if best_value >= beta {
             TTFlag::Lower
@@ -529,8 +524,7 @@ impl Position {
             TTFlag::Upper
         };
 
-        if !(in_singular_search
-            || in_check
+        if !(in_check
             || !best_move.get_type().is_quiet()
             || (tt_flag == TTFlag::Lower && best_value <= eval)
             || (tt_flag == TTFlag::Upper && best_value >= eval))
@@ -543,13 +537,13 @@ impl Position {
             tt_flag,
             best_move,
             t.ss[t.ply].eval,
-            alpha,
+            best_value,
             depth,
             t.ply,
             pv_node,
         );
 
-        alpha
+        best_value
     }
 
     /// Quiescence search: only search captures to avoid the horizon effect
@@ -576,16 +570,13 @@ impl Position {
         // Probe the TT and if possible get a tt move
         let tt_entry = tt.probe(self.zobrist_hash());
         let mut tt_move = None;
-
         if let Some(entry) = tt_entry {
             let tt_value = entry.get_value(t.ply);
 
-            match entry.get_flag() {
-                TTFlag::Exact => return tt_value,
-                TTFlag::Lower if tt_value >= beta => return beta,
-                TTFlag::Upper if tt_value <= alpha => return alpha,
-                _ => tt_move = entry.get_move(),
+            if entry.get_flag().cutoff(tt_value, alpha, beta) {
+                return tt_value;
             }
+            tt_move = entry.get_move();
         };
 
         // Compute the static eval when not in check
@@ -619,7 +610,7 @@ impl Position {
         let old_alpha = alpha;
         alpha = alpha.max(eval);
         if eval >= beta {
-            return beta;
+            return eval;
         }
 
         let mut best_move = Move::NULL;
@@ -646,14 +637,9 @@ impl Position {
                 }
 
                 if value >= beta {
-                    alpha = beta;
                     break;
                 }
             }
-        }
-
-        if t.stop {
-            return 0; // This should never happen, right? Best not risk...
         }
 
         // Cosmo (Viridithas) trick: when in check and all moves are bad, return a "pseudo-mate" score
@@ -675,13 +661,13 @@ impl Position {
             tt_flag,
             best_move,
             t.ss[t.ply].eval,
-            alpha,
+            best_value,
             0,
             t.ply,
             false,
         );
 
-        alpha
+        best_value
     }
 }
 
